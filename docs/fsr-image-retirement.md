@@ -1,6 +1,6 @@
 # Native FSR image retirement
 
-Native FSR upscaling and interpolation keep image bundles from an earlier size
+Native FSR upscaling, interpolation and shared input preparation keep resources from an earlier size
 until the GPU finishes their recorded uses. CPU present age cannot establish GPU
 completion: GPU waits are optional, a stopped logical queue can resume after its
 old submission value has completed, and post-present interpolation is submitted
@@ -18,7 +18,12 @@ The internal FSR output is copied into the game's image (upscaling) or an OutSet
 image (interpolation) before handoff. The display worker uses the latter, not the
 FSR internal images. Its separate drain/idle policy remains unchanged. This fix
 also does not address FSR uniform-buffer reuse, external SDK context ownership,
-other renderer allocations or device recovery.
+other renderer allocations or device recovery. Input preparation also retains cached
+depth views by submission completion when the texture generation changes.
+
+`tests/test_fsr_input_retirement.py` executes the input preparation retirement
+functions with delayed completion, immediate completion, out-of-order tickets and
+an unavailable timeline. The old four-CPU-frame policy fails the delayed case.
 
 `tests/test_fsr_image_retirement.py` compiles the actual image ownership functions
 from both backends, the retirement/progress helpers, and the recording submission,
