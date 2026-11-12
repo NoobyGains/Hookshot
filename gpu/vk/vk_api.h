@@ -54,6 +54,9 @@ enum { HOS_OPT_SKIP_OPENING = 52 };
 /* The Auto run row (Controls): 0 Off, 1 On, A (the sprint) kept held after it is let go (host/auto_run.h,
    host/nn_hid.c). */
 enum { HOS_OPT_AUTO_RUN = 55 };
+/* (HOS_OPT_FPS_CAP, 53: the Game frame rate cap row, host/nn_vi.c fps_refresh reads it at each present: 0 the console's 60, then
+   90, 120, 144, 165, 240, 6 Uncapped; a change applies in play) */
+enum { HOS_OPT_FPS_CAP = 53 };
 
 /* (hookshot) the controls' names (host/nn_hid.c, host/pad_sdl.c, the pad_ and key_ lines of hookshot_options.ini):
    the Switch's buttons in nn::hid's bit order, and a gamepad's inputs by position (the bottom face button first:
