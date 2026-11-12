@@ -1252,6 +1252,7 @@ void replay(VkCommandBuffer& cmd, NvnState& s, const uint8_t* p, const uint8_t* 
             const bool samples = (uint32_t)c.type == NVN_COUNTER_TYPE_SAMPLES_PASSED;
             // (timestamps on the guest tick clock in counter ticks (19.2 MHz, nvnDeviceGetTimestampInNanoseconds
             // converts), the replay's time; occlusion counts grow with every draw, as in the WebGPU renderer)
+            // doc: docs/design.md#4-the-lessons-from-mkw-as-rules-here (rule 4: GPU timestamps drive dynamic resolution)
             // (the GPU's time as the game measures it: from the frame's present on, at RX_VK_TS_SCALE (default 0.1)
             // times the real clock. The reports are written as the replay records them, so the real clock gave the
             // replay's time and its lag, not the GPU's: MKW's dynamic resolution moved every frame (each new size a
@@ -2706,6 +2707,7 @@ void sync_watch() {
     }
 }
 
+// doc: docs/design.md#4-the-lessons-from-mkw-as-rules-here (rule 1: cross-queue event waits are honoured)
 /// A submit on the replay thread: replayed as far as its waits allow, or (its queue stopped) after its queue's
 void submit_job(std::vector<uint64_t>& handles, uint64_t value, uint64_t queue) {
     const bool may_stop = event_waits_on() && !dump_on();
@@ -5395,6 +5397,7 @@ bool register_at_once() {
     static const bool v = env_on("RX_VK_REGISTER_AT_ONCE");
     return v;
 }
+// doc: docs/design.md#4-the-lessons-from-mkw-as-rules-here (rule 3: registrations are queued in order with the submits)
 void register_texture_queued(int id, const nvn_tex* t, const nvn_view* v) {
     if (!async_on() || register_at_once()) return register_texture_locked(id, t, v);
     if (id < 0 || id >= (1 << 20) || !t) return;
