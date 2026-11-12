@@ -65,6 +65,7 @@
 #include "translate_wait.h"
 #include "quick_pipe.h"
 
+#include "vk_builtin_spv.h"   // (RX_VK_SHADER_DIR)
 #include "shaders/clear_f_frag_spv.h"
 #include "shaders/clear_i_frag_spv.h"
 #include "shaders/clear_u_frag_spv.h"
@@ -5685,15 +5686,17 @@ VkPipeline clear_pipeline(const Targets& at, int index, uint32_t mask, int kind)
         if (lr != VK_SUCCESS || !made) return fail("pipeline layout", lr);
         clear_layout = made;
     }
-    const uint32_t* fw = kind == 1 ? CLEAR_U_FRAG_SPV : kind == 2 ? CLEAR_I_FRAG_SPV : CLEAR_F_FRAG_SPV;
-    const size_t fn = (kind == 1 ? sizeof CLEAR_U_FRAG_SPV : kind == 2 ? sizeof CLEAR_I_FRAG_SPV : sizeof CLEAR_F_FRAG_SPV) / 4;
+    const auto fs = kind == 1 ? BUILTIN_SPV(CLEAR_U_FRAG_SPV) : kind == 2 ? BUILTIN_SPV(CLEAR_I_FRAG_SPV) : BUILTIN_SPV(CLEAR_F_FRAG_SPV);
+    const uint32_t* fw = fs.code;
+    const size_t fn = fs.size / 4;
     const std::vector<uint32_t> frag = spirv_location(fw, fn, (uint32_t)index);
     VkShaderModuleCreateInfo mi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
     VkShaderModule vm = VK_NULL_HANDLE, fm = VK_NULL_HANDLE;
     VkResult vr = VK_ERROR_UNKNOWN, fr = VK_ERROR_UNKNOWN;
     {
         IntelDriverGate gate;   // (released before cached_graphics, which takes the same lock)
-        mi.codeSize = sizeof CLEAR_VERT_SPV, mi.pCode = CLEAR_VERT_SPV;
+        const auto spv = BUILTIN_SPV(CLEAR_VERT_SPV);
+        mi.codeSize = spv.size, mi.pCode = spv.code;
         vr = guarded_shader_module(&mi, &vm);
         if (vr != VK_SUCCESS || !vm) return fail("vertex module", vr);
         mi.codeSize = frag.size() * 4, mi.pCode = frag.data();
@@ -7738,7 +7741,8 @@ void mask_stabilize(VkCommandBuffer cmd, Texture* tex, uint32_t level, uint32_t 
         pi.setLayoutCount = 1, pi.pSetLayouts = &set, pi.pushConstantRangeCount = 1, pi.pPushConstantRanges = &pr;
         vkCreatePipelineLayout(dev.device, &pi, nullptr, &layout);
         VkShaderModuleCreateInfo mi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-        mi.codeSize = sizeof SHADOW_STAB_COMP_SPV, mi.pCode = SHADOW_STAB_COMP_SPV;
+        const auto spv = BUILTIN_SPV(SHADOW_STAB_COMP_SPV);
+        mi.codeSize = spv.size, mi.pCode = spv.code;
         VkShaderModule m{};
         IntelDriverGate gate;
         if (guarded_shader_module(&mi, &m) != VK_SUCCESS) m = VK_NULL_HANDLE;
@@ -8721,7 +8725,8 @@ bool movie_upscale(VkCommandBuffer cmd, uint32_t in_handle, uint32_t out_handle,
         pi.setLayoutCount = 1, pi.pSetLayouts = &set, pi.pushConstantRangeCount = 1, pi.pPushConstantRanges = &pr;
         vkCreatePipelineLayout(dev.device, &pi, nullptr, &layout);
         VkShaderModuleCreateInfo mi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-        mi.codeSize = sizeof MOVIE_UPSCALE_COMP_SPV, mi.pCode = MOVIE_UPSCALE_COMP_SPV;
+        const auto spv = BUILTIN_SPV(MOVIE_UPSCALE_COMP_SPV);
+        mi.codeSize = spv.size, mi.pCode = spv.code;
         VkShaderModule m{};
         IntelDriverGate gate;
         if (guarded_shader_module(&mi, &m) != VK_SUCCESS) m = VK_NULL_HANDLE;
@@ -8979,7 +8984,8 @@ static bool typed_upscale(VkCommandBuffer cmd, VkImageView input_view, VkImageVi
         pi.setLayoutCount = 1, pi.pSetLayouts = &set, pi.pushConstantRangeCount = 1, pi.pPushConstantRanges = &pr;
         vkCreatePipelineLayout(dev.device, &pi, nullptr, &layout);
         VkShaderModuleCreateInfo mi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-        mi.codeSize = sizeof TAAU_UPSCALE_COMP_SPV, mi.pCode = TAAU_UPSCALE_COMP_SPV;
+        const auto spv = BUILTIN_SPV(TAAU_UPSCALE_COMP_SPV);
+        mi.codeSize = spv.size, mi.pCode = spv.code;
         VkShaderModule m{};
         IntelDriverGate gate;
         if (guarded_shader_module(&mi, &m) != VK_SUCCESS) m = VK_NULL_HANDLE;

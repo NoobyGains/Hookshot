@@ -28,6 +28,7 @@
 #include "shaders/opennr_khr_spv.h"
 #include "shaders/opennr_post_comp_spv.h"
 #include "shaders/opennr_pre_comp_spv.h"
+#include "vk_builtin_spv.h"   // (RX_VK_SHADER_DIR)
 #include "vk_fsr3_inputs.h"   // (the scene's motion, for the temporal path)
 #include "vk_menu.h"
 #include "vk_paths.h"
@@ -257,8 +258,8 @@ bool make_passes(State& s) {
     pi.pushConstantRangeCount = 1;
     pi.pPushConstantRanges = &range;
     if (vkCreatePipelineLayout(dev.device, &pi, nullptr, &s.layout) != VK_SUCCESS) return false;
-    s.pre = pipeline(OPENNR_PRE_COMP_SPV, sizeof OPENNR_PRE_COMP_SPV, s.layout);
-    s.post = pipeline(OPENNR_POST_COMP_SPV, sizeof OPENNR_POST_COMP_SPV, s.layout);
+    s.pre = pipeline(BUILTIN_SPV_ARGS(OPENNR_PRE_COMP_SPV), s.layout);
+    s.post = pipeline(BUILTIN_SPV_ARGS(OPENNR_POST_COMP_SPV), s.layout);
     VkSamplerCreateInfo si{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     si.magFilter = si.minFilter = VK_FILTER_LINEAR;
     si.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;

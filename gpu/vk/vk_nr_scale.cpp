@@ -4,6 +4,7 @@
 #include <mutex>
 
 #include "nr_plan.h"
+#include "vk_builtin_spv.h"   // (RX_VK_SHADER_DIR)
 #include "shaders/nr_detail_comp_spv.h"
 #include "vk_work.h"   // (after the others: its commands through the recorder, counted as work for full_barrier)
 
@@ -113,8 +114,9 @@ bool make_pass(State& s) {
     pi.pSetLayouts = &s.set_layout;
     if (vkCreatePipelineLayout(dev.device, &pi, nullptr, &s.layout) != VK_SUCCESS) return false;
     VkShaderModuleCreateInfo mi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-    mi.codeSize = sizeof NR_DETAIL_COMP_SPV;
-    mi.pCode = NR_DETAIL_COMP_SPV;
+    const auto spv = BUILTIN_SPV(NR_DETAIL_COMP_SPV);
+    mi.codeSize = spv.size;
+    mi.pCode = spv.code;
     VkShaderModule module{};
     if (vkCreateShaderModule(dev.device, &mi, nullptr, &module) != VK_SUCCESS) return false;
     VkComputePipelineCreateInfo ci{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};

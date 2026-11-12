@@ -24,6 +24,7 @@
 #include "vk_gprof.h"   // (RX_VK_PASS_TIMING: a span per pass, so the report names them)
 #include "vk_texture.h"
 
+#include "vk_builtin_spv.h"   // (RX_VK_SHADER_DIR)
 #include "shaders/fsr3_fi_disocclusion_mask_comp_spv.h"
 #include "shaders/fsr3_fi_game_motion_vector_field_comp_spv.h"
 #include "shaders/fsr3_fi_game_vector_field_inpainting_pyramid_comp_spv.h"
@@ -70,6 +71,7 @@ struct PassInfo {
     const Bind* binds;
     size_t bind_count;
     bool sampler;   ///< declares the linear clamp sampler at binding 1000
+    const char* spv_name;   ///< the array's, for builtin_spv (RX_VK_SHADER_DIR)
 };
 
 // Optical flow. Seven passes, no samplers.
@@ -110,7 +112,7 @@ constexpr Bind FI_INPAINTING_PYRAMID[]{{0, T},  {1, B},  {2, I},  {3, I},  {4, I
 /// declare, so the output jumps to 7.
 constexpr Bind FI_INPAINTING[]{{0, T}, {1, T}, {2, T}, {3, T}, {7, I}, {8, U}};
 
-#define PASS(n, spv, b, s) PassInfo{n, spv, sizeof spv, b, sizeof b / sizeof b[0], s}
+#define PASS(n, spv, b, s) PassInfo{n, spv, sizeof spv, b, sizeof b / sizeof b[0], s, #spv}
 
 /// The passes, in the order PassId numbers them.
 const PassInfo PASSES[]{
@@ -438,8 +440,9 @@ bool make_pipeline(Pipeline& p, const PassInfo& info) {
     pi.setLayoutCount = 1, pi.pSetLayouts = &p.set;
     if (vkCreatePipelineLayout(dev.device, &pi, nullptr, &p.layout) != VK_SUCCESS) return false;
     VkShaderModuleCreateInfo mi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-    mi.codeSize = info.spv_bytes;
-    mi.pCode = info.spv;
+    const auto spv = builtin_spv(info.spv_name, info.spv, info.spv_bytes);
+    mi.codeSize = spv.size;
+    mi.pCode = spv.code;
     VkShaderModule m = VK_NULL_HANDLE;
     VkResult made;
     {

@@ -57,7 +57,7 @@ class PostTests(unittest.TestCase):
         cpp = re.search(r"struct ScalePush \{(.*?)\};", self.post, re.S).group(1)
         self.assertEqual(fields(glsl), fields(cpp))
         self.assertTrue(all(kind in ("int", "float") for kind, _ in fields(cpp)), "4-byte scalars only: no padding")
-        self.assertEqual(len(re.findall(r"FG_SCALE(?:_PQ)?_COMP_SPV, sizeof FG_SCALE(?:_PQ)?_COMP_SPV, \{S, I, S\}, sizeof\(ScalePush\)\)",
+        self.assertEqual(len(re.findall(r"BUILTIN_SPV_ARGS\(FG_SCALE(?:_PQ)?_COMP_SPV\), \{S, I, S\}, sizeof\(ScalePush\)\)",
                                         self.fg)), 2, "both pipelines made with ScalePush's size")
         self.assertIn("ScalePush pc{", block(self.fg, "VkImage framegen_scale("))
 

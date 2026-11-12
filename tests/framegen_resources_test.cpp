@@ -26,6 +26,8 @@ struct Options { int framegen = 2; } opts;
 auto vkCmdPushDescriptorSetKHR = reinterpret_cast<PFN_vkCmdPushDescriptorSetKHR>(uintptr_t(1));
 constexpr uint32_t FG_COPY_COMP_SPV[] = {0}, FG_LUMA_COMP_SPV[] = {0}, FG_FLOW_COMP_SPV[] = {0},
                    FG_MEDIAN_COMP_SPV[] = {0}, FG_SYNTH_COMP_SPV[] = {0}, FG_SCALE_COMP_SPV[] = {0};
+// (gpu/vk/vk_builtin_spv.h's lookup as with RX_VK_SHADER_DIR unset: the compiled-in words themselves)
+#define BUILTIN_SPV_ARGS(words) words, sizeof words
 /* ACTUAL_STRUCTS */
 int multiplier() { return opts.framegen; }
 int display_refresh_mhz() { return 60000; }

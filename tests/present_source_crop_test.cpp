@@ -25,6 +25,8 @@ struct { int framegen = 2, hdr_white = 200, hdr_peak = 1000, hdr_contrast = 100;
 struct { bool push_descriptor = true; std::mutex present_mu; } dev;
 constexpr bool vkCmdPushDescriptorSetKHR = true;
 constexpr uint32_t HDR_ENCODE_COMP_SPV[] = {0};
+// (gpu/vk/vk_builtin_spv.h's lookup as with RX_VK_SHADER_DIR unset: the compiled-in words themselves)
+#define BUILTIN_SPV_ARGS(words) words, sizeof words
 bool init_scale() { std::abort(); }
 bool make_pipe(Pipe&, const uint32_t*, size_t, std::initializer_list<VkDescriptorType>, int) { std::abort(); }
 void logf(const char*, ...) { std::abort(); }   // (framegen_record logs only when the frames asked change: not here)

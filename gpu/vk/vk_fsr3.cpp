@@ -27,6 +27,7 @@
 #include "vk_texture.h"
 #include "upscaler_rows.h"
 
+#include "vk_builtin_spv.h"   // (RX_VK_SHADER_DIR)
 #include "shaders/dlss_out_comp_spv.h"   // (the network's output from a picture: its encoding squared back, as for DLSS)
 #include "shaders/fsr3_accumulate_comp_spv.h"
 #include "shaders/fsr3_luma_instability_comp_spv.h"
@@ -56,6 +57,7 @@ struct PassInfo {
     size_t spv_bytes;
     const Kind* bindings;
     size_t binding_count;
+    const char* spv_name;   ///< the array's, for builtin_spv (RX_VK_SHADER_DIR)
 };
 
 constexpr Kind PREPARE_INPUTS[]{T, T, T, I, I, I, I, I, U};
@@ -66,7 +68,7 @@ constexpr Kind PREPARE_REACTIVITY[]{T, T, T, T, T, T, T, T, T, I, I, I, U};
 constexpr Kind LUMA_INSTABILITY[]{T, T, T, T, T, T, T, I, I, U};
 constexpr Kind ACCUMULATE[]{T, T, T, T, T, T, T, T, T, I, I, I, U};
 
-#define PASS(n, spv, b) PassInfo{n, spv, sizeof spv, b, sizeof b / sizeof b[0]}
+#define PASS(n, spv, b) PassInfo{n, spv, sizeof spv, b, sizeof b / sizeof b[0], #spv}
 
 /// The passes, in the order PassId numbers them. The two _nowave pyramids are alternatives to the two before them, for
 /// devices without the subgroup operations the single-pass downsampler wants. FSR's own sharpening (accumulate_sharpen and
@@ -287,8 +289,9 @@ bool make_pipeline(Pipeline& p, const PassInfo& info) {
     pi.setLayoutCount = 1, pi.pSetLayouts = &p.set;
     if (vkCreatePipelineLayout(dev.device, &pi, nullptr, &p.layout) != VK_SUCCESS) return false;
     VkShaderModuleCreateInfo mi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-    mi.codeSize = info.spv_bytes;
-    mi.pCode = info.spv;
+    const auto spv = builtin_spv(info.spv_name, info.spv, info.spv_bytes);
+    mi.codeSize = spv.size;
+    mi.pCode = spv.code;
     VkShaderModule m = VK_NULL_HANDLE;
     {
         IntelDriverGate gate;   // (released before shared_compute_pipeline, which takes the same lock)
@@ -749,7 +752,8 @@ bool make_out_pipeline() {
     pi.setLayoutCount = 1, pi.pSetLayouts = &o.set, pi.pushConstantRangeCount = 1, pi.pPushConstantRanges = &pr;
     if (vkCreatePipelineLayout(dev.device, &pi, nullptr, &o.layout) != VK_SUCCESS) return false;
     VkShaderModuleCreateInfo mi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-    mi.codeSize = sizeof DLSS_OUT_COMP_SPV, mi.pCode = DLSS_OUT_COMP_SPV;
+    const auto spv = BUILTIN_SPV(DLSS_OUT_COMP_SPV);
+    mi.codeSize = spv.size, mi.pCode = spv.code;
     VkShaderModule m = VK_NULL_HANDLE;
     {
         IntelDriverGate gate;   // (released before shared_compute_pipeline, which takes the same lock)

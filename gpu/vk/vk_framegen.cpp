@@ -34,6 +34,7 @@
 #include "vk_present_rect.h"
 #include "vk_texture.h"
 
+#include "vk_builtin_spv.h"   // (RX_VK_SHADER_DIR)
 #include "shaders/fg_copy_comp_spv.h"
 #include "shaders/fg_flow_comp_spv.h"
 #include "shaders/fg_luma_comp_spv.h"
@@ -251,11 +252,11 @@ bool init() {
     const int radius = getenv("RX_VK_FRAMEGEN_RADIUS") ? std::clamp(atoi(getenv("RX_VK_FRAMEGEN_RADIUS")), 1, 16) : 8;
     const VkSpecializationMapEntry me{0, 0, 4};
     const VkSpecializationInfo spec{1, &me, 4, &radius};
-    if (!make_pipe(fg.copy, FG_COPY_COMP_SPV, sizeof FG_COPY_COMP_SPV, {S, I}, 28) ||
-        !make_pipe(fg.luma, FG_LUMA_COMP_SPV, sizeof FG_LUMA_COMP_SPV, {S, I}, 0) ||
-        !make_pipe(fg.flow, FG_FLOW_COMP_SPV, sizeof FG_FLOW_COMP_SPV, {S, S, I}, 0, &spec) ||
-        !make_pipe(fg.median, FG_MEDIAN_COMP_SPV, sizeof FG_MEDIAN_COMP_SPV, {S, I}, 0) ||
-        !make_pipe(fg.synth, FG_SYNTH_COMP_SPV, sizeof FG_SYNTH_COMP_SPV, {S, S, S, I}, 4))
+    if (!make_pipe(fg.copy, BUILTIN_SPV_ARGS(FG_COPY_COMP_SPV), {S, I}, 28) ||
+        !make_pipe(fg.luma, BUILTIN_SPV_ARGS(FG_LUMA_COMP_SPV), {S, I}, 0) ||
+        !make_pipe(fg.flow, BUILTIN_SPV_ARGS(FG_FLOW_COMP_SPV), {S, S, I}, 0, &spec) ||
+        !make_pipe(fg.median, BUILTIN_SPV_ARGS(FG_MEDIAN_COMP_SPV), {S, I}, 0) ||
+        !make_pipe(fg.synth, BUILTIN_SPV_ARGS(FG_SYNTH_COMP_SPV), {S, S, S, I}, 4))
         return undo();
     VkSamplerCreateInfo si{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     si.addressModeU = si.addressModeV = si.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -283,7 +284,7 @@ bool init_scale() {
     scale.init = scale.failed = true;
     if (!dev.push_descriptor || !vkCmdPushDescriptorSetKHR) return false;
     const VkDescriptorType S = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, I = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    if (make_pipe(scale.pipe, FG_SCALE_COMP_SPV, sizeof FG_SCALE_COMP_SPV, {S, I, S}, sizeof(ScalePush))) {
+    if (make_pipe(scale.pipe, BUILTIN_SPV_ARGS(FG_SCALE_COMP_SPV), {S, I, S}, sizeof(ScalePush))) {
         VkSamplerCreateInfo si{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
         si.addressModeU = si.addressModeV = si.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         si.maxLod = 0.25f;
@@ -682,7 +683,7 @@ VkImage framegen_scale(VkCommandBuffer cmd, VkImageView src, VkImage image, uint
     if (pq && !scale.pq_tried) {
         scale.pq_tried = true;
         const VkDescriptorType S = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, I = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        if (!make_pipe(scale.pipe_pq, FG_SCALE_PQ_COMP_SPV, sizeof FG_SCALE_PQ_COMP_SPV, {S, I, S}, sizeof(ScalePush)))
+        if (!make_pipe(scale.pipe_pq, BUILTIN_SPV_ARGS(FG_SCALE_PQ_COMP_SPV), {S, I, S}, sizeof(ScalePush)))
             logf("vk: the 10-bit window scaling pass could not be made: Native HDR's picture is shown unscaled");
     }
     if (pq && !scale.pipe_pq.pipe) return VK_NULL_HANDLE;
@@ -815,7 +816,7 @@ VkImage framegen_hdr(VkCommandBuffer cmd, VkImageView src, uint32_t sw, uint32_t
         hdr.init = hdr.failed = true;
         const VkDescriptorType S = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, I = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         if (dev.push_descriptor && vkCmdPushDescriptorSetKHR && init_scale() &&
-            make_pipe(hdr.pipe, HDR_ENCODE_COMP_SPV, sizeof HDR_ENCODE_COMP_SPV, {S, I}, 48))
+            make_pipe(hdr.pipe, BUILTIN_SPV_ARGS(HDR_ENCODE_COMP_SPV), {S, I}, 48))
             hdr.failed = false;
         else
             logf("vk: HDR: the HDR pass could not be made: SDR");

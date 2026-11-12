@@ -48,6 +48,7 @@
 #include "video_core/textures/astc.h"
 #include "video_core/textures/decoders.h"
 
+#include "vk_builtin_spv.h"   // (RX_VK_SHADER_DIR)
 #include "host_shaders/astc_decoder_comp_spv.h"
 #include "astc_opaque.h"
 #include "host_shaders/bc_encoder_comp_spv.h"
@@ -824,8 +825,9 @@ bool astc_ready() {
     pi.pPushConstantRanges = &pr;
     if (vkCreatePipelineLayout(dev.device, &pi, nullptr, &astc_layout) != VK_SUCCESS) return false;
     VkShaderModuleCreateInfo mi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-    mi.codeSize = sizeof ASTC_DECODER_COMP_SPV;
-    mi.pCode = ASTC_DECODER_COMP_SPV;
+    const auto spv = BUILTIN_SPV(ASTC_DECODER_COMP_SPV);
+    mi.codeSize = spv.size;
+    mi.pCode = spv.code;
     VkShaderModule m = VK_NULL_HANDLE;
     IntelDriverGate gate;
     if (extern_guarded_shader_module(&mi, &m) != VK_SUCCESS) return false;
@@ -1047,8 +1049,8 @@ bool bc_ready() {
         vkDestroyShaderModule(dev.device, m, nullptr);
         return r == VK_SUCCESS;
     };
-    if (!make_pipe(BC_ENCODER_COMP_SPV, sizeof BC_ENCODER_COMP_SPV, bc_pipe)) return false;
-    if (bc7 && !make_pipe(BC7_ENCODER_COMP_SPV, sizeof BC7_ENCODER_COMP_SPV, bc7_pipe)) {
+    if (!make_pipe(BUILTIN_SPV_ARGS(BC_ENCODER_COMP_SPV), bc_pipe)) return false;
+    if (bc7 && !make_pipe(BUILTIN_SPV_ARGS(BC7_ENCODER_COMP_SPV), bc7_pipe)) {
         // (the BC7 pipeline could not be made: BC3, not RGBA8. The next bc7_enabled() answers false too, so the encoders
         // and the textures made from now on take bc_pipe)
         bc7_ok = false, bc7 = false;
@@ -1620,8 +1622,9 @@ bool unswizzle_ready() {
     pi.pPushConstantRanges = &pr;
     if (vkCreatePipelineLayout(dev.device, &pi, nullptr, &unsw_layout) != VK_SUCCESS) return false;
     VkShaderModuleCreateInfo mi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-    mi.codeSize = sizeof BLOCK_LINEAR_UNSWIZZLE_2D_COMP_SPV;
-    mi.pCode = BLOCK_LINEAR_UNSWIZZLE_2D_COMP_SPV;
+    const auto spv = BUILTIN_SPV(BLOCK_LINEAR_UNSWIZZLE_2D_COMP_SPV);
+    mi.codeSize = spv.size;
+    mi.pCode = spv.code;
     VkShaderModule m = VK_NULL_HANDLE;
     IntelDriverGate gate;
     if (extern_guarded_shader_module(&mi, &m) != VK_SUCCESS) return false;

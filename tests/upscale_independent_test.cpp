@@ -36,6 +36,8 @@ constexpr int VK_FORMAT_A2B10G10R10_UNORM_PACK32 = 10;
 constexpr int VK_IMAGE_USAGE_SAMPLED_BIT = 1, VK_IMAGE_USAGE_TRANSFER_DST_BIT = 2;
 constexpr int VK_IMAGE_USAGE_STORAGE_BIT = 4, VK_IMAGE_USAGE_TRANSFER_SRC_BIT = 8;
 const uint32_t FG_SCALE_COMP_SPV[] = {123}, FG_SCALE_PQ_COMP_SPV[] = {456};
+// (gpu/vk/vk_builtin_spv.h's lookup as with RX_VK_SHADER_DIR unset: the compiled-in words themselves)
+#define BUILTIN_SPV_ARGS(words) words, sizeof words
 struct Img { VkImage image = 0; VkImageView view = 0; };
 struct Pipe { uint64_t set = 0, layout = 0, pipe = 0; };
 struct VkSamplerCreateInfo {

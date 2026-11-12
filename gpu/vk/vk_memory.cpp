@@ -53,6 +53,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #endif
+#include "vk_builtin_spv.h"   // (RX_VK_SHADER_DIR)
 #include "shaders/wb_diff_comp_spv.h"
 #include "shaders/late_fix_comp_spv.h"
 #include "vram_pressure.h"
@@ -2553,8 +2554,9 @@ bool late_fix_pipe_ready() {
     li.pPushConstantRanges = &pr;
     if (vkCreatePipelineLayout(dev.device, &li, nullptr, &late_fix_pipe.layout) == VK_SUCCESS) {
         VkShaderModuleCreateInfo mi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-        mi.codeSize = sizeof LATE_FIX_COMP_SPV;
-        mi.pCode = LATE_FIX_COMP_SPV;
+        const auto spv = BUILTIN_SPV(LATE_FIX_COMP_SPV);
+        mi.codeSize = spv.size;
+        mi.pCode = spv.code;
         VkShaderModule m = VK_NULL_HANDLE;
         IntelDriverGate gate;   // (as wbd_pipe_ready's: Intel's compiler on Windows, one thread at a time, and the fault guard)
         if (extern_guarded_shader_module(&mi, &m) == VK_SUCCESS) {
@@ -5748,8 +5750,9 @@ bool wbd_pipe_ready() {
     VkShaderModule m = VK_NULL_HANDLE;
     if (vkCreatePipelineLayout(dev.device, &li, nullptr, &wbd_pipe.layout) == VK_SUCCESS) {
         VkShaderModuleCreateInfo mi{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-        mi.codeSize = sizeof WB_DIFF_COMP_SPV;
-        mi.pCode = WB_DIFF_COMP_SPV;
+        const auto spv = BUILTIN_SPV(WB_DIFF_COMP_SPV);
+        mi.codeSize = spv.size;
+        mi.pCode = spv.code;
         IntelDriverGate gate;
         if (extern_guarded_shader_module(&mi, &m) == VK_SUCCESS) {
             VkComputePipelineCreateInfo ci{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
