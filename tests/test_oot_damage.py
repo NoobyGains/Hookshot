@@ -19,7 +19,7 @@ def main():
     menu = (ROOT / "gpu/vk/vk_menu.cpp").read_text(encoding="utf-8")
     options = (ROOT / "gpu/vk/vk_menu.h").read_text(encoding="utf-8")
     replay = (ROOT / "gpu/vk/vk_replay.cpp").read_text(encoding="utf-8")
-    assert "HOS_OPT_DAMAGE_TAKEN = 55" in api
+    assert "HOS_OPT_DAMAGE_TAKEN = 56" in api
     assert "int damage_taken = 1;" in options
     assert '{TAB_DEBUG, "Damage taken", &opts.damage_taken, 0, 3, 1, tx_damage_taken' in menu
     assert '{TAB_GAMEPLAY, "Damage taken"' not in menu
@@ -44,9 +44,9 @@ def main():
 #include <stdint.h>
 #include <assert.h>
 #include <stdio.h>
-enum { HOS_OPT_DAMAGE_TAKEN = 55 };
+enum { HOS_OPT_DAMAGE_TAKEN = 56 };
 static int setting = 1, protection, player = 1;
-int rx_option(int id, int otherwise) { assert(id == 55 && otherwise == 1); return setting; }
+int rx_option(int id, int otherwise) { assert(id == 56 && otherwise == 1); return setting; }
 int hos_oot_hearts_enabled(void) { return protection; }
 typedef struct { uint64_t x[32]; } Ctx;
 static int hos_oot_is_player(Ctx *c, uint64_t actor) { (void)c; return player && actor == 100; }

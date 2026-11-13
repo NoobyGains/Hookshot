@@ -35,7 +35,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 # (env_on, the switches' rule, before the code cut out of the sources)
-ENV_ON_H = str(ROOT / "gpu" / "vk" / "compat" / "longshot_env.h")
+ENV_ON_H = str(ROOT / "gpu" / "vk" / "compat" / "hookshot_env.h")
 
 RUN_ALL_ARGS = ["--cxx", "{cxx}"]
 

@@ -149,7 +149,7 @@ def main():
     patches = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(patches)
     source, changed = patches.patch_whole_frames(LIFTED)
-    with tempfile.TemporaryDirectory(prefix="longshot-scarecrow-") as folder:
+    with tempfile.TemporaryDirectory(prefix="hookshot-scarecrow-") as folder:
         tmp = Path(folder)
         (tmp / "a64.h").write_text(HEADER, encoding="utf-8")
         fixture = tmp / "fixture.c"

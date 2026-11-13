@@ -77,8 +77,8 @@ These queries do not change bindings, load a mapping file, or change which contr
 
 A log line is info unless it says otherwise: `hos_log` and the renderer's `logf` write it as before. `hos_log_at(HOS_LOG_TRACE,
 ...)` (host/hos.h) and `logf_at(log_trace, ...)` (gpu/vk/vk_internal.h) give it another level, written after the thread's tag:
-`[hos host] [trace] vk: ...`, and likewise `[error]`, `[warn]` and `[debug]`. The log file keeps every line. The Longshot
-Launcher's build log shows info and above unless its level picker asks for more; a builder or launcher that doesn't read the tag
+`[hos host] [trace] vk: ...`, and likewise `[error]`, `[warn]` and `[debug]`. The log file keeps every line. A launcher
+that reads the tag (Longshot's does) shows info and above unless its level picker asks for more; a builder or launcher that doesn't read the tag
 shows the line with it. Per-item lines a player can't act on (one per program or pipeline, a decoder's details) are debug or
 trace; `HOS_TRACE`'s calls are trace. `tests/test_log_levels.py` checks the tags.
 

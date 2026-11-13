@@ -8,8 +8,8 @@ the one place it looks. Compiled from the real source:
 - host/hos_thread.c hos_vlog and log_level_tag, with host/hos.h's levels: the line each level writes, the tag after
   "[hos <thread>] " (where the launcher reads it), an info line as it was.
 - gpu/vk/vk_main.cpp vlogf: the renderer's logf_at gives the host's log the same tag at the start of its text, and logf none.
-- gpu/vk/vk_shader.cpp: a movie network left out on a card that can't run it is said once, and the others are trace lines,
-  counted apart from the 30 lines a program that failed to translate gets (on AMD the dozen networks took them all).
+- gpu/vk/vk_shader.cpp: a movie network left out on a card that can't run it is said once (and with RX_VK_IR each of the
+  others, as trace lines), counted apart from the 30 lines a program that failed to translate gets.
 
 python -I -B tests/test_log_levels.py --cxx clang++
 """
@@ -133,10 +133,10 @@ def main():
         sys.stdout.write(r.stdout)
         if r.returncode:
             raise SystemExit("FAIL: the log's levels")
-    # (the shader's catch: a network left out (LeftOut) is told apart from a failure, said once, and the rest at trace on a
-    # count of its own, never in the 30 lines a failure gets)
+    # (the shader's catch: a network left out (LeftOut) is told apart from a failure, said once, and with RX_VK_IR each of the
+    # others at trace, never in the 30 lines a failure gets; tests/test_left_out_not_failed.py runs it)
     left = shader[shader.index("} catch (const LeftOut& e) {"):shader.index("} catch (const std::exception& e) {")]
-    if "st_left_out++" not in left or "logf_at(log_trace" not in left or "traced++ < 30" not in left:
+    if "st_left_out++" not in left or "logf_at(log_trace" not in left or 'getenv("RX_VK_IR")' not in left:
         raise SystemExit("FAIL: a network left out is not a trace line counted apart")
     if 'throw LeftOut(' not in shader:
         raise SystemExit("FAIL: the network left out is not thrown as LeftOut, which its catch tells apart")

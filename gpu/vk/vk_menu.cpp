@@ -1489,7 +1489,7 @@ Row rows[] = {
     // developer's rows
     {TAB_DEBUG, "Debug tools", &opts.debug_tools, 0, 1, 1, tx_onoff,
      "Testing tools: no-clip flight, a free camera, teleport, Link's age, the inventory, the clock, heart protection and "
-     "movement speed. Off puts flight, the free camera and heart protection away and Link back to his own speed and damage.", nullptr, false, true},
+     "movement speed. Off puts flight, the free camera and heart protection away and Link back to his own speed.", nullptr, false, true},
     {TAB_DEBUG, "Heart protection", nullptr, 0, 0, 0, nullptr,
      "Protects Link's hearts. Hits can still knock him back.", nullptr, false, true, 0},
     {TAB_DEBUG, "Damage taken", &opts.damage_taken, 0, 3, 1, tx_damage_taken,

@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "vk_jobs.h"
-#include "longshot_env.h"
+#include "hookshot_env.h"
 #include "vk_internal.h"
 #include "vk_draw.h"   // (ub_thread_off)
 
@@ -136,7 +136,7 @@ bool jobs_wait(const std::atomic<bool>& flag) {
     // area queues a hundred pipelines: with ten workers at 0.3-2 s a build, frames stopped for 6-12 s, the draw's own build
     // still in the queue; Mako's RX 6600 log, one draw 118 s behind 26 queued jobs. Taken out of the queue under the lock a
     // worker takes jobs under, so it runs once, here or on a worker, and nothing is left queued for it. RX_VK_JOB_STEAL=0
-    // (or off, false, no: longshot_env.h's rule): waited for in turn, as before)
+    // (or off, false, no: hookshot_env.h's rule): waited for in turn, as before)
     static const bool steal = [] {
         const char* v = getenv("RX_VK_JOB_STEAL");
         return !v || !env_value_off(v);

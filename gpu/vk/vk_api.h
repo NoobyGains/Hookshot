@@ -57,8 +57,9 @@ enum { HOS_OPT_AUTO_RUN = 55 };
 /* (HOS_OPT_FPS_CAP, 53: the Game frame rate cap row, host/nn_vi.c fps_refresh reads it at each present: 0 the console's 60, then
    90, 120, 144, 165, 240, 6 Uncapped; a change applies in play) */
 enum { HOS_OPT_FPS_CAP = 53 };
-/* Damage taken: 0 Half, 1 Normal (unchanged), 2 Double, 3 Quadruple. */
-enum { HOS_OPT_DAMAGE_TAKEN = 55 };
+/* (HOS_OPT_DAMAGE_TAKEN, 56: Damage taken, 0 Half, 1 Normal (unchanged), 2 Double, 3 Quadruple; Longshot has it at 55, which
+   the Auto run row has here) */
+enum { HOS_OPT_DAMAGE_TAKEN = 56 };
 
 /* (hookshot) the controls' names (host/nn_hid.c, host/pad_sdl.c, the pad_ and key_ lines of hookshot_options.ini):
    the Switch's buttons in nn::hid's bit order, and a gamepad's inputs by position (the bottom face button first:

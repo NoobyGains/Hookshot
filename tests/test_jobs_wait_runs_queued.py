@@ -3,7 +3,7 @@
 vk_jobs.cpp is compiled beside stand-ins for vk_internal.h and vk_draw.h (logging, the thread calls, ub_thread_off) and
 run with every worker held in a job: the draw's pipeline job, queued behind them, must run on the thread that waits, and
 only there (the queue keeps no copy for a worker). Free workers racing two waiters for the same job: it runs once. The
-switch follows longshot_env.h's rule: RX_VK_JOB_STEAL=true keeps the steal on, 0/off/no turn it off.
+switch follows hookshot_env.h's rule: RX_VK_JOB_STEAL=true keeps the steal on, 0/off/no turn it off.
 python -I -B tests/test_jobs_wait_runs_queued.py
 """
 import argparse
@@ -54,7 +54,7 @@ def check_source():
     if "queue.erase(it)" not in wait:
         raise SystemExit("jobs_wait runs a queued job without taking it out of the queue: a worker would run it again")
     if "env_value_off(" not in wait:
-        raise SystemExit("RX_VK_JOB_STEAL is not read by the switches' on/off rule (longshot_env.h)")
+        raise SystemExit("RX_VK_JOB_STEAL is not read by the switches' on/off rule (hookshot_env.h)")
     block = draw[draw.index("void draw(VkCommandBuffer"):]
     block = block[:block.index("    cur_program = &p;")]
     pipe = block[block.index("if (!pe->ready.load(std::memory_order_acquire))"):]

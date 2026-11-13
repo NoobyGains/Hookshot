@@ -29,7 +29,7 @@ The existing packed output header is unchanged. `tests/test_psychov35_dlss.py` c
 This path adapts [Hookshot #2707](https://github.com/NotRexed/Hookshot/pull/2707),
 head `f1d654ce6f841fd4ce5bcbbe8900629a5394e484`, by nooblikejagger. It is an open draft at the time of review.
 Its author reports a successful RTX 4070 SUPER HDR-display test for DLSS, but no controlled performance comparison
-or NVIDIA frame-generation measurement. Those results do not validate this Longshot port.
+or NVIDIA frame-generation measurement. Those results do not validate this port (Longshot #108 and #247, taken here).
 
 [Hookshot #2481](https://github.com/NotRexed/Hookshot/pull/2481) introduced PsychoV35 and deliberately narrowed
 RGBA16F to Native HDR plus PsychoV35. Its discussion confirms that selecting DLSS and frame generation in the menu
@@ -40,8 +40,8 @@ check alone would leave a packed-format storage shader bound to an RGBA16F image
 storage is floating point would instead change brightness.
 
 [Hookshot #2118](https://github.com/NotRexed/Hookshot/pull/2118), merged, supplies the NGX frame-generation path
-already in Longshot. It takes the temporal chain's inputs and logs successful and fallback sets every 600 presents.
-In Longshot, `temporal_upscale` calls `dlss_fg_inputs` after a successful evaluation and output dispatch. That function
+already in this tree. It takes the temporal chain's inputs and logs successful and fallback sets every 600 presents.
+Here, `temporal_upscale` calls `dlss_fg_inputs` after a successful evaluation and output dispatch. That function
 copies the frame's depth and motion and carries its camera and history reset; it does not inspect the scene colour format.
 When the chain rejects RGBA16F, no new inputs reach it and `dlss_fg_frames` falls back with `FG_SKIP_INPUTS`.
 Accepting the scene restores this handoff. Existing GPU/runtime support, fixed-multiplier, gap and maximum-frame checks
