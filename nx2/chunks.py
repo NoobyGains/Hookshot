@@ -668,6 +668,8 @@ def edit_c(gen, stats, supported, whole=True, took=None, jobs=None, patches="oot
             if lines:
                 print("\n".join(lines))
         module.report(paths, [counts for counts, _ in done], supported)
+        if supported and hasattr(module, "apply_pause_menu"):   # (the pause menu's Recomp Options button: its edits all over the files, or none)
+            module.apply_pause_menu(gen, lambda fn, items: _each(fn, items, jobs))
         took("patches (%d processes)" % jobs)
     else:
         print("patches: the game profile has no code patch module")

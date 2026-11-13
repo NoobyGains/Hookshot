@@ -593,7 +593,8 @@ shows bands or blocks. Off unless set; `RX_VK_ASTC_RGBA8=1` above still wins whe
 
 By default, press <kbd>Insert</kbd>, <kbd>F1</kbd> or <kbd>Esc</kbd> in game. On a controller, press Home or Select and
 Start together; on a DualShock 4 or DualSense, clicking the touchpad does the same as <kbd>F1</kbd>, unless a row of
-Controls takes the touchpad as its input.
+Controls takes the touchpad as its input. In the game's pause menu, the Menu page has a sixth button, **Recomp Options**,
+below Title Screen: A on it opens the same menu (a build made with this button; a controller player need not know the keys).
 The same keys close it; with every Menu shortcut, <kbd>Esc</kbd> goes back a page or closes the open menu.
 <kbd>F1</kbd> always works. **Controls → Menu shortcut** can leave <kbd>Insert</kbd> free for another overlay (F1 only).
 With Insert or F1, or with F1 only, <kbd>Esc</kbd> does not open the menu: it only lets the mouse go. Options saved by

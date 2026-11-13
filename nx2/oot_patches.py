@@ -1449,7 +1449,40 @@ def apply(gen, *, protect_hearts=False, required=False):
         if out != s:
             whole_write.write_whole(path, out, newline="")
     report(paths, counts, protect_hearts)
+    if protect_hearts:
+        apply_pause_menu(gen)
     apply_output_size(gen, required=required)
+
+
+def pause_menu_count(path):
+    """(apply_pause_menu, one file: a process of its own under nx2/chunks.py edit_c) how many times each of the pause menu's
+    edits is in it"""
+    import oot_pause_menu
+    with open(path, encoding="utf-8", newline="") as f:
+        return oot_pause_menu.count([f.read()])
+
+
+def apply_pause_menu(gen, each=None):
+    """The pause menu's "Recomp Options" button (nx2/oot_pause_menu.py): all its edits, or none. each(fn, paths): fn over the
+    files, in order (nx2/chunks.py edit_c: its processes); here one after another without it"""
+    import oot_pause_menu
+    paths = sorted(glob.glob(os.path.join(glob.escape(gen), "code_*.c")))
+    counts = each(pause_menu_count, paths) if each else [pause_menu_count(p) for p in paths]
+    found, holders = [0] * len(oot_pause_menu.EDITS), []
+    for path, n in zip(paths, counts):
+        if any(n):
+            holders.append(path)
+            found = [a + b for a, b in zip(found, n)]
+    if found != [1] * len(found):
+        print("oot_patches: WARNING: the pause menu's places were found %s times: its Recomp options button is left out" % found)
+        return
+    for path in holders:
+        with open(path, encoding="utf-8", newline="") as f:
+            s = f.read()
+        out = oot_pause_menu.edit(s)
+        if out != s:
+            whole_write.write_whole(path, out, newline="")
+            print("oot_patches: the pause menu's Recomp options button in", os.path.basename(path))
 
 
 # Output size (host/nn_applet.c hos_output_size: the Insert menu's Output resolution, 2560 x 1440 as shipped):

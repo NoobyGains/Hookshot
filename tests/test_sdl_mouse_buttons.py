@@ -25,6 +25,7 @@ static const uint8_t *hos_sdl_keys(int *n) { *n = (int)sizeof sdl_keys; return s
 static uint32_t hos_sdl_mouse_buttons(void) { return sdl_buttons; }
 static void *hos_posix_window[1];
 static volatile uint8_t hos_posix_keys[256];
+void hos_vk_note_key_press(unsigned key) { (void)key; }   /* (host/rx_backend.c: the Insert menu's key queue) */
 /* KEYS_UPDATE */
 static int fails;
 #define CHECK(x) do { if (!(x)) { printf("FAIL line %d: %s\n", __LINE__, #x); fails++; } } while (0)
