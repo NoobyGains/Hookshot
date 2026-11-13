@@ -219,8 +219,8 @@ HLE(_ZN2nn2oe22PopNotificationMessageEv) { for (;;) hos_sleep_ns(1000000000LL); 
    the one there always was, uid and all, so its save folder (<user>/save/<uid>: nn_fs.c) is the same one; users 2 and up
    are "Player 2" and on, each with a uid and so a save folder of its own.
 
-   A UserHandle is three words: the uid, and a word this runtime keeps 1 in for an open handle. Which users are open
-   is counted here, because that is what the user selector answers by: the console's selector is an applet that shows
+   A UserHandle is three words: the uid, and a third word, 1 from TryOpenPreselectedUser and 0 from OpenUser, as this
+   runtime always wrote them (Ocarina opens its user both ways). Which users are open is counted here, because that is what the user selector answers by: the console's selector is an applet that shows
    the accounts and lets a player pick one; there is no picker here, so ShowUserSelector hands out the first user not
    open yet, which is what a game that opens one user per player in turn gets from players who each pick their own.
    Its settings (UserSelectionSettings) are not read: their layout is the SDK's and is not known here, so what the game
@@ -255,41 +255,47 @@ static int account_user_of(uint64_t lo, uint64_t hi) {
     const uint64_t i = lo - user_uid[0];
     return i < (uint64_t)account_users() ? (int)i : -1;
 }
-static void account_put_handle(uint64_t at, int user) {
+static void account_put_handle(uint64_t at, int user, uint64_t third) {
     uint64_t uid[2];
     account_uid(user, uid);
     G64(at) = uid[0];
     G64(at + 8) = uid[1];
-    G64(at + 16) = 1;
+    G64(at + 16) = third;
     InterlockedIncrement(&account_open[user]);
 }
 
 HLE(_ZN2nn7account10InitializeEv) {}
 /* TryOpenPreselectedUser(UserHandle*) -> bool: the first user, the one the console started the game as */
 HLE(_ZN2nn7account22TryOpenPreselectedUserEPNS0_10UserHandleE) {
-    account_put_handle(ARG(0), 0);
+    account_put_handle(ARG(0), 0, 1);
     RET(1);
 }
-/* OpenUser(UserHandle*, Uid const&) -> Result */
+/* OpenUser(UserHandle*, Uid const&) -> Result: a handle of that uid, success, as this runtime always answered (Ocarina
+   opens its user so). A uid that is not a user here is opened all the same, and logged: what the console answers for
+   one is not known here, and Ocarina's answer stays the one it had. */
 HLE(_ZN2nn7account8OpenUserEPNS0_10UserHandleERKNS0_3UidE) {
     const int user = account_user_of(G64(ARG(1)), G64(ARG(1) + 8));
     if (user < 0) {
-        hos_log("account: OpenUser of uid %016llx%016llx, not a user here (lr %#llx)", (unsigned long long)G64(ARG(1) + 8),
-                (unsigned long long)G64(ARG(1)), (unsigned long long)c->x[30]);
-        RET(ACCOUNT_FAILURE);
-        return;
-    }
-    account_put_handle(ARG(0), user);
+        hos_log("account: OpenUser of uid %016llx%016llx, not a user here: opened all the same (lr %#llx)",
+                (unsigned long long)G64(ARG(1) + 8), (unsigned long long)G64(ARG(1)), (unsigned long long)c->x[30]);
+        G64(ARG(0)) = G64(ARG(1));
+        G64(ARG(0) + 8) = G64(ARG(1) + 8);
+        G64(ARG(0) + 16) = 0;
+    } else account_put_handle(ARG(0), user, 0);
     RET(0);
 }
 HLE(_ZN2nn7account9CloseUserERKNS0_10UserHandleE) {
     const int user = account_user_of(G64(ARG(0)), G64(ARG(0) + 8));
     if (user >= 0 && account_open[user] > 0) InterlockedDecrement(&account_open[user]);
 }
-/* GetUserId(Uid*, UserHandle const&) -> Result: the handle's own uid */
+/* GetUserId(Uid*, UserHandle const&) -> Result: the handle's own uid; for a handle that names no user here, user 1's, as
+   this runtime always answered every handle */
 HLE(_ZN2nn7account9GetUserIdEPNS0_3UidERKNS0_10UserHandleE) {
-    G64(ARG(0)) = G64(ARG(1));
-    G64(ARG(0) + 8) = G64(ARG(1) + 8);
+    const int user = account_user_of(G64(ARG(1)), G64(ARG(1) + 8));
+    uint64_t uid[2];
+    account_uid(user < 0 ? 0 : user, uid);
+    G64(ARG(0)) = uid[0];
+    G64(ARG(0) + 8) = uid[1];
     RET(0);
 }
 /* GetNickname(Nickname*, Uid const&) -> Result: Nickname is char[33]. "Player", then "Player 2" and on */
@@ -325,10 +331,16 @@ HLE(_ZN2nn7account12ListAllUsersEPiPNS0_3UidEi) {
 /* ShowUserSelector(Uid*, UserSelectionSettings const&) -> Result: the first user not open (see above) */
 HLE(_ZN2nn7account16ShowUserSelectorEPNS0_3UidERKNS0_21UserSelectionSettingsE) {
     static int logged;
+    if (!ARG(0)) {
+        RET(ACCOUNT_FAILURE);
+        return;
+    }
     if (logged++ < 8) {
-        const uint8_t *b = (const uint8_t *)GP(ARG(1));
-        char hex[3 * 32 + 1] = "";
-        for (int i = 0; i < 32; i++) snprintf(hex + 3 * i, 4, " %02x", b[i]);
+        char hex[3 * 32 + 1] = " none";   /* (no settings given: the console's defaults) */
+        if (ARG(1)) {
+            const uint8_t *b = (const uint8_t *)GP(ARG(1));
+            for (int i = 0; i < 32; i++) snprintf(hex + 3 * i, 4, " %02x", b[i]);
+        }
         hos_log("account: ShowUserSelector (lr %#llx), settings%s ...", (unsigned long long)c->x[30], hex);
     }
     for (int user = 0; user < account_users(); user++)
@@ -355,8 +367,9 @@ HLE(_ZN2nn7account13PushOpenUsersEv) {
 }
 HLE(_ZN2nn7account12PopOpenUsersEPiPNS0_10UserHandleEi) {
     int n = account_npushed < (int)ARG(2) ? account_npushed : (int)ARG(2) > 0 ? (int)ARG(2) : 0;
-    for (int i = 0; i < n; i++) account_put_handle(ARG(1) + 24 * (uint64_t)i, account_pushed[i]);
-    G32(ARG(0)) = (uint32_t)n;
+    if (!ARG(1)) n = 0;
+    for (int i = 0; i < n; i++) account_put_handle(ARG(1) + 24 * (uint64_t)i, account_pushed[i], 1);
+    if (ARG(0)) G32(ARG(0)) = (uint32_t)n;
     account_npushed = 0;
     RET(0);
 }
@@ -366,11 +379,6 @@ HLE(_ZN2nn7account16LoadProfileImageEPmPvmRKNS0_3UidE) {
     static int logged;
     if (!logged++) hos_log("account: LoadProfileImage: no profile images here, answered a failure (lr %#llx)",
                            (unsigned long long)c->x[30]);
-    if (ARG(0)) G64(ARG(0)) = 0;
-    RET(ACCOUNT_FAILURE);
-}
-/* LoadNetworkServiceAccountIdTokenCache(size_t*, char*, size_t, UserHandle const&) -> Result: offline, no token */
-HLE(_ZN2nn7account37LoadNetworkServiceAccountIdTokenCacheEPmPcmRKNS0_10UserHandleE) {
     if (ARG(0)) G64(ARG(0)) = 0;
     RET(ACCOUNT_FAILURE);
 }
