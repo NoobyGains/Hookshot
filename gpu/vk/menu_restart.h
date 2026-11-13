@@ -1,9 +1,11 @@
 /* The Insert menu's rows that take a restart (vk_menu.cpp: GPU device, Output resolution, Profile, Aspect ratio,
    Robust buffers), as plain code: which of them differ from what the game started with, whether closing the menu asks to
-   restart, and the rows' names as the menu lists them. No Vulkan, no menu: tests/test_menu_restart.cpp checks it. */
+   restart, and the rows' names as the menu lists them; and for the Mods tab, which mods a restart would switch, and the
+   forms the "Restart needed" line can take. No Vulkan, no menu: tests/test_menu_restart.cpp checks it. */
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace mkwvk::menu_restart {
 
@@ -65,6 +67,64 @@ inline std::string names(const char* const* names, int n, unsigned mask, const c
         left--;
     }
     return s;
+}
+
+/// (the Mods tab) A mod as the restart texts need it: its folder's name and whether it is on
+struct Mod {
+    std::string name;
+    bool on;
+};
+
+/// What a restart would change in the mods
+struct ModChanges {
+    std::vector<std::string> switched;   // a text a mod whose switch is not the start's, in the list's order now
+    bool moved = false;                  // the mods' order is not the start's
+};
+/// The mods as they are now against the mods as the game started: a mod whose switch differs as "<name> (<on>)" or
+/// "<name> (<off>)", and whether the order differs
+inline ModChanges mod_changes(const std::vector<Mod>& start, const std::vector<Mod>& now, const char* on, const char* off) {
+    ModChanges out;
+    out.moved = start.size() != now.size();
+    for (size_t i = 0; i < now.size(); i++) {
+        if (i < start.size() && start[i].name != now[i].name) out.moved = true;
+        for (const Mod& s : start)
+            if (s.name == now[i].name && s.on != now[i].on) out.switched.push_back(now[i].name + " (" + (now[i].on ? on : off) + ")");
+    }
+    return out;
+}
+
+/// The first n of items as names() joins the rows': "A, B" with sep ", ", the last one after last ("A, B and C" with last
+/// " and ")
+inline std::string list(const std::vector<std::string>& items, size_t n, const char* sep = ", ", const char* last = ", ") {
+    std::string s;
+    if (n > items.size()) n = items.size();
+    for (size_t i = 0; i < n; i++) {
+        if (i) s += i + 1 == n ? last : sep;
+        s += items[i];
+    }
+    return s;
+}
+
+/// The forms the "Restart needed" line can take, the fullest first: the menu shows the first that fits its width. The rows
+/// by name, then fewer of them by name and the rest counted ("A and 2 more"), then none by name (rows_counted, "3
+/// settings"); after the rows, the mods' part: mods_named when there is one (one mod's switch, or the order), then
+/// mods_counted ("2 mods"). An empty text is a part that is not there
+inline std::vector<std::string> line_forms(const std::vector<std::string>& rows, const std::string& rows_counted,
+                                           const std::string& mods_named, const std::string& mods_counted,
+                                           const char* and_ = " and ", const char* more = " more", const char* sep = ", ") {
+    std::vector<std::string> out;
+    for (size_t keep = rows.size() + 1; keep-- > 0;) {
+        const std::string r = keep == rows.size() ? list(rows, keep, sep, sep)
+                              : keep ? list(rows, keep, sep, sep) + and_ + std::to_string(rows.size() - keep) + more : rows_counted;
+        bool mods = false;
+        for (const std::string* m : {&mods_named, &mods_counted}) {
+            if (m->empty()) continue;
+            out.push_back(r.empty() ? *m : r + sep + *m);
+            mods = true;
+        }
+        if (!mods) out.push_back(r);
+    }
+    return out;
 }
 
 } // namespace mkwvk::menu_restart

@@ -2270,14 +2270,53 @@ bool restart_ask() {
     restart_values(now);
     return app_window() && restart_state.ask(now);
 }
-/// The rows' names in the menu's language, for the restart line and question
-const char* const* tr_names() {
-    static const char* t[mr::kMax];
-    for (int i = 0; i < restart_state.n; i++) t[i] = i18n::tr(restart_names[i]);
+/// (hookshot) What the Mods page has changed since the game started, for the restart texts: the mods switched, "<name> (Off)",
+/// and whether their order is not the start's. The page's list keeps each mod's start position (mp::Mod::index) and switch
+/// (on_start), so nothing is kept at the start
+mr::ModChanges mods_changes() {
+    mr::ModChanges out;
+    for (int i = 0; i < mods_list.size(); i++) {
+        const mp::Mod& m = mods_list.mods[i];
+        if (m.index != i) out.moved = true;
+        if (m.on != m.on_start) out.switched.push_back(mp::label(mods_list, i) + " (" + i18n::tr(m.on ? "On" : "Off") + ")");
+    }
+    return out;
+}
+/// What a restart would apply, in the menu's language, for the restart line and question: the changed rows by name, the
+/// mods switched ("<name> (Off)") and whether their order changed (menu_restart.h mod_changes)
+struct RestartTexts {
+    std::vector<std::string> rows;
+    mr::ModChanges mods;
+    bool mods_unknown = false;   // (the mods changed, and what the game started with is not known: "the mods")
+};
+RestartTexts restart_texts() {
+    const unsigned all = restart_pending();
+    RestartTexts t;
+    for (int i = 0; i < restart_state.n; i++) {
+        if (!((all >> i) & 1)) continue;
+        if (i != mods_slot) {
+            t.rows.push_back(i18n::tr(restart_names[i]));
+            continue;
+        }
+        t.mods = mods_changes();
+        t.mods_unknown = t.mods.switched.empty() && !t.mods.moved;
+    }
     return t;
 }
-std::string restart_list(const char* last) {
-    return mr::names(tr_names(), restart_state.n, restart_pending(), ", ", last);
+/// A count with its word in the menu's language: "1 setting", "3 settings" (Russian and Polish have a form for 5 and up,
+/// i18n::plural), "1 mod", "2 mods"
+std::string counted_settings(int n) {
+    const int form = i18n::plural(n);
+    return std::to_string(n) + i18n::tr(form == 0 ? " setting" : form == 1 ? " settings" : " settings (many)");
+}
+std::string counted_mods(int n) { return std::to_string(n) + i18n::tr(i18n::plural(n) == 0 ? " mod" : " mods"); }
+/// Everything a restart would apply, a text each: the rows, the mods switched, the order (the question's list, the log)
+std::vector<std::string> restart_all(const RestartTexts& t) {
+    std::vector<std::string> out = t.rows;
+    out.insert(out.end(), t.mods.switched.begin(), t.mods.switched.end());
+    if (t.mods.moved) out.push_back(i18n::tr("the mods' order"));
+    if (t.mods_unknown) out.push_back(i18n::tr(restart_names[mods_slot]));
+    return out;
 }
 int ask_sel = 0;   // (the restart question's choice: 0 Later, 1 Restart now)
 
@@ -3682,23 +3721,19 @@ void text_cell(ui::Ctx& c, ImVec2 a, ImVec2 b, const TextField& f, bool sel, boo
     }
     if (sel) ui::glow(c, a, b);
 }
-/// "Restart needed: " and the pending rows, on one line of width: the last ones as "and N more" when they do not fit
+/// "Restart needed: " and what waits for it, on one line of width: the rows changed by name (the last ones as "and N more",
+/// or all as "N settings", when they do not fit), then the mods as a group: one mod's switch or the order by name, more of
+/// them counted, "2 mods" (menu_restart.h line_forms: the first form that fits)
 std::string restart_line(ui::Ctx& c, float px, float width) {
-    const unsigned all = restart_pending();
+    const RestartTexts t = restart_texts();
+    const int mods = (int)t.mods.switched.size();
+    const std::string named = t.mods_unknown ? i18n::tr(restart_names[mods_slot])
+                              : mods == 1 && !t.mods.moved ? t.mods.switched[0]
+                              : !mods && t.mods.moved ? i18n::tr("the mods' order") : "";
     std::string line;
-    for (int keep = restart_state.n; keep >= 0; keep--) {   // (the first `keep` pending rows by name)
-        unsigned shown = 0;
-        int named = 0, more = 0;
-        for (int i = 0; i < restart_state.n; i++)
-            if ((all >> i) & 1) (named < keep ? (shown |= 1u << i, named++) : more++);
-        const char* names[mr::kMax];
-        for (int i = 0; i < restart_state.n; i++) names[i] = i18n::tr(restart_names[i]);
-        line = i18n::tr("Restart needed: ") + mr::names(names, restart_state.n, shown);
-        if (more) {   // (" settings (many)": the form Russian and Polish take for 5 and up, i18n::plural; never asked in English)
-            const int form = i18n::plural(more);
-            line += std::string(named ? i18n::tr(" and ") : "") + std::to_string(more) +
-                    i18n::tr(named ? " more" : form == 0 ? " setting" : form == 1 ? " settings" : " settings (many)");
-        }
+    for (const std::string& form : mr::line_forms(t.rows, t.rows.empty() ? "" : counted_settings((int)t.rows.size()), named,
+                                                  mods ? counted_mods(mods) : "", i18n::tr(" and "), i18n::tr(" more"))) {
+        line = i18n::tr("Restart needed: ") + form;
         if (ui::size_of(c.f.strong, px, line.c_str()).x <= width) break;
     }
     return line;
@@ -4758,7 +4793,25 @@ void draw_teleport(ui::Ctx& c) {
 }
 
 void draw_ask(ui::Ctx& c) {
-    const float s = c.s, W = 560 * s, H = 232 * s;
+    const float s = c.s, W = 560 * s;
+    // (the question counts what a restart applies, "Restart to apply 1 setting and 2 mods?", and lists it under that, a line
+    // each: the rows changed, the mods switched with On or Off, the order when mods are listed. Eight lines at most, the last
+    // one then how many more. The window is as tall as its lines: as before for a question of one line and no list)
+    const RestartTexts t = restart_texts();
+    const int mods = (int)t.mods.switched.size();
+    std::vector<std::string> what;
+    if (!t.rows.empty()) what.push_back(counted_settings((int)t.rows.size()));
+    if (mods) what.push_back(counted_mods(mods));
+    else if (t.mods.moved) what.push_back(i18n::tr("the mods' order"));
+    else if (t.mods_unknown) what.push_back(i18n::tr(restart_names[mods_slot]));
+    const std::string ask = i18n::tr("Restart to apply ") + mr::list(what, what.size(), ", ", i18n::tr(" and ")) + "?";
+    std::vector<std::string> lines = t.rows;
+    lines.insert(lines.end(), t.mods.switched.begin(), t.mods.switched.end());
+    if (mods && t.mods.moved) lines.push_back(i18n::tr("the mods' order"));
+    const int shown = (int)std::min(lines.size(), (size_t)8);
+    const float th = ui::para(c, c.f.body, 19 * s, ImVec2(), 0, ask.c_str(), W - 56 * s, false), lh = 25 * s;
+    const float list_h = shown ? 6 * s + shown * lh : 0, note_mid = std::max(124 * s, 64 * s + th + list_h + 14 * s);
+    const float H = note_mid + 108 * s;
     const ImVec2 p((c.w - W) * 0.5f, (c.h - H) * 0.5f), q = p + ImVec2(W, H);
     ui::shadow(c, p, q, 30 * s, 1.0f, 8 * s);
     c.d->AddRectFilled(p, q, ui::rgba(36, 28, 19, 250));
@@ -4767,10 +4820,17 @@ void draw_ask(ui::Ctx& c) {
     c.d->AddRectFilledMultiColor(p, ImVec2(q.x, p.y + hb), ui::kBannerTop, ui::kBannerTop, ui::kBanner, ui::kBanner);
     c.d->AddRectFilled(ImVec2(p.x, p.y + hb - 3 * s), ImVec2(q.x, p.y + hb), ui::kBannerEdge);
     ui::text_mid_centre(c, c.f.heading, 23 * s, (p.x + q.x) * 0.5f, p.y + hb * 0.5f, ui::kBannerInk, "Restart Needed");
-    const std::string ask = i18n::tr("Restart to apply ") + restart_list(i18n::tr(" and ")) + "?";
     ui::para(c, c.f.body, 19 * s, ImVec2(p.x + 28 * s, p.y + 64 * s), ui::kInk, ask.c_str(), W - 56 * s);
-    ui::text_mid(c, c.f.body, 16 * s, p.x + 28 * s, p.y + 124 * s, ui::kSoft, "Progress since your last save is lost.");
-    const float bw = 210 * s, bh = 46 * s, gap = 24 * s, by = p.y + 160 * s, x0 = (p.x + q.x) * 0.5f - bw - gap * 0.5f;
+    float ly = p.y + 64 * s + th + 6 * s;
+    for (int i = 0; i < shown; i++, ly += lh) {
+        const bool rest = i == shown - 1 && lines.size() > (size_t)shown;   // (the last line when there are more: how many)
+        const std::string text = rest ? std::to_string(lines.size() - shown + 1) + i18n::tr(" more") : lines[i];
+        if (!rest) ui::diamond(c, ImVec2(p.x + 40 * s, ly + lh * 0.5f), 3.5f * s, ui::kAccent);
+        ui::text_mid(c, c.f.body, 17 * s, p.x + 54 * s, ly + lh * 0.5f, rest ? ui::kSoft : ui::kInk,
+                     fit(c, c.f.body, 17 * s, W - 82 * s, text, false).c_str());
+    }
+    ui::text_mid(c, c.f.body, 16 * s, p.x + 28 * s, p.y + note_mid, ui::kSoft, "Progress since your last save is lost.");
+    const float bw = 210 * s, bh = 46 * s, gap = 24 * s, by = p.y + note_mid + 36 * s, x0 = (p.x + q.x) * 0.5f - bw - gap * 0.5f;
     const char* labels[2] = {"Later", "Restart Now"};
     for (int i = 0; i < 2; i++) {
         const ImVec2 a(x0 + i * (bw + gap), by), b = a + ImVec2(bw, bh);
@@ -6261,7 +6321,8 @@ void menu_tick() {
         if (press[5] || (press[7] && ask_sel == 0)) {
             later();
         } else if (press[7]) {   // (Restart now: everything saved, then the window closes as the player would close it)
-            logf("menu: restart now, to apply %s", restart_list(", ").c_str());
+            const std::vector<std::string> applied = restart_all(restart_texts());
+            logf("menu: restart now, to apply %s", mr::list(applied, applied.size()).c_str());
             save();
             pipeline_cache_save(true);
             open_now = false, page = 0, tune_mode = false, changed = true;

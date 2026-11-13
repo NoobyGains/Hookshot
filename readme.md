@@ -617,8 +617,9 @@ Libertinus, which Hookshot includes.
 
 The rows marked "after a restart" below are read when the game starts. The help of such a row says "Takes effect
 after a restart" before you change it, and in gold once you have. While one is changed, it is tagged "After
-restart", and the help on the Graphics tab lists what waits for a restart when that is more than the selected row; closing the menu then asks whether to restart now. **Later** keeps
-the change for the next start (and is not asked again until you change one of those rows); **Restart now** saves your
+restart", and the help on the Graphics tab lists what waits for a restart when that is more than the selected row; closing the menu then asks whether to restart now, with a list of
+what the restart applies (the rows changed, and the mods switched on the Mods page). **Later** keeps the change for the
+next start (and is not asked again until you change one of those rows, or a mod); **Restart now** saves your
 choices and starts the game again, so progress since your last save is lost.
 
 A row for something this PC cannot use is not shown: NVIDIA Reflex and AMD Anti-Lag 2 without a GPU and driver that
@@ -1234,7 +1235,8 @@ number of files and Off or On. <kbd>Up</kbd> and <kbd>Down</kbd> choose a mod; <
 up or down the order. With the mouse, click Off or On, or the arrows beside the chosen mod. When two mods have the same
 file, the one lower in the list wins it: a mod's line names the mod on that shares files with it and which of the two
 wins, and the help beside the list names every one. Changes apply after a restart (closing the menu asks, as for the
-other settings that need one). Your folders are never renamed: the page keeps its choice in `mods/hookshot-mods.ini`, a
+other settings that need one: its question lists each mod switched, with On or Off, and the order when it changed, and the
+menu's "Restart needed" line names one switched mod and counts more, "2 mods"). Your folders are never renamed: the page keeps its choice in `mods/hookshot-mods.ini`, a
 text file you can also edit, with the game closed:
 
 ```ini
