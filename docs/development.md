@@ -503,6 +503,55 @@ compiles in play. When the record's format changes (its magic and record size, `
 `nx2/pipeline_states.py`), the old lists no longer read and the release checks stop. Convert each source in place, or
 record it again, and make a new tour list. The folder's layout stays the same.
 
+### The pipeline tour
+
+`scripts/pipeline_tour.py` plays the game for the tour's list, unattended, on Linux, and writes `tour.bin.xz` with its note
+(ported from Hookshot's draft #2048, now driven through the [control bridge](control.md)):
+
+```sh
+python -I scripts/pipeline_tour.py tour --game <game folder> --out <tour dir> --name play --publish
+python -I scripts/pipeline_tour.py run --game <game folder copy> --out <dir> --part child-overworld --first "Market" --stops 3 --skip-opening
+python -I scripts/pipeline_tour.py run --game x --out x --dry-run          # the route, without the game
+```
+
+`tour` runs its parts (the opening; the child overworld; the dungeons at both ages; the adult overworld) one after another,
+one game at a time, in a reflinked copy of the game folder, at nice 19 (on `--cpus` if given), in games of `--chunk` stops
+(8; a fresh game each, as one game's memory only grows), and merges their lists; `--publish` then runs
+`nx2/pipeline_states.py tour` with the GPU and build the bridge reported and the settings and route the runs used
+(`merge` merges any lists). Each game runs under a memory guard (the script's `MEM`, `--mem key=value`): it starts only with
+8 GB available and at most 16 GB of swap in use (else it waits, 30 minutes at most); a game holding more than 9 GB after a
+stop ends there and a fresh one goes on from the next stop; past 12 GB, under 3 GB available or past 20 GB of swap it is
+stopped at once and a fresh game goes on from the stop it was at (a stop that does it twice is left out). With systemd the
+game also runs in a scope of its own with `MemoryMax` (16 GB).
+
+Each part starts with no save, in a data folder of its own: the title, New Game and the opening (watched whole by the
+opening part, skipped by the game itself, `HOS_SKIP_OPENING`, in the others), until the bridge's `status` says Link is in a
+map with no event playing and nothing loading; then every item from the Debug tab's inventory but the story's (medallions,
+stones and songs start scenes that wait for the player), and each Teleport destination: the camera all around, at a few
+the sword, the shield and an item from the pause menu's Items page, at Lake Hylia a dive (and, as the adult, the iron boots
+and the Zora tunic on the lake's bottom), and on to the next once no new pipeline came for 2.5 s of game time. A few stops
+are left out: one starts a scene the tour cannot finish, others added almost nothing (the script's `LEFT_OUT`). `value <run
+dirs>` measures that: each step's pipelines that neither the players' lists (`contrib/`) nor any other step has, its
+seconds, and the steps under `--floor` (10) cut (`--sub`: a stop's arrival, look around, item use and settling apart).
+
+It is driven through the bridge (`HOS_CONTROL`, a socket in the run's folder): `teleport` by the destination's index and
+`age`, asked again while the game answers `refused` (an event playing, a map loading, another teleport in the last 8 s),
+`timeout` or `cancelled`, with A or B now and then when a conversation holds the game; given up on when the refusal is one
+asking again cannot change (no map for Link's age) or a request is sent five times without Link moving (the Haunted
+Wasteland, visited last). Arrival is `wait map` (`loading_end` after the age switch), then `status` until the arrival's
+event is over; the presses are `sequence` in game frames, the waits `wait present`. Only the Debug tab's inventory, which
+the bridge does not do, goes through `HOS_INPUT_LIVE`'s `!cheat` lines (`HOS_OOT_CHEATS=1`). No controller is opened
+(`HOS_NO_SDL`) and nothing reaches the desktop. It runs as fast as the game goes, with settings that change no pipeline's
+key (formats and draw state, not sizes or rates): headless, 640x360 with the game's own upscaler at 50%, the cap Uncapped
+(`HOS_FPS_MAX=1000`) with every frame a 60th of a second of game time (`HOS_FPS_STEP=0`, Game speed Per frame), pacing and
+V-Sync off, text at once, no frame generation, sharpening or HDR, in the run's own copy of the options file (restored
+after). `run` is one part (`--part`, `--first <stop>` to start again at a stop, `--stops N`, `--dry-run`); `--env` and
+`--ini` change the settings (a list for the mesh fallback: `--env RX_VK_FORCE_MESH_FALLBACK=1`), and `--window WxH` shows
+it. Each run writes `states.bin`, `report.txt` and `report.json` (each step's pipelines, the new ones it added, its frames,
+seconds and the game's memory: a flattening curve says the list is nearly whole), `log.txt`, `steps.txt` (each request, at
+its frame) and a small picture every 600 frames (`shots/`). `tests/test_pipeline_tour.py` checks it without the game,
+against a fake bridge.
+
 ## The options file
 
 A new row on the Graphics, Audio, Gameplay or Controls tab needs a line in the README's option table too, in the
