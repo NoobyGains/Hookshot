@@ -76,14 +76,16 @@ uint32_t hos_oot_floor_cut(uint32_t inverse_step_bits) {
     int v = __atomic_load_n(&on, __ATOMIC_RELAXED);
     if (v < 0) v = !(getenv("HOS_FPS_FLOOR") && !atoi(getenv("HOS_FPS_FLOOR"))), __atomic_store_n(&on, v, __ATOMIC_RELAXED);
     const float cut = v ? oot_floor_cut(__atomic_load_n(&hos_frame_seconds_bits, __ATOMIC_RELAXED)) : 100.0f;
-    if (fps_log()) {
-        static volatile LONG64 calls;
+    if (fps_log()) {   /* (of every 600 updates: how many kept a tenth, and how many the game's gate would have cut) */
+        static volatile LONG64 calls, tenths, game_tenths;
+        const float inverse = oot_bits_float(inverse_step_bits);
+        if (inverse > cut) InterlockedIncrement64(&tenths);
+        if (inverse > 100.0f) InterlockedIncrement64(&game_tenths);
         const LONG64 n = InterlockedIncrement64(&calls);
-        if (n % 600 == 1) {
-            const float inverse = oot_bits_float(inverse_step_bits);
-            hos_log("oot: floor carry: inverse step %.1f, cut at %.1f (%s)%s", inverse, cut, inverse > cut ? "a tenth" : "whole",
-                    v ? "" : ", the game's gate (HOS_FPS_FLOOR=0)");
-        }
+        if (n % 600 == 0)
+            hos_log("oot: floor carry: %lld of the last 600 updates kept a tenth of the floor's velocity (the game's gate: %lld); "
+                    "inverse step %.1f, cut at %.1f%s", (long long)InterlockedExchange64(&tenths, 0),
+                    (long long)InterlockedExchange64(&game_tenths, 0), inverse, cut, v ? "" : " (HOS_FPS_FLOOR=0: the game's gate)");
     }
     return oot_float_bits(cut);
 }
