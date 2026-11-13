@@ -618,7 +618,7 @@ def check_wiring(replay, draw):
     # draw command after it preceded by its query's issue, with no way out between; nothing else begins it
     fn = block(draw, "void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {")
     guard = fn.index("OccGuard occ(cmd, d);")
-    assert fn.index("StatsQuery stats_query(cmd, p.key, d);") < guard
+    assert fn.index("StatsQuery stats_query(cmd, p, d);") < guard
     assert fn.index("begin_pass(cmd, at);") < guard
     assert "vkCmdBeginQuery" not in fn and "d.occ_pool" not in fn[:guard].replace("batch.occ_pool", "")
     body = fn[guard:]
