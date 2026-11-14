@@ -4,7 +4,7 @@
 
 Two objects from the game the project runs, turning either side of the name: the Hookshot on the left, the Hyrule
 shield on the right. They are renders of fan-made 3D models, lit in one black studio with blue, cyan and gold rim
-lights; nothing is taken from the game's own files.
+lights; nothing is taken from the game's own files, and the shield's crest is replaced by the project's H.
 
 | Object | Model | Credit |
 |---|---|---|
@@ -14,6 +14,10 @@ lights; nothing is taken from the game's own files.
 The models are not in this repository: only the pictures rendered from them are. **To do:** add each model's page and
 licence here (neither download carried a licence file). The Hookshot, the shield and its crest are Nintendo's designs;
 this is fan art for an unofficial project.
+
+The shield does not carry its crest: `scripts/render_emblem.py` leaves the crest's mesh out, paints its bird out of
+the face's texture (in memory; the download is not changed) and stands a gold **H**, the project's letter, in its
+place.
 
 Rendered on 2026-11-14 in Blender 4.5 (Cycles, OptiX, RTX 5090), 96 samples, 600×600, 40 frames each:
 
@@ -26,7 +30,7 @@ Rendered on 2026-11-14 in Blender 4.5 (Cycles, OptiX, RTX 5090), 96 samples, 600
 | File | Size | Use |
 |---|---|---|
 | `emblem_hookshot.png`, `emblem_shield.png` | 600×600 | The first frame of each turn: what the still banner is built from |
-| `header.webp` | 1200×450, 40 frames, animated WebP | The README header: both objects turn once, and loop |
+| `banner.webp` | 1200×450, 40 frames, animated WebP | The README header: both objects turn once, and loop |
 | `hero.png` | 1600×600, rounded corners | The still banner |
 | `social-preview.png` | 1280×640 | GitHub's social preview (uploaded by hand in Settings) |
 | `icon.png` | 512×512, rounded square | Listings and avatars |
