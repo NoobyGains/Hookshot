@@ -74,6 +74,10 @@ enum { HOS_OPT_DAMAGE_TAKEN = 56 };
    once a frame, live. Steps: View 0 Short, 1 Original, 2 Far, 3 Very far, 4 Max; Grass 0 Off, 1 Less, 2 Original, 3 More,
    4 Dense; Shadows 0 Short, 1 Original, 2 Far, 3 Max) */
 enum { HOS_OPT_VIEW_DISTANCE = 57, HOS_OPT_GRASS, HOS_OPT_SHADOW_DISTANCE };
+/* (HOS_OPT_CONTACT_SHADOWS, 91: the Graphics tab's Contact shadows, 1 On (the game's), 0 Off; HOS_OPT_BASE_QUALITY, 92: its Base
+   quality, 0 Normal (the game's), 1 Low, the game's own handheld preset. Both host/oot_view.c, live. Longshot PR #227 has them at
+   67 and 68; 91 to 93 are this tree's for the menu batch, and 93 is kept for Object detail, which that pull request also has) */
+enum { HOS_OPT_CONTACT_SHADOWS = 91, HOS_OPT_BASE_QUALITY };
 /* (HOS_OPT_CLASSIC_COUNTERS, 61: the Gameplay tab's Classic counters, host/oot_counters.c: 0 Off, 1 On; live. 60 is kept
    for the Item wheel: tests/test_option_ids.py) */
 enum { HOS_OPT_CLASSIC_COUNTERS = 61 };

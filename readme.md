@@ -678,6 +678,8 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | View distance | Short, Original, Far, Very far, Max (how far trees, bushes and detailed models reach; changes at once) | Original |
 | | Grass | Off, Less, Original, More, Dense (changes at once) | Original |
 | | Shadow distance | Short, Original, Far, Max (how far scenery and characters cast shadows; changes at once) | Original |
+| | Contact shadows | On, Off (the small shadows where objects touch the ground; changes at once) | On |
+| | Base quality | Normal, Low (the game's own handheld preset, for a weaker GPU; changes at once) | Normal |
 | | GPU device | Auto, or each graphics card by name (after a restart) | Auto |
 | | VRAM budget | Auto, 3.6, 4.8, 6, 7.5, 9, 11 GB (2.2 GB only from the Minimum (4GB) preset); a quality preset sets it | Auto |
 | Audio | Volume | 0 to 100%, in steps of 5 | 100% |

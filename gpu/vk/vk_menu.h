@@ -98,6 +98,8 @@ struct Options {
     int view_distance = 1;    // how far foliage and detailed models reach: 0 Short, 1 Original, 2 Far, 3 Very far, 4 Max (host/oot_view.c)
     int grass = 2;            // the grass's density: 0 Off, 1 Less, 2 Original, 3 More, 4 Dense (host/oot_view.c)
     int shadow_distance = 1;  // how far shadows reach: 0 Short, 1 Original, 2 Far, 3 Max (host/oot_view.c)
+    int contact_shadows = 1;  // the small shadows where objects touch: 0 Off, 1 On (the game's) (host/oot_view.c)
+    int base_quality = 0;     // 0 Normal (the game's), 1 Low: the game's own handheld preset (host/oot_view.c)
     int text_size = 0;    // dialogue and signs' text size: 0 the game's, 1 110%, 2 125%, 3 150%, 4 175% (host/oot_text_size.c,
                           // nx2/oot_patches.py; HOS_TEXT_SIZE)
     int camera_speed = 100;   // (hookshot) the right stick's camera turn in percent of the game's, 50 to 400 (host/nn_vi.c, nx2/oot_patches.py: HOS_OPT_CAMERA_SPEED, 48)

@@ -854,6 +854,7 @@ const char* tx_shadow_distance(int v) {
     static const char* t[] = {"Short", "Original", "Far", "Max"};
     return (unsigned)v < 4 ? t[v] : t[1];
 }
+const char* tx_base_quality(int v) { return v ? "Low" : "Normal"; }   // (Contact shadows: tx_onoff)
 const char* tx_speed(int v) { return v ? "Real time" : "Per frame"; }
 // (the FXAA, Bloom and Colour grade rows: vk_framegen.cpp framegen_scale)
 const char* tx_bloom(int v) {
@@ -1656,6 +1657,11 @@ Row rows[] = {
      "How much grass grows. Off or Less helps a weaker PC. Applies at once.", nullptr, false, true},
     {TAB_GRAPHICS, "Shadow distance", &opts.shadow_distance, 0, 3, 1, tx_shadow_distance,
      "How far scenery and characters cast shadows. Further costs GPU time. Applies at once.", nullptr, false, true},
+    // (hookshot, from Longshot PR #227: host/oot_view.c)
+    {TAB_GRAPHICS, "Contact shadows", &opts.contact_shadows, 0, 1, 1, tx_onoff,
+     "The small shadows where objects touch the ground. Off saves a little GPU time. Applies at once.", nullptr, false, true},
+    {TAB_GRAPHICS, "Base quality", &opts.base_quality, 0, 1, 1, tx_base_quality,
+     "Low uses the game's own handheld preset, for weaker GPUs. Applies at once.", nullptr, false, true},
     // (the rows to change when something is wrong, or on a card short of memory: last)
     {TAB_GRAPHICS, "GPU and memory", nullptr, 0, 0, 0, nullptr, nullptr, nullptr, false, true, -1, true},
     {TAB_GRAPHICS, "GPU device", &opts.gpu_device, 0, 8, 1, tx_gpu,
@@ -5530,6 +5536,9 @@ void menu_init() {
     if (const char* e = getenv("HOS_REALTIME_STEP")) env_override(&opts.realtime, !env_value_off(e));
     if (const char* e = getenv("HOS_DYNRES")) env_override(&opts.resolution, env_value_off(e) ? 1 : 0);
     if (const char* e = getenv("HOS_SKIP_OPENING")) env_override(&opts.skip_opening, !env_value_off(e));
+    // (the distance rows' run-only overrides, as Longshot's RX_OOT_*: Contact shadows and Base quality, 0 or 1)
+    if (const char* e = getenv("RX_OOT_CONTACT_SHADOWS")) env_override(&opts.contact_shadows, !env_value_off(e));
+    if (const char* e = getenv("RX_OOT_BASE_QUALITY")) env_override(&opts.base_quality, !env_value_off(e));
     // (vk_texture.cpp reads RX_VK_ASTC_RGBA8 over the row: the row shows it, fixed (row_fixed), and the ini keeps the player's)
     if (const char* e = getenv("RX_VK_ASTC_RGBA8")) env_override(&opts.astc_rgba8, !env_value_off(e));
     if (const char* e = getenv("RX_VK_NO_INTEL_SERIAL")) env_override(&opts.intel_compiles, !env_value_off(e));

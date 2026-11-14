@@ -1,4 +1,4 @@
-/* The Graphics tab's View distance, Grass and Shadow distance rows (live).
+/* The Graphics tab's View distance, Grass, Shadow distance, Contact shadows and Base quality rows (live).
 
    nx2/oot_view.py calls hos_oot_view at the head of the game's render setup (f_831f3200, main+0x31d3200), once a frame.
    Each row is a step, not a slider; the step's factor multiplies the game's own value, which is kept per object and taken
@@ -7,7 +7,12 @@
 
    Where the values live (the object chains, their vtables and offsets) was found by hotoni (the Graphics-Menu mod for the
    Switch 2 game); this code came to Hookshot from Ocarina Reborn (misterrageguy-cyber), with the model detail and the
-   character shadows scaled from the game's own values too, where Reborn wrote fixed ones. */
+   character shadows scaled from the game's own values too, where Reborn wrote fixed ones.
+
+   Contact shadows and Base quality are Longshot's (PR #227, dukenheimer, from the same finds): Contact shadows Off clears the
+   scene renderer's contact-shadow flag (and puts it back when turned On); Base quality Low writes the game's own handheld
+   preset into its quality setting (and puts the game's value back). Both leave the game's memory alone until the row is first
+   moved off its default. */
 #include "hos.h"
 #include "../gpu/vk/vk_api.h"
 #include <string.h>
@@ -43,13 +48,17 @@ static const float SHADOW[] = {0.5f, 1.0f, 2.0f, 3.0f};        /* Short, Origina
 
 static Knob foliage[2][8], grass, lod[3], char_shadow[2], shadow_far;
 static int touched;
+static int contact_off, quality_saved;   /* (the contact-shadow flag cleared by us; the game's quality value we replaced) */
+static uint32_t quality_game;
+static uint64_t contact_at, quality_at;   /* (the objects they were done to: another object, a fresh start) */
 
 static int step(int v, int hi) { return v < 0 ? 0 : v > hi ? hi : v; }
 
 void hos_oot_view(Ctx *c) {
     const int v = step(rx_option(HOS_OPT_VIEW_DISTANCE, 1), 4), g = step(rx_option(HOS_OPT_GRASS, 2), 4),
               s = step(rx_option(HOS_OPT_SHADOW_DISTANCE, 1), 3);
-    if (!touched && v == 1 && g == 2 && s == 1) return;
+    const int contact = rx_option(HOS_OPT_CONTACT_SHADOWS, 1) != 0, low = rx_option(HOS_OPT_BASE_QUALITY, 0) != 0;
+    if (!touched && v == 1 && g == 2 && s == 1 && contact && !low) return;
     touched = 1;   /* (from now on Original writes the game's own values back where ours differ) */
     const float fv = VIEW[v], fg = GRASS[g], fs = SHADOW[s];
     const float detail = fv < 1.0f ? 1.0f : fv;   /* (models never coarser than the game's) */
@@ -78,4 +87,26 @@ void hos_oot_view(Ctx *c) {
     for (int i = 0; i < 2; i++) apply(c, &char_shadow[i], cp ? cp + 0x90 + 4 * i : 0, fs);
     const uint64_t sh = r ? obj(c, r + 0xb30, G(0x4b8a0a8)) : 0;
     apply(c, &shadow_far, sh ? sh + 0xb4 : 0, fs);
+
+    /* the contact shadows: bit 0 of a byte of the scene renderer's shadow object, cleared while the row is Off */
+    const uint64_t ss = r ? recomp_load64(c, r + 0xc08) : 0;
+    if (ss != contact_at) contact_at = ss, contact_off = 0;
+    if (ss) {
+        const uint64_t flags = recomp_load8(c, ss + 0x318);
+        if (!contact && (flags & 1)) recomp_store8(c, ss + 0x318, flags & ~1ULL), contact_off = 1;
+        else if (contact && contact_off) recomp_store8(c, ss + 0x318, flags | 1), contact_off = 0;
+    }
+
+    /* the base quality: the game's quality setting (+0x20 of its settings object; 0 is its handheld preset) */
+    const uint64_t q = recomp_load64(c, G(0x4e97dd8));
+    if (q != quality_at) quality_at = q, quality_saved = 0;
+    if (q) {
+        if (low) {
+            const uint32_t now = (uint32_t)recomp_load32(c, q + 0x20);
+            if (!quality_saved || now != 0) quality_game = now, quality_saved = 1;   /* (the game's own, kept to give back) */
+            recomp_store32(c, q + 0x20, 0);
+        } else if (quality_saved) {
+            recomp_store32(c, q + 0x20, quality_game), quality_saved = 0;
+        }
+    }
 }

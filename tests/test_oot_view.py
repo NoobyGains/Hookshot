@@ -1,7 +1,9 @@
 """View distance, Grass and Shadow distance (host/oot_view.c, nx2/oot_view.py): the hook's install gate, the rows' wiring,
 and the C code itself run over a made-up guest memory with the game's object chains. Checked: nothing is written while
-every row is on Original; each step multiplies the game's own value; Original gives it back exactly; a value the game
-writes meanwhile is taken again (nothing compounds); a chain with an unexpected vtable is left alone.
+every row is on Original (Contact shadows On, Base quality Normal); each step multiplies the game's own value; Original gives it back exactly; a value the game
+writes meanwhile is taken again (nothing compounds); a chain with an unexpected vtable is left alone; Contact shadows Off
+clears one bit of the shadow flags and gives it back, and Base quality Low writes the handheld preset (0) and gives the game's
+own quality back, each only while the row asks.
 
 python -I -B tests/test_oot_view.py [--cc gcc]
 """
@@ -27,10 +29,11 @@ HARNESS = r'''
 #include <string.h>
 typedef struct { uint64_t x[32]; } Ctx;
 enum { HOS_OPT_VIEW_DISTANCE = 57, HOS_OPT_GRASS, HOS_OPT_SHADOW_DISTANCE };
-static int view = 1, grass_row = 2, shadow_row = 1, stores;
+enum { HOS_OPT_CONTACT_SHADOWS = 91, HOS_OPT_BASE_QUALITY };
+static int view = 1, grass_row = 2, shadow_row = 1, contact_row = 1, quality_row = 0, stores;
 int rx_option(int id, int otherwise) {
     return id == HOS_OPT_VIEW_DISTANCE ? view : id == HOS_OPT_GRASS ? grass_row : id == HOS_OPT_SHADOW_DISTANCE ? shadow_row
-                                                                                                           : otherwise;
+           : id == HOS_OPT_CONTACT_SHADOWS ? contact_row : id == HOS_OPT_BASE_QUALITY ? quality_row : otherwise;
 }
 /* the guest's memory: 32-bit words by address */
 static uint64_t at_[512];
@@ -42,6 +45,11 @@ static void put64(uint64_t a, uint64_t v) { put32(a, (uint32_t)v); put32(a + 4, 
 static uint64_t recomp_load32(Ctx *c, uint64_t a) { (void)c; int i = find(a); return i < 0 ? 0 : word_[i]; }
 static uint64_t recomp_load64(Ctx *c, uint64_t a) { return recomp_load32(c, a) | recomp_load32(c, a + 4) << 32; }
 static void recomp_store32(Ctx *c, uint64_t a, uint64_t v) { (void)c; stores++; put32(a, (uint32_t)v); }
+static uint64_t recomp_load8(Ctx *c, uint64_t a) { return recomp_load32(c, a & ~3ULL) >> (8 * (a & 3)) & 0xff; }
+static void recomp_store8(Ctx *c, uint64_t a, uint64_t v) {
+    const uint32_t shift = 8 * (uint32_t)(a & 3), word = (uint32_t)recomp_load32(c, a & ~3ULL);
+    (void)c, stores++, put32(a & ~3ULL, (word & ~(0xffu << shift)) | ((uint32_t)(v & 0xff) << shift));
+}
 static void putf(uint64_t a, float f) { uint32_t u; memcpy(&u, &f, 4); put32(a, u); }
 static float getf(uint64_t a) { uint32_t u = (uint32_t)recomp_load32(0, a); float f; memcpy(&f, &u, 4); return f; }
 /* SOURCE */
@@ -76,6 +84,9 @@ int main(void) {
     putf(cp + 0x90, 30.0f), putf(cp + 0x94, 25.0f);
     const uint64_t sh = link(r + 0xb30, M(0x4b8a0a8));
     putf(sh + 0xb4, 160.0f);
+    const uint64_t ss = 0x91000000ULL, q = 0x92000000ULL;   /* the contact-shadow object (its flags byte) and the quality settings */
+    put64(r + 0xc08, ss), put32(ss + 0x318, 0x05);
+    put64(M(0x4e97dd8), q), put32(q + 0x20, 3);
 
     for (int f = 0; f < 3; f++) hos_oot_view(&c);   /* every row on Original: nothing touched */
     CHECK(stores == 0);
@@ -105,6 +116,50 @@ int main(void) {
     for (int b = 0; b < 2; b++)
         for (int i = 0; i < 8; i++) NEAR(getf(p[b] + 0x38 + 4 * i), b == 0 && i == 1 ? 40.0f : 10.0f * (i + 1) + b);
     NEAR(getf(lod + 0x48), 1.0f); NEAR(getf(lod + 0x4c), 0.8f); NEAR(getf(lod + 0x50), 1.0f);
+
+    stores = 0;   /* Contact shadows Off: bit 0 of the flags byte cleared, the others kept; On: back */
+    contact_row = 0;
+    hos_oot_view(&c);
+    CHECK(recomp_load8(0, ss + 0x318) == 0x04);
+    hos_oot_view(&c);
+    CHECK(recomp_load8(0, ss + 0x318) == 0x04 && stores == 1);   /* (once, not at every frame) */
+    contact_row = 1;
+    hos_oot_view(&c);
+    CHECK(recomp_load8(0, ss + 0x318) == 0x05);
+    contact_row = 0, put32(ss + 0x318, 0x04);   /* the game's own flag already clear: not ours to put back */
+    stores = 0;
+    hos_oot_view(&c);
+    contact_row = 1;
+    hos_oot_view(&c);
+    CHECK(recomp_load8(0, ss + 0x318) == 0x04 && stores == 0);
+    put32(ss + 0x318, 0x05);
+
+    quality_row = 1;   /* Base quality Low: the game's handheld preset (0), the game's own value kept and given back */
+    hos_oot_view(&c);
+    CHECK(recomp_load32(0, q + 0x20) == 0);
+    put32(q + 0x20, 2);   /* the game writes its own value meanwhile: it is the one given back */
+    hos_oot_view(&c);
+    CHECK(recomp_load32(0, q + 0x20) == 0);
+    quality_row = 0;
+    hos_oot_view(&c);
+    CHECK(recomp_load32(0, q + 0x20) == 2);
+    stores = 0;
+    hos_oot_view(&c);   /* Normal again: left alone */
+    CHECK(stores == 0 && recomp_load32(0, q + 0x20) == 2);
+    quality_row = 1;
+    hos_oot_view(&c);
+    put64(M(0x4e97dd8), 0);   /* the settings object gone: nothing written, and a new one starts afresh */
+    stores = 0;
+    hos_oot_view(&c);
+    CHECK(stores == 0);
+    const uint64_t q2 = 0x93000000ULL;
+    put64(M(0x4e97dd8), q2), put32(q2 + 0x20, 1);
+    hos_oot_view(&c);
+    CHECK(recomp_load32(0, q2 + 0x20) == 0);
+    quality_row = 0;
+    hos_oot_view(&c);
+    CHECK(recomp_load32(0, q2 + 0x20) == 1);
+    stores = 0;
 
     put64(recomp_load64(0, M(0x4e22540)), 0x1234);   /* the foliage's root now an object of another kind */
     view = 4;
@@ -161,6 +216,12 @@ class OotViewTests(unittest.TestCase):
                                          ("shadow_distance", 1, "Shadow distance", 3)):
             self.assertIn("int %s = %d;" % (field, default), options)
             self.assertRegex(menu, r'\{TAB_GRAPHICS, "%s", &opts\.%s, 0, %d, 1, tx_%s,' % (row, field, hi, field))
+            self.assertRegex(replay, r"if \(id == HOS_OPT_%s\) return opts\.%s;" % (field.upper(), field))
+        # (Contact shadows and Base quality, from Longshot PR #227: ids 91 and 92, two-step rows, kept in the Options)
+        self.assertIn("enum { HOS_OPT_CONTACT_SHADOWS = 91, HOS_OPT_BASE_QUALITY };", api)
+        for field, default, row in (("contact_shadows", 1, "Contact shadows"), ("base_quality", 0, "Base quality")):
+            self.assertIn("int %s = %d;" % (field, default), options)
+            self.assertRegex(menu, r'\{TAB_GRAPHICS, "%s", &opts\.%s, 0, 1, 1, tx_' % (row, field))
             self.assertRegex(replay, r"if \(id == HOS_OPT_%s\) return opts\.%s;" % (field.upper(), field))
         # (the C's own step tables and the menu's names have as many entries)
         source = (ROOT / "host/oot_view.c").read_text(encoding="utf-8")

@@ -6000,6 +6000,8 @@ void fill_replay_table(MkwVkRenderer& t) {
         if (id == HOS_OPT_VIEW_DISTANCE) return opts.view_distance;   // (host/oot_view.c, once a frame)
         if (id == HOS_OPT_GRASS) return opts.grass;
         if (id == HOS_OPT_SHADOW_DISTANCE) return opts.shadow_distance;
+        if (id == HOS_OPT_CONTACT_SHADOWS) return opts.contact_shadows;
+        if (id == HOS_OPT_BASE_QUALITY) return opts.base_quality;
         if (id == HOS_OPT_CLASSIC_COUNTERS) return opts.classic_counters;   // (host/oot_counters.c)
         if (id == HOS_OPT_HERO_MODE) return opts.hero_mode;   // (host/oot_damage.c, host/oot_hero.c)
         if (id == HOS_OPT_NAVI_CALLOUTS) return opts.navi_callouts;   // (host/oot_navi.c)
