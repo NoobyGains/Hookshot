@@ -39,7 +39,7 @@ def main():
     end = source.index("            // (RX_VK_DUMP_BLACK", start)
     take = source[start:end] + "\n(void)at_present; return px; };\n"
     helper_start = source.index("std::shared_ptr<std::vector<uint8_t>> shot_pixels(")
-    helper_end = source.index("void do_present(", helper_start)
+    helper_end = source.index("// (the Teleport page's own screenshots", helper_start)   # (the helper ends where the Teleport page's capture begins: the next thing before do_present)
     helper = source[helper_start:helper_end]
     start = source.index("        if (shot && made_src && made_map) {")
     end = source.index("        } else if (shot)", start)

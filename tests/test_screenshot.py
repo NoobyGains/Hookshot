@@ -346,7 +346,7 @@ def save_path():
          "the Screenshot key row is not after the Compact menu key")
     need('const char* tx_screenshot_key(int v) { return v ? "F12" : "Off"; }' in menu, "the row's choices")
     rec = block(menu, "void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {")
-    need("const bool shot_note = screenshot_note(&shot_saved);" in rec and "&& !shot_note) {" in rec,
+    need("const bool shot_note = screenshot_note(&shot_saved);" in rec and "&& !shot_note && !notice) {" in rec,
          "a frame with only the note shows nothing")
     need(rec.index("draw_corner(c, timer, deaths);") < rec.index("if (shot_note) draw_screenshot_note(c, shot_saved);") <
          rec.rindex("ui::record(cmd, index, w, h);"), "the note is not drawn last, over the overlays")

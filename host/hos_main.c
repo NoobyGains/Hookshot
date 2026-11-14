@@ -21,6 +21,7 @@
 #include "hos_wide_size.h"   /* (the widescreen picture's size, shared with the Insert menu) */
 #include "../gpu/vk/vk_api.h"
 #include "../gpu/vk/oot_cheat_items.h"
+#include "../gpu/vk/oot_teleport_capture.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -727,6 +728,8 @@ static const unsigned char oot_item_kinds[] = {OOT_CHEAT_ITEMS(OOT_NO_SECTION, O
 static int oot_item_count(Ctx *c, const char *name);
 static int oot_gamedata_bool(Ctx *c, uint32_t hash, int *value);
 static int oot_gamedata_set_bool(Ctx *c, uint32_t hash, int value);
+static uint64_t oot_gamedata_int_at(Ctx *c, uint32_t hash);
+#define OOT_RUPEES_HASH 0xa77921d7u   /* PlayerStatus.CurrentRupee (Int) */
 static int oot_gamedata_string(Ctx *c, uint32_t hash, char *buf, size_t size);
 
 static void oot_inventory_refresh(Ctx *c, int64_t now) {
@@ -744,6 +747,10 @@ static void oot_inventory_refresh(Ctx *c, int64_t now) {
     {   /* Link's age for the Debug tab's Switch age row: 0 child, 1 adult, -1 no save loaded (Sequence_IsChildhood) */
         int child = 1;
         rx_option_set(OOT_CHEAT_AGE_ID, loaded && oot_gamedata_bool(c, 0xcea220d3u, &child) ? (child ? 0 : 1) : -1);
+    }
+    {   /* Link's rupees for the Debug tab's Rupees row, -1 no save loaded */
+        const uint64_t at = loaded ? oot_gamedata_int_at(c, OOT_RUPEES_HASH) : 0;
+        rx_option_set(OOT_CHEAT_RUPEES_ID, at ? (int)recomp_load32(c, at) : -1);
     }
     if (loaded) {   /* the map Link is in and his age, logged when either changes: where a log's problem happened, the "Where in
                        the game" of the Insert menu's Bug report (gpu/vk/vk_bug_report.cpp reads the last of these lines) */
@@ -1134,6 +1141,49 @@ static int oot_gamedata_set_bool(Ctx *c, uint32_t hash, int value) {
     return 0;
 }
 
+/* A GameData int's value, found as oot_gamedata_set_bool finds a bool: the ints are the container at GameDataMgr+0xc8 (its
+   entry count at +0xd0, 40-byte entries at +0xd8 with the value at +28, the (hash, index) table at +0xe0, +0xec its size), as
+   host/oot_state_tap.c reads them. The value's guest address, 0 when the save has none. */
+static uint64_t oot_gamedata_int_at(Ctx *c, uint32_t hash) {
+    const uint64_t mgr = oot_singleton(c, OOT_GAMEDATA_SLOT);
+    if (!mgr) return 0;
+    const uint64_t table = recomp_load64(c, mgr + 0xe0), entries = recomp_load64(c, mgr + 0xd8);
+    const uint32_t size = recomp_load32(c, mgr + 0xec), count = recomp_load32(c, mgr + 0xd0);
+    if (!table || !entries || !size || size > (1u << 22)) return 0;
+    for (uint32_t probe = 0, slot = hash % size; probe < size; probe++, slot = (slot + 1) % size) {
+        const uint32_t key = recomp_load32(c, table + slot * 8ULL);
+        if (!key) return 0;
+        if (key != hash) continue;
+        const uint32_t index = recomp_load32(c, table + slot * 8ULL + 4);
+        return index < count ? entries + index * 40ULL + 28 : 0;
+    }
+    return 0;
+}
+
+/* What Link's wallet holds: each wallet's MaxNum in romfs Pack/Actor/Pouch_Wallet_*.pack
+   (GameParameter/ExpansionMaxNumActor/Item_Wallet_*.game__actor__ExpansionMaxNumActor.bgyml): the Giant's 1000, the
+   Adult's 500, the child's 200 */
+static int oot_wallet_capacity(Ctx *c) {
+    if (oot_item_count(c, "Item_Wallet_Large") > 0) return 1000;
+    if (oot_item_count(c, "Item_Wallet_Medium") > 0) return 500;
+    return 200;
+}
+
+/* The Debug tab's Rupees row: adds (or takes) delta rupees, kept from 0 to what the wallet holds */
+static void oot_add_rupees(Ctx *c, int delta) {
+    const uint64_t at = oot_gamedata_int_at(c, OOT_RUPEES_HASH);
+    if (!at) {
+        hos_log("cheats: rupees: no PlayerStatus.CurrentRupee (no save loaded?)");
+        return;
+    }
+    const int have = (int)recomp_load32(c, at), cap = oot_wallet_capacity(c);
+    int now = have + delta;
+    if (now > cap) now = cap;
+    if (now < 0) now = 0;
+    recomp_store32(c, at, (uint32_t)now);
+    hos_log("cheats: rupees %d -> %d (%+d asked, wallet %d)", have, now, delta, cap);
+}
+
 /* Age toggle: flips Sequence_IsChildhood (what the Temple of Time event sets) and reloads the current map, or the
    Market when this map is not in oot_destinations, through the teleport so the other age's map and Link load. 1: the map
    change was sent (teleport.banc its map); 0: not, teleport.why says why (the control bridge's reply) */
@@ -1358,6 +1408,47 @@ static int oot_flight_moved_away(Ctx *c, uint64_t actor, const float held[3]) {
     return apart > 2.0f * 2.0f;
 }
 
+/* The Teleport page's own screenshots (gpu/vk/vk_menu.cpp): once Link has stayed 3 s in a map of oot_capture_maps, with no
+   map loading and no event playing, the menu is told (OOT_TP_CAPTURE_ID); it takes the picture if it has none of that map
+   yet. Told again only after another map. Runs with the player's update, which stops while the game is paused; and only
+   while the menu takes screenshots (the Debug tools on: HOS_OPT_TELEPORT_PICTURES), so no one else's game folder
+   gets pictures for a page they never open. */
+static void oot_capture_tick(Ctx *c, int64_t now) {
+    int rx_option(int id, int otherwise);
+    void rx_option_set(int id, int value);
+    static char banc[64];
+    static int64_t since;
+    static int told = 1;
+    char now_banc[64];
+    if (!rx_option(HOS_OPT_TELEPORT_PICTURES, 0)) {
+        if (banc[0]) banc[0] = 0, rx_option_set(OOT_TP_MAP_ID, -1);   /* (switched on again: the map Link is in starts over) */
+        return;
+    }
+    if (!oot_gamedata_string(c, 0x1d6189dau, now_banc, sizeof now_banc) || !now_banc[0]) return;   /* Sequence_CurrentBanc */
+    int loading = 0;
+    const uint64_t events = oot_singleton(c, OOT_EVENTMGR_SLOT);
+    const int busy = !events || recomp_load64(c, events + 104) ||
+                     (oot_gamedata_bool(c, 0xef2b60c2u, &loading) && loading);   /* an event, Sequence_IsLoadingBanc */
+    if (strcmp(now_banc, banc)) {
+        snprintf(banc, sizeof banc, "%s", now_banc);
+        since = now, told = 0;
+        rx_option_set(OOT_TP_MAP_ID, -1);   /* (no retake until settled here) */
+        return;
+    }
+    if (busy) {
+        since = now;
+        return;
+    }
+    if (told || now - since < 3000000000LL) return;
+    told = 1;
+    for (int i = 0; i < OOT_CAPTURE_MAPS; i++)
+        if (!strcmp(oot_capture_maps[i], banc)) {
+            rx_option_set(OOT_TP_MAP_ID, i);   /* (the map a retake takes: the Retake picture shortcut) */
+            rx_option_set(OOT_TP_CAPTURE_ID, i);
+            break;
+        }
+}
+
 static void oot_update_player_cheats(Ctx *c, uint64_t actor, uint64_t components) {
     int rx_option(int id, int otherwise);
     static uint64_t flying_actor, marked_actor, marked_controller;
@@ -1385,6 +1476,7 @@ static void oot_update_player_cheats(Ctx *c, uint64_t actor, uint64_t components
     }
     oot_teleport_followup(c);
     oot_inventory_refresh(c, now);
+    oot_capture_tick(c, now);
     oot_player_speed(c, components);
     oot_map_refresh(c, now);
     if (action >= OOT_CHEAT_ITEM_ACTION && action < OOT_CHEAT_ITEM_ACTION + 256 * (int)OOT_ITEM_COUNT) {
@@ -1401,6 +1493,10 @@ static void oot_update_player_cheats(Ctx *c, uint64_t actor, uint64_t components
     } else if (action >= OOT_TELEPORT_ACTION) {
         const int sent = oot_teleport(c, actor, (unsigned)(action - OOT_TELEPORT_ACTION));
         if (bridge_ticket) oot_bridge_teleport_done(bridge_ticket, sent);
+    } else if (action >= OOT_RUPEE_ACTION && action < OOT_RUPEE_ACTION + 32) {
+        static const int steps[] = {OOT_RUPEE_STEPS};
+        const unsigned step = (unsigned)(action - OOT_RUPEE_ACTION);
+        if (step < sizeof steps / sizeof steps[0]) oot_add_rupees(c, steps[step]);
     } else if (action >= 200) {
         oot_edit_pouch(c, action);
     } else if (action >= 100 && action < 124) {

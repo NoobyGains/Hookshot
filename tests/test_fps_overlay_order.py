@@ -61,22 +61,26 @@ void draw_corner(ui::Ctx&, bool timer, bool deaths) { CHECK(timer && deaths); ca
 bool note_on = false;   // (the Screenshot key's note, its 2 s: vk_screenshot.cpp screenshot_note)
 bool screenshot_note(bool* saved) { if (note_on) *saved = true; return note_on; }
 void draw_screenshot_note(ui::Ctx&, bool saved) { CHECK(saved); calls += "n"; }
+std::atomic<int64_t> notice_until{0};   // (the Teleport list's "picture saved" line, vk_menu.cpp: shown while it is past prof_now)
+void draw_notice(ui::Ctx&) { calls += "t"; }
 ''' + fn + r'''
 int main() {
     for (bool startup : {false, true}) for (bool fps : {false, true}) for (bool menu : {false, true}) for (bool can : {true, false})
-    for (bool wallet : {false, true}) for (bool corner : {false, true}) for (bool note : {false, true}) {
+    for (bool wallet : {false, true}) for (bool corner : {false, true}) for (bool note : {false, true}) for (bool tp : {false, true}) {
         opts.show_fps = fps;
         opts.classic_counters = wallet, hud_rupees = wallet ? 42 : -1;
         opts.speedrun_timer = opts.death_counter = corner;
+        notice_until = tp ? 2000 : 0;   // (a Teleport picture was just saved: a line over the game while the menu is closed)
         note_on = note;   // (shown over the start-up screen and the menu too: a press there says it was not saved)
         const bool rupees = wallet && !menu && !startup;   // (Classic counters: not over the menu or the start-up screen)
         const bool corner_shown = corner && !menu && !startup;   // (and so the timer and the deaths)
+        const bool tp_shown = tp && !menu;   // (the Teleport picture's line: over the start-up screen too, not over the menu)
         open_now = menu;
         startup_on = startup;
         can_draw = can;
         calls.clear();
         menu_record(1, 2, 640, 360);
-        if (!startup && !fps && !menu && !rupees && !corner_shown && !note) {   // (nothing shows: no ImGui frame at all, only the reaping; after a resize, one bake)
+        if (!startup && !fps && !menu && !rupees && !corner_shown && !note && !tp_shown) {   // (nothing shows: no ImGui frame at all, only the reaping; after a resize, one bake)
             CHECK(calls == "i");
             calls.clear(), resized = true;
             menu_record(1, 2, 640, 360);
@@ -91,6 +95,7 @@ int main() {
         if (fps && !startup) want += menu ? "F" : "f";
         if (rupees) want += "$";
         if (corner_shown) want += "c";
+        if (tp_shown) want += "t";   // (before the Screenshot key's note)
         if (note) want += "n";   // (last: over everything)
         want += "dr";   // (the recorder boundary right before the recording)
         CHECK(calls == want);
