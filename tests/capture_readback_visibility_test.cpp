@@ -83,6 +83,7 @@ void write_png(const char*, const uint8_t* bytes, uint32_t w, uint32_t h) {
     ++pngs;
 }
 /* COLLECT */
+void screenshot_collect(int) {}   // (the Screenshot key's readback, collected after the same wait: tests/test_screenshot.py)
 void read_log_after_fence() {
     struct { VkDevice device{}; } dev;
     struct { VkFence done{}; } f;

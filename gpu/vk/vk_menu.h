@@ -63,6 +63,8 @@ struct Options {
     int menu_shortcut = 2;   // 0 Insert or F1, 1 F1 only, 2 Insert, F1 or Esc (F1 always opens the menu). 2 by default, as a PC
                              // game's pause menu; an older file's 0, the default it then was, moves to 2 (options_version 5)
     int compact_menu_key = 0; // 0 Right Shift, 1 Right Ctrl (key to switch to or open the compact menu)
+    int screenshot_key = 1;   // (hookshot) the Screenshot key: 0 Off, 1 F12, the picture as the window shows it into screenshots/
+                              // (vk_screenshot.h). On out of the box: it changes nothing in the game until it is pressed
     int menu_size = 2;   // (hookshot) the overlays' size: 1 Small, 2 Medium, 3 Large (gpu/vk/vk_ui.h unit; an older file's 0 Auto: Medium)
     int fullscreen = 0;   // borderless, at the monitor's size: F11 is the same setting
     int gpu_device = 0;   // graphics card index: 0 Auto, 1..N device 0..N-1 (gpu/vk/vk_main.cpp; RX_VK_DEVICE)

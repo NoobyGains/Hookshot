@@ -47,6 +47,7 @@
 #include "vk_framegen.h"   // (framegen_here: what AMD's frame generation makes on this PC; Frame generation by: who makes the frames now, framegen_maker)
 #include "vk_dlss.h"
 #include "vk_bug_report.h"   // (the Gameplay tab's Bug report: what it writes, and how)
+#include "vk_screenshot.h"   // (the Controls tab's Screenshot key: the press, and the note once the picture is written)
 #include "../../host/hos_wide_size.h"   // (the widescreen picture's size, as host/hos_main.c works it out)
 #include "vk_fsr3.h"      // (the Upscaler row: whether AMD FSR 3.1 runs on this GPU)
 #include "vk_fsr3fi.h"    // (the Frame generation row: whether FSR 3.1 makes the frame)
@@ -146,6 +147,7 @@ const char* tx_compact_menu_key(int v) {
     static const char* const names[] = {"Right Shift", "Right Ctrl"};
     return names[std::clamp(v, 0, 1)];
 }
+const char* tx_screenshot_key(int v) { return v ? "F12" : "Off"; }   // (hookshot: vk_screenshot.h)
 const char* tx_hdr(int v) { return v == 1 ? "Expanded" : v == 2 ? "Native (the game's)" : "Off"; }
 const char* tx_tonemap(int v) { return v == 1 ? "PsychoV35" : "Vanilla"; }
 const char* tx_nits(int v) {
@@ -1552,6 +1554,11 @@ Row rows[] = {
      "Which key switches between the full menu and the compact bar (or opens directly to the compact bar when held "
      "with the menu shortcut).",
      nullptr, false, true},
+    // (hookshot) vk_screenshot.h: the picture as the window shows it, without this menu or the FPS counter
+    {TAB_CONTROLS, "Screenshot key", &opts.screenshot_key, 0, 1, 1, tx_screenshot_key,
+     "Saves the picture as the window shows it, with the Graphics tab's looks and without this menu or the FPS counter, as a "
+     "PNG in the screenshots folder of the game folder.",
+     nullptr, false, true},
     // Debug: the tools' switch, the tools themselves below it while they are on (cheat: menu_tick does what they do), then the
     // developer's rows
     {TAB_DEBUG, "Debug tools", &opts.debug_tools, 0, 1, 1, tx_onoff,
@@ -2765,13 +2772,13 @@ const char* key_name(int vk) {
     }
     return snprintf(b, sizeof b, "Key %d", vk), b;
 }
-// the keys a binding can take (Esc cancels, Insert and F1 are the menu's, Delete clears)
+// the keys a binding can take (Esc cancels, Insert and F1 are the menu's, F12 the Screenshot key's, Delete clears)
 const std::vector<int>& bindable_keys() {
     static std::vector<int> k;
     if (k.empty()) {
         for (int c = 'A'; c <= 'Z'; c++) k.push_back(c);
         for (int c = '0'; c <= '9'; c++) k.push_back(c);
-        for (int c = VK_F2; c <= VK_F12; c++) k.push_back(c);
+        for (int c = VK_F2; c <= VK_F11; c++) k.push_back(c);
         for (int c = VK_NUMPAD0; c <= VK_NUMPAD0 + 9; c++) k.push_back(c);
         for (int c : {VK_SPACE, VK_SHIFT, VK_CONTROL, VK_MENU, VK_TAB, VK_RETURN, VK_BACK, VK_CAPITAL, VK_UP, VK_DOWN,
                       VK_LEFT, VK_RIGHT, VK_HOME, VK_END, VK_PRIOR, VK_NEXT, VK_ADD, VK_SUBTRACT, VK_MULTIPLY,
@@ -4304,6 +4311,16 @@ void draw_corner(ui::Ctx& c, bool timer, bool deaths) {
     }
 }
 
+/// (hookshot) The Screenshot key's note, for 2 s once the picture is written (vk_screenshot.h): outlined as the timer's lines,
+/// in the middle of the bottom edge, which no overlay of ours uses; the Death counter's red when it could not be saved. Never in
+/// the picture: that was copied before the overlays are drawn
+void draw_screenshot_note(ui::Ctx& c, bool saved) {
+    const char* text = i18n::tr(saved ? "Screenshot saved" : "Screenshot not saved");
+    const float px = 20 * c.s, tw = ui::size_of(c.f.strong, px, text).x;
+    outlined_right(c, c.f.strong, px, c.w * 0.5f + tw * 0.5f, c.h - c.safe - px * 2.0f,
+                   saved ? ui::rgba(255, 255, 255) : ui::rgba(255, 140, 130), text);
+}
+
 constexpr double kLogoTurnSeconds = 2.4;   // (the start-up screen's logo: one whole turn in this long)
 
 /// The start-up screen: the logo, the wordmark, what the start is doing, a bar, on a warm dark. A little below the middle; what
@@ -5182,8 +5199,10 @@ void menu_tick() {
         press[1] |= pad(HOS_PAD_UP), press[2] |= pad(HOS_PAD_DOWN), press[3] |= pad(HOS_PAD_LEFT);
         press[4] |= pad(HOS_PAD_RIGHT), press[5] |= pad(pad_back), press[7] |= pad(pad_confirm);
     }
+    bool shot_script = false;   // (RX_VK_MENU_SCRIPT's SHOT: the Screenshot key, below)
     {   // RX_VK_MENU_SCRIPT (test runs, which never have the focus): timed menu keys, "<seconds>:<INS|UP|DOWN|LEFT|RIGHT|ESC|ENTER|TABL|TABR>,...";
-        // and the gamepad's face buttons by position, PADS PADE PADW PADN (bottom, right, left, top), as a controller's press
+        // and the gamepad's face buttons by position, PADS PADE PADW PADN (bottom, right, left, top), as a controller's press;
+        // SHOT, the Screenshot key
         static const char* next = getenv("RX_VK_MENU_SCRIPT");
         static const int64_t start = prof_now();
         double at;
@@ -5198,8 +5217,18 @@ void menu_tick() {
                     press[5] |= p == pad_back, press[7] |= p == pad_confirm;
                     pad_last = true;
                 }
+            shot_script |= !strcmp(key, "SHOT");
             next = next[n] == ',' ? next + n + 1 : nullptr;
         }
+    }
+    {   // (hookshot) the Screenshot key, F12 (its row Off: nothing), read as the menu's keys are. present_image takes the picture at
+        // the next of the game's frames, without this menu whether it is open or not (vk_screenshot.h)
+        static bool shot_held = false;
+        const bool shot_down = mine && (GetAsyncKeyState(VK_F12) & 0x8000) != 0;
+        const bool shot_queued = host && host->take_key_press && host->take_key_press(VK_F12);
+        const bool shot_press = host && host->take_key_press ? mine && shot_queued : shot_down && !shot_held;
+        shot_held = shot_down;
+        if ((shot_press || shot_script) && opts.screenshot_key) screenshot_ask();
     }
     bool tab_left = press[10] || pad(HOS_PAD_LSHOULDER) || pad(HOS_PAD_LTRIGGER);
     bool tab_right = press[11] || press[12] || pad(HOS_PAD_RSHOULDER) || pad(HOS_PAD_RTRIGGER);
@@ -5571,7 +5600,9 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     const int rupees = opts.classic_counters && !start && !open ? hud_rupees.load(std::memory_order_relaxed) : -1;
     timer_tick(opts.speedrun_timer && !start, open);   // (the Speedrun timer counts at every present, shown or not)
     const bool timer = opts.speedrun_timer && !start && !open, deaths = opts.death_counter && !start && !open;
-    if (!start && !fps && !open && rupees < 0 && !timer && !deaths) {   // (nothing shows: no ImGui frame, no render pass)
+    bool shot_saved = false;
+    const bool shot_note = screenshot_note(&shot_saved);   // (hookshot: "Screenshot saved", 2 s after the Screenshot key)
+    if (!start && !fps && !open && rupees < 0 && !timer && !deaths && !shot_note) {   // (nothing shows: no ImGui frame, no render pass)
         // (but a new window size or Menu size since the last bake: one frame with nothing drawn that bakes the menu's glyphs
         // and measures its page for the new size, so the next open has no hitch whatever was resized while nothing showed)
         if (prebake_needed(w, h) && ui::begin(w, h)) {
@@ -5598,6 +5629,7 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     if (fps) draw_fps(c, open);
     if (rupees >= 0) draw_rupees(c, rupees);   // (Classic counters)
     if (timer || deaths) draw_corner(c, timer, deaths);
+    if (shot_note) draw_screenshot_note(c, shot_saved);   // (over everything: the picture is already copied)
     ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
     ui::record(cmd, index, w, h);
 }

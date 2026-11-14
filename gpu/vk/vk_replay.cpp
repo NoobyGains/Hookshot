@@ -50,6 +50,7 @@
 #include "vk_xfer.h"
 #include "vk_present_rect.h"
 #include "vk_present_trace.h"
+#include "vk_screenshot.h"   // (hookshot: the Screenshot key, present_image)
 
 #include "vk_internal.h"
 #ifndef HOOKSHOT_ENV_H   // (env_on: the switches' one rule)
@@ -4550,6 +4551,7 @@ void present_image(VkImage src, uint32_t sw, uint32_t sh, const int crop[4], VkI
     const int64_t fence_t0 = fps_breakdown_on() ? fps_clock() : 0;   // (the FPS counter's Breakdown: this frame slot's last copy)
     if (vkWaitForFences(dev.device, 1, &f.done, VK_TRUE, UINT64_MAX) == VK_ERROR_DEVICE_LOST) device_lost();
     framelog_collect(log_slot);
+    screenshot_collect(log_slot);   // (hookshot: the Screenshot key's copy made in this slot, now complete: vk_screenshot.h)
     uint32_t index = 0;
     const int64_t acquire_t0 = fence_t0 ? fps_clock() : 0;   // (then the swapchain's image: the display's pace)
     if (fence_t0) fps_wait(fps_stats::kGpuWait, acquire_t0 - fence_t0);
@@ -4651,6 +4653,9 @@ void present_image(VkImage src, uint32_t sw, uint32_t sh, const int crop[4], VkI
         capture_host_read_barrier(f.cmd, l.buf, (VkDeviceSize)kLogW * kLogH * 4);
         l.used = true, l.at = host->now_ns(), l.seq = seq++, l.kind = present_kind.load();
     }
+    // (hookshot) the Screenshot key's copy (vk_screenshot.h): the picture as it went into the window, the scale pass's image when
+    // that ran (the Retro look, Colour grade, Bloom and FXAA in it), before the menu and the FPS counter are drawn over it
+    screenshot_record(f.cmd, log_slot, {scaled, src, sw, sh, crop, rect.w, rect.h, native_pq, present_kind.load() != 0});
     // Geometry trace: after choosing the actual presentation route, without frame-log pixel readback.
     static const bool trace_geometry = getenv("RX_VK_PRESENT_LOG") && atoi(getenv("RX_VK_PRESENT_LOG")) != 0;
     if (trace_geometry) {
