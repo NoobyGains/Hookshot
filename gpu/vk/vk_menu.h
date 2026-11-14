@@ -124,7 +124,7 @@ struct Options {
     int nr_auto_mask = 0;       // the model picks what to leave alone
     int nr_passes = 1;          // how many times the model goes over each frame, 1 to 10 (nr_plan.h)
     int nr_scale = 100;         // the size the model works at, percent of the frame's sides, 50 to 100 (vk_nr_scale.h)
-    int audio_output = 0; // (hookshot) the speakers the game mixes for: 0 Auto (the default output's), 1 Stereo, 2 5.1; read once, at the start (host/nn_audio.c; HOS_AUDIO_CHANNELS)
+    int audio_output = 0; // (hookshot) the speakers the game mixes for: 0 Auto (the default output's), 1 Stereo, 2 5.1, 3 Mono; layout read at the start (host/nn_audio.c; HOS_AUDIO_CHANNELS)
     int discord = 1;   // (hookshot) the Discord status (host/discord_rpc.c): 1 on, shown while a Discord client runs on this PC
     int debug_tools = 0;   // (hookshot) the Debug tab's tools (#785: flight, free camera, teleport, inventory): 0 off; HOS_OOT_CHEATS=1 also turns them on
     int volume = 100;     // (hookshot) the game's sound in percent, 0 to 100 (host/nn_audio.c: HOS_OPT_VOLUME, 27)

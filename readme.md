@@ -545,7 +545,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | VRAM budget | Auto, 3.6, 4.8, 6, 7.5, 9, 11 GB (2.2 GB only from the Minimum (4GB) preset); a quality preset sets it | Auto |
 | Audio | Volume | 0 to 100%, in steps of 5 | 100% |
 | | Mute in background | Off, On | Off |
-| | Audio output | Auto, Stereo, 5.1 (after a restart) | Auto |
+| | Audio output | Auto, Stereo, 5.1, Mono (layout changes after a restart; Mono/Stereo live on stereo output) | Auto |
 | Gameplay | FPS counter | Off, FPS, Frame time, Graph, Breakdown, Dev | Off |
 | | FPS counter position | Top right, Top left, Bottom right, Bottom left | Top right |
 | | Classic counters | Off, On (as on the N64: no count over Link at a pick-up, the rupees always in the bottom left corner once a save is loaded; changes at once) | Off |
@@ -738,7 +738,10 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   or more speakers, else stereo; Stereo or 5.1 chooses one whatever the device has (5.1 on stereo speakers is mixed
   down). Auto counts the speakers Windows names, not the channels: an audio interface whose outputs are not set up as
   surround speakers (a Focusrite Scarlett's 8 outputs, for one) is stereo, so voices and the ocarina do not go to an
-  output with nothing connected. For one run, `HOS_AUDIO_CHANNELS=2` or `6` chooses stereo or 5.1 and wins over the menu.
+  output with nothing connected. Mono averages the stereo channels into both ears, for one-sided hearing or one earbud.
+  Mono/Stereo changes apply live while output is stereo; changing the channel layout (from or to 5.1) needs a restart.
+  Auto never applies the mono average. Saved `audio_output` values remain 0 Auto, 1 Stereo, 2 5.1; Mono is 3.
+  For one run, `HOS_AUDIO_CHANNELS=2` or `6` chooses the channel layout over the menu (6 leaves Mono inactive).
 - **Microphone** is what the ocarina hears when the game's own microphone option is on (an instrument, or humming).
   Default follows Windows' default recording device; the list shows each microphone by name, and a change applies at
   once. A chosen microphone that is unplugged stays chosen (shown as not connected): Default stands in until it is

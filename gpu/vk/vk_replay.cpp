@@ -5548,6 +5548,7 @@ void fill_replay_table(MkwVkRenderer& t) {
         if (id == HOS_OPT_HDR_WHITE) return std::clamp(opts.hdr_white, 80, 500);
         if (id == HOS_OPT_DISCORD) return opts.discord != 0;
         if (id == HOS_OPT_VOLUME) return opts.volume;
+        if (id == HOS_OPT_AUDIO_OUTPUT) return opts.audio_output;
         if (id == HOS_OPT_MUTE_BACKGROUND) return opts.mute_background;
         if (id == HOS_OPT_DISABLE_CAMERA_CENTERING) return opts.disable_camera_centering;
         if (id == HOS_OPT_AUTO_RUN) return opts.auto_run;   // (host/nn_hid.c and host/auto_run.h)
