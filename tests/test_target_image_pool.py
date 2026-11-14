@@ -80,8 +80,9 @@ class TargetImagePoolTests(unittest.TestCase):
 
     def test_a_finalized_map_keeps_its_keep_against_a_view_inside_it(self):
         # (keep_finalized: a 260 x 260 normal map the game finalized and samples again has a view drawn inside it; the
-        # view is not a new target, so the map is not drawn over and keeps its keep)
-        keep = block(self.tex, "const auto keep_finalized = [&](const Texture* tex)")
+        # view is not a new target, so the map is not drawn over and keeps its keep. The test is finalized_once's, which
+        # keep_finalized and keep_resampled's overflow share)
+        keep = block(self.tex, "const auto finalized_once = [&](const Texture* tex)")
         self.assertIn("return !drawn_over(tex) && !drawn_over_shifted(tex);", keep)
         hdr = (ROOT / "gpu" / "vk" / "target_overlap.h").read_text(encoding="utf-8")
         self.assertIn("if (olo >= lo && ohi <= hi) return;", block(hdr, "void add("))

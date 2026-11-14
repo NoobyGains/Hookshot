@@ -91,7 +91,7 @@ struct Texture {   // (the fields the code cut out uses, as gpu/vk/vk_texture.h 
     uint32_t runs_maps_gen = ~0u;
     bool gpu_written = false, only_cleared = false;
     uint32_t gpu_gen = 0;
-    bool released = false;
+    bool released = false, resampled = false;
     uint32_t release_gen = 0;
     uint64_t last_written = 0, first_written = 0, upload_value = 0, upload_seg = 0, bytes = 0;
     uint32_t id = 0;
