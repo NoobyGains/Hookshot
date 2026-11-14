@@ -46,11 +46,9 @@ STAGES = [
         ("invisible.jpg", "Invisible doors and walls", "Objects that vanish in a few places of the game."),
         ("panel:amd", "AMD on Windows", "Crashes on some Radeon cards: needs a tester."),
         ("panel:amiibo", "amiibo", "Scan your own amiibo files."),
-    ]),
-    # (what players of the remake ask for most, from GameBanana's likes and requests and the ports' coverage in its first
-    # week; only what Hookshot can build as a toggle over the player's own game files: no Nintendo assets)
-    ("request", "FEATURE REQUESTS", "what players ask for most", PURPLE, [
-        ("panel:name:Photo", "Photo mode", "A free camera with the HUD hidden."),
+        # (what players of the remake ask for most; only what Hookshot can build as a toggle over the player's own game
+        # files: no Nintendo assets)
+        ("panel:name:Photo", "Photo mode", "A free camera with the HUD hidden (F12 screenshots already work)."),
         ("panel:name:Aim", "First-person aim", "Bow, slingshot and Hookshot from Link's eyes, with the mouse."),
         ("panel:name:QoL", "Small toggles", "Auto jump, Young Link on Epona, gear on and off, N64 controls."),
         ("panel:name:Random", "Randomizer", "Items shuffled each run, a new game every time."),

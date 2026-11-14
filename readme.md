@@ -157,7 +157,7 @@ when the game closes.
 ## Roadmap
 
 <p align="center">
-  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 8 done, 4 in progress, 6 coming next, 5 feature requests, each as a card. The same items are listed as text below." width="820">
+  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 8 done, 4 in progress, 11 coming next, each as a card. The same items are listed as text below." width="820">
 </p>
 
 **Done** is on `main` now. **In progress** is being worked on at the moment. **Coming next** is planned but not
@@ -200,16 +200,12 @@ reaches.
 - **Invisible doors and walls** in a few places of the game
 - **AMD on Windows:** crashes on some Radeon cards (needs an AMD tester)
 - **amiibo:** scan your own amiibo files
-- Later: a signed Builder, Intel cards, cards without mesh shaders
-
-**➕ Feature requests**: what players of the remake ask for most, limited to what Hookshot can build as a toggle over
-your own game files
-
-- **Photo mode:** a free camera with the HUD hidden
+- **Photo mode:** a free camera with the HUD hidden (F12 screenshots already work)
 - **First-person aim:** bow, slingshot and Hookshot from Link's eyes, with the mouse
 - **Small toggles:** auto jump, Young Link on Epona, gear on and off, N64-style controls
 - **Randomizer:** items shuffled each run, a new game every time
 - **Online co-op:** play the adventure together with a friend
+- Later: a signed Builder, Intel cards, cards without mesh shaders
 
 Mods that swap in Nintendo's own models, textures, music or voices are for players to add from their own files
 (Hookshot loads them from the `mods` folder, see [Mods](#mods)); the project ships none of them.
