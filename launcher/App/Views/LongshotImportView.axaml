@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HookshotLauncher.ViewModels"
+             xmlns:c="using:HookshotLauncher.Controls"
+             x:Class="HookshotLauncher.Views.LongshotImportView"
+             x:DataType="vm:LongshotImportViewModel">
+  <Border Classes="dialog wide" MaxHeight="560">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel>
+        <TextBlock Classes="modaltitle" Text="{c:T 'Import saves from Longshot'}"/>
+        <TextBlock Classes="sub" Text="{Binding Sub}"/>
+        <!-- the saves found: one row each, with its slots -->
+        <StackPanel IsVisible="{Binding Listing}">
+          <ItemsControl ItemsSource="{Binding Sources}" Margin="0,14,0,0" IsVisible="{Binding HasSources}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Spacing="6"/></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:LongshotImportViewModel+Source">
+                <Border Padding="12,9" CornerRadius="8" Background="#26000000" BorderBrush="{StaticResource GlassLine}" BorderThickness="1">
+                  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <c:Icon Kind="disk" Width="16" Height="16" Foreground="{StaticResource InkFaintText}" VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                      <TextBlock Classes="mono path" Text="{Binding Where}" ToolTip.Tip="{Binding WhereFull}" TextTrimming="CharacterEllipsis"/>
+                      <TextBlock FontSize="12" Foreground="{StaticResource InkFaintText}" Text="{Binding Summary}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Grid.Column="2" Classes="small" Content="{c:T 'Import'}" Command="{Binding ImportCommand}" IsVisible="{Binding Valid}"
+                            VerticalAlignment="Center"/>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="hint" Margin="0,14,0,0" IsVisible="{Binding NoSources}" Text="{Binding NoneText}" TextWrapping="Wrap"/>
+        </StackPanel>
+        <!-- the question before a Hookshot save is replaced -->
+        <Border Classes="warnbox" IsVisible="{Binding Asking}">
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+            <c:Icon Kind="alert" Width="18" Height="18" Foreground="{StaticResource Warn}" VerticalAlignment="Top"/>
+            <TextBlock Grid.Column="1" Text="{Binding AskText}" TextWrapping="Wrap"/>
+          </Grid>
+        </Border>
+        <Border Classes="warnbox" IsVisible="{Binding HasProblem}">
+          <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
+        </Border>
+        <StackPanel Classes="buttons" Margin="0,16,0,0" IsVisible="{Binding Listing}">
+          <Button Content="{c:T 'Import graphics and controls…'}" Command="{Binding SettingsCommand}"/>
+          <Button Content="{c:T 'Choose a folder…'}" Command="{Binding PickFolderCommand}"/>
+          <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}"/>
+        </StackPanel>
+        <StackPanel Classes="buttons" Margin="0,16,0,0" IsVisible="{Binding Asking}">
+          <Button Content="{c:T 'Keep Hookshot\'s save'}" Command="{Binding KeepCommand}"/>
+          <Button Classes="bad" Content="{c:T 'Back it up and replace it'}" Command="{Binding ReplaceCommand}"/>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </Border>
+</UserControl>

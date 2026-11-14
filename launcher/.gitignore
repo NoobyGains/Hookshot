@@ -1,0 +1,8 @@
+bin/
+obj/
+*.user
+dist/
+out/
+.appimagetool/
+__pycache__/
+*.pyc

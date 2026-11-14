@@ -1,0 +1,36 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HookshotLauncher.ViewModels"
+             xmlns:c="using:HookshotLauncher.Controls"
+             x:Class="HookshotLauncher.Views.ProblemPageView"
+             x:DataType="vm:ProblemPageViewModel">
+  <DockPanel>
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+        <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}"/>
+      </StackPanel>
+    </Grid>
+    <StackPanel>
+      <TextBlock Classes="heading" Text="{Binding Headline}"/>
+      <TextBlock Classes="sub" Text="{Binding Sub}"/>
+      <Border Margin="0,22,0,0" Padding="24,22" CornerRadius="10" BorderBrush="#55F87171" BorderThickness="1">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Offset="0" Color="#14F87171"/>
+            <GradientStop Offset="0.7" Color="#00F87171"/>
+          </LinearGradientBrush>
+        </Border.Background>
+        <StackPanel Spacing="12">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Border Width="28" Height="28" CornerRadius="14" Background="{StaticResource BadSoft}">
+              <c:Icon Kind="alert" Width="16" Height="16" Foreground="{StaticResource Bad}"/>
+            </Border>
+            <TextBlock Text="{c:T 'What you can do'}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+          </StackPanel>
+          <TextBlock Text="{Binding Detail}" Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" MaxWidth="680" HorizontalAlignment="Left"/>
+          <Button HorizontalAlignment="Left" Content="{Binding FixLabel}" Command="{Binding FixCommand}" IsVisible="{Binding Fix, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </DockPanel>
+</UserControl>

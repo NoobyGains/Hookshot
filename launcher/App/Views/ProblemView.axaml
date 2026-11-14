@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:HookshotLauncher.ViewModels"
+             xmlns:c="using:HookshotLauncher.Controls"
+             x:Class="HookshotLauncher.Views.ProblemView"
+             x:DataType="vm:ProblemViewModel">
+  <DockPanel>
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <Button Classes="link soft" Content="{Binding LogButton}" Command="{Binding ToggleLogCommand}"/>
+        <Ellipse Width="3" Height="3" Fill="{StaticResource InkFaint}" Margin="12,0" VerticalAlignment="Center"/>
+        <Button Classes="link soft" Content="{c:T 'Copy for a bug report'}" Command="{Binding CopyCommand}"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}"/>
+        <Button Classes="primary" Content="{c:T 'Build again'}" Command="{Binding RetryCommand}"/>
+      </StackPanel>
+    </Grid>
+    <StackPanel>
+      <TextBlock Classes="heading" Text="{c:T 'The build stopped'}"/>
+      <TextBlock Classes="sub" Text="{c:T 'Your other versions and your saves are not touched.'}"/>
+      <Border Margin="0,22,0,0" Padding="24,22" CornerRadius="10" BorderBrush="#55F87171" BorderThickness="1">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Offset="0" Color="#14F87171"/>
+            <GradientStop Offset="0.7" Color="#00F87171"/>
+          </LinearGradientBrush>
+        </Border.Background>
+        <StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Border Width="28" Height="28" CornerRadius="14" Background="{StaticResource BadSoft}">
+              <c:Icon Kind="alert" Width="16" Height="16" Foreground="{StaticResource Bad}"/>
+            </Border>
+            <TextBlock Text="{Binding Head}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+          </StackPanel>
+          <TextBlock Text="{Binding Body}" Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" MaxWidth="680" HorizontalAlignment="Left" Margin="0,12,0,0"/>
+          <TextBlock Text="{Binding Said}" IsVisible="{Binding Known}" Foreground="{StaticResource InkFaint}" FontSize="12" TextWrapping="Wrap"
+                     MaxWidth="680" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+          <Button HorizontalAlignment="Left" Margin="0,12,0,0" Content="{Binding OfferLabel}" Command="{Binding OfferCommand}"
+                  IsVisible="{Binding Offer, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+          <StackPanel Margin="20,10,0,0" Spacing="4" IsVisible="{Binding Unknown}">
+            <TextBlock Foreground="{StaticResource InkSoft}" TextWrapping="Wrap" IsVisible="{Binding Memory}">
+              <Run Text="{c:T '• Set '}"/><Run Text="{c:T 'Build memory'}" FontWeight="SemiBold" Foreground="{StaticResource Ink}"/><Run Text="{c:T ' lower in step 2\'s Advanced, or close other programs.'}"/>
+            </TextBlock>
+            <TextBlock Foreground="{StaticResource InkSoft}" TextWrapping="Wrap"
+                       Text="{c:T '• Then build again: what was built so far is kept, so it starts where it stopped.'}"/>
+          </StackPanel>
+          <Border IsVisible="{Binding ShowLog}" Margin="0,14,0,0" MaxHeight="110" CornerRadius="10" BorderBrush="{StaticResource GlassLine}"
+                  BorderThickness="1" Background="#33000000">
+            <ScrollViewer Padding="12,10" HorizontalScrollBarVisibility="Auto">
+              <SelectableTextBlock Text="{Binding LogTail}" FontFamily="{StaticResource Mono}" FontSize="11" Foreground="{StaticResource InkSoft}"/>
+            </ScrollViewer>
+          </Border>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </DockPanel>
+</UserControl>

@@ -94,6 +94,22 @@ Everything below is on `main` in this repository, tested in the game on a GeForc
 
 **The loading screen's Hookshot is the 3D one** from the header, turning while the game starts and its shaders and pipelines load.
 
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/launcher/wizard-3-build.png" alt="The Hookshot Launcher building the game: the 3D Hookshot turning beside the percentage, each stage with its time">
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/launcher/saves-import-longshot.png" alt="The Hookshot Launcher's saves page with the shield, importing saves from Longshot">
+    </td>
+  </tr>
+</table>
+
+**The Hookshot Launcher**: one program that installs the builder, builds the game, keeps versions side by side, updates
+them and itself, and carries your saves (from Longshot too), in the header's look with the same 3D Hookshot turning while
+it builds. It is the Magic Bean team's Longshot Launcher, brought back and pointed at Hookshot's own releases
+([Quick start](#hookshot-launcher), [docs/launcher.md](docs/launcher.md)).
+
 <img src="docs/images/features/field-of-view.jpg" alt="Kakariko Village at field of view 60 percent, the game's 100 percent and 140 percent">
 
 **Field of view** (Gameplay tab, 50% to 150%): from a close, cinematic 60% to a wide 140%, where Kakariko's whole gate
@@ -235,6 +251,21 @@ Mods that swap in Nintendo's own models, textures, music or voices are for playe
 
 You need a graphics card with Vulkan 1.3 and mesh shaders (GeForce RTX 20 or newer, Radeon RX 6000 or newer, Intel
 Arc), 16 GB of RAM and about 60 GB free while building. The [full guide](#install-and-play) has every step.
+
+### Hookshot Launcher
+
+The **Hookshot Launcher** does all of the above in one program, and keeps doing it: it installs the builder for each
+version (every file checked by its SHA-256), builds the game in a three-step wizard (your game files, the settings, the
+build with one progress bar), keeps several versions side by side (Play starts your default), offers each its channel's
+updates (stable, release candidate or nightly) and updates itself. It keeps one save folder for every version and imports
+saves from Longshot, NX2navi and the emulators, backing up first. Windows (installer or portable) and Linux / Steam Deck
+(AppImage). Once published, it is on the [`launcher-nightly`](https://github.com/notquiteog/Hookshot/releases/tag/launcher-nightly)
+pre-release; [launcher/README.md](launcher/README.md) has the rest, and [docs/launcher.md](docs/launcher.md) where it comes
+from: the Magic Bean team's Longshot Launcher.
+
+<p align="center">
+  <img src="docs/images/launcher/home.png" alt="The Hookshot Launcher's home: the 3D Hookshot turning beside the name and the shield, the default version with Play, and the versions built" width="640">
+</p>
 
 ## Project status
 

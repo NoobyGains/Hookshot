@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Hookshot Launcher's window (Avalonia): Windows and Linux. Its logic is Core/ -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>HookshotLauncher</AssemblyName>
+    <RootNamespace>HookshotLauncher</RootNamespace>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- (the Windows program's icon: the Hookshot logo, Assets/hookshot.ico, made from Assets/hookshot.png by scripts/make_icon.py) -->
+    <ApplicationIcon>Assets/hookshot.ico</ApplicationIcon>
+    <!-- (the Windows program's details, as Properties > Details and the antivirus programs show them: a program with only its file
+         name there looks more like malware) -->
+    <Product>Hookshot Launcher</Product>
+    <AssemblyTitle>Hookshot Launcher</AssemblyTitle>
+    <Description>Installs, builds, updates and starts Hookshot</Description>
+    <Company>The Hookshot contributors</Company>
+    <Copyright>Copyright © the Longshot Launcher and Hookshot Launcher contributors. GPL-3.0-or-later</Copyright>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia"/>
+    <PackageReference Include="Avalonia.Desktop"/>
+    <PackageReference Include="Avalonia.Themes.Fluent"/>
+    <PackageReference Include="Avalonia.Wayland"/>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- (the release's version, which the launcher compares with its channel's newest: -p:HookshotTag=v3.0.0 or nightly-<count>-<commit>,
+         set by the release workflow. Unset, a build from a checkout is "dev" and never updates itself. Core/SelfUpdate.cs) -->
+    <AssemblyMetadata Include="HookshotTag" Value="$(HookshotTag)" Condition="'$(HookshotTag)' != ''"/>
+    <!-- (the GitHub repository the release was built in, owner/name: -p:HookshotRepository=$GITHUB_REPOSITORY, set by the launcher's
+         workflow, so a fork's launcher follows that fork's releases. Unset, Core/Repository.cs's Default, the builder's) -->
+    <AssemblyMetadata Include="HookshotRepository" Value="$(HookshotRepository)" Condition="'$(HookshotRepository)' != ''"/>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Core/HookshotLauncher.Core.csproj"/>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- (Inter, under its own licence, Assets/Fonts/Inter-LICENSE.txt; the icon, made from Hookshot's assets/brand/icon.png, and
+         the blank shield, by scripts/make_art.py) -->
+    <AvaloniaResource Include="Assets/Fonts/Inter-*.ttf"/>
+    <AvaloniaResource Include="Assets/hookshot.png"/>
+    <AvaloniaResource Include="Assets/hookshot.ico"/>
+    <AvaloniaResource Include="Assets/shield.png"/>
+    <!-- (Hookshot's own brand art and type, taken from assets/ as they are, so there is one copy: the turning 3D Hookshot the game's
+         loading screen turns, and Unbounded and JetBrains Mono, SIL OFL, their licences in assets/brand/fonts) -->
+    <AvaloniaResource Include="../../assets/hookshot_turn.png" Link="Assets/hookshot_turn.png"/>
+    <AvaloniaResource Include="../../assets/brand/fonts/Unbounded-ExtraBold.ttf" Link="Assets/Fonts/Unbounded-ExtraBold.ttf"/>
+    <AvaloniaResource Include="../../assets/brand/fonts/JetBrainsMono-Regular.ttf" Link="Assets/Fonts/JetBrainsMono-Regular.ttf"/>
+    <AvaloniaResource Include="../../assets/brand/fonts/JetBrainsMono-Medium.ttf" Link="Assets/Fonts/JetBrainsMono-Medium.ttf"/>
+  </ItemGroup>
+</Project>
