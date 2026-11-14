@@ -6,11 +6,11 @@ taken here as cherry-picks (`git cherry-pick -x`), each with its Longshot PR num
 release-please reads every commit a merge brings in, so a merge would put Longshot's rename, its Forgejo tooling and its
 `feat(release)!:` in this changelog and version.
 
-**Taken through:** Longshot `main` at `514591a3` (2026-11-13). The next pull starts at:
+**Taken through:** Longshot `main` at `5e072fc8` (2026-11-14), but for #321 (below). The next pull starts at:
 
 ```bash
 git fetch longshot
-git log --reverse --oneline 514591a3..longshot/main
+git log --reverse --oneline 5e072fc8..longshot/main
 ```
 
 When a pull is done, the hash above moves to the new tip, in the same pull request.
@@ -26,6 +26,37 @@ Longshot renamed the project, so its later commits carry its names. A pick turns
 
 Watch for option ids too: two trees can number a new row alike (Longshot's Damage taken is 55; here it is 56, after Auto
 run). `tests/test_option_ids.py` catches it.
+
+## 514591a3 to 5e072fc8
+
+Taken (Longshot PR): #34, #58, #59, #103, #136, #137, #162, #189, #190, #191, #216, #219, #237, #238, #245, #248, #250,
+#252, #255 (its `nx2/test_nup_paths.py` only), #269, #277, #281, #307, #323, #324, #325 (its measured rows: the fix is
+upstream #3004 here), #329, #357, #358, #369, #400. Where a pick met this tree's own work, its commit's
+"Hookshot port:" line says how they were joined; the main ones:
+
+- #137 (hold-to-toggle): the Toggle column comes after this tree's two key columns; `HOS_OPT_HOLD_TOGGLE` is 54, as in
+  Longshot.
+- #136 (Mono on Audio output): `HOS_OPT_AUDIO_OUTPUT` is 63 here (Longshot's 57 is View distance in this tree).
+- #219 (Navi 23): this tree keeps Navi 24's `0x743f` (RX 6400, 6500 XT) in the fallback's default, from Ocarina Reborn;
+  Longshot holds all of Navi 24 out.
+- #248 (the late pages' fix): this tree's mirror-sync pass (upstream #3023) keeps the write-back shadow following the
+  sync too.
+- New runs Longshot keeps as `docs/tested/*.md` files (#96, which is not taken: this tree keeps one table) are rows of
+  [tested configurations](tested-configurations.md), unchanged.
+
+Already here: #156 (= upstream #2708), and #59, #189 and #325 in an earlier form (upstream #2992, #3000, #3004; the
+picks bring Longshot's later revisions, or only the rows).
+
+Not taken yet:
+
+| Longshot | What | Why not yet |
+|---|---|---|
+| #321 | The shader caches and button prompts in the game folder's `cache`, the logs in its `logs` | Moves files players and this tree's scripts read beside the game (`hookshot_log.txt` above all): needs every reader here (75 files) and the owner's go-ahead, in a pull request of its own |
+| #292 | A new install draws 2560x1440, not 2048x1152 | Rests on #172 (not taken: upstream #2566 has Auto choose the Output resolution here) |
+| #151 | The setup copies the Builder from a zip deeper than MAX_PATH | This tree's setup does not copy a Builder from its zip (Longshot #171, #181) |
+
+Left out on purpose: #96 (its process: run files and a frozen table, with its website), #273 (the stale keys it removes
+are this tree's current text), #120 and #80 (Longshot's forge and third-party check scripts).
 
 ## Up to 514591a3
 
