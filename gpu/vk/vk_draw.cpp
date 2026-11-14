@@ -3157,7 +3157,7 @@ double pipe_wait_budget_ms() {
 /// on each recording thread, but for a draw that cannot be left out (must). true: the entry has one to draw with
 bool quick_pipeline(PipeEntry& e, const Program& p, const NvnState& s, const Targets& at, VkPrimitiveTopology topo, bool must) {
     const double budget_ms = quick_budget_ms();
-    if (budget_ms <= 0) return false;
+    if (budget_ms <= 0 || program_modules_dropped(p)) return false;   // (modules let go after the precompile: none to build from)
     static thread_local quick_pipe::FrameBudget budget;
     const auto now_ms = [] {
         return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
