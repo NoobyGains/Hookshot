@@ -138,6 +138,7 @@ static int detect_pad_layout() { return 0; }
 static void dlss_probe() {}
 static void fsr4_probe() {}
 static void refresh_mics() {}
+static void refresh_nfc() {}
 // TX_MENU_SHORTCUT
 
 // One tick with key pressed (0: none) and the options o, the menu open before it or not: whether it is open after. *back:

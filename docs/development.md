@@ -161,6 +161,9 @@ See [the format and history rules](temporal-history.md#psychov35-with-dlssdlaa-a
 | `HOS_INPUT_SCRIPT=<presses>` | Presses timed from the game's first controller read |
 | `HOS_INPUT_LIVE=<file>` | A file the test appends lines of presses to, read every 30 ms; each line's times count from when it is read. A line `!cheat <n>` sends a Cheats page action, `!synclog` logs the NVN syncs (`!dump`, `!shots`, `!rdoc` and `!flasharm` are the WebGPU renderer's) |
 | `HOS_INPUT_FRAME_CLOCK=1` | The script's time runs at 60 game frames a second instead of the wall clock |
+| `HOOKSHOT_NFC_DIR=<folder>` | The folder of NFC tag files the Insert menu's NFC tab lists (`host/nn_nfp.c`), instead of the user's own (`docs/nfc.md`) |
+| `HOS_NFP_TRACE=1` | `nn::nfp`'s application area calls in the log |
+| `HOS_NFP_SEARCH=1` | A test's: the game's reader looks for a tag from the start, without the game's own NFC screen (the Switch 2 Pro Controller's reader, checked without playing to that screen) |
 | `HOS_SWITCH2=0` | The Nintendo Switch 2 Pro Controller over USB is not taken by the game (`host/pad_switch2.c`, Windows): a bridge program can then have it |
 | `HOS_SWITCH2_RUMBLE_TEST=1` | That controller's rumble checked without hands: a second at rest, a second of rumble, and how far its own accelerometer moved in each, in the log (`switch2: rumble test: ...`). The controller must lie still |
 | `HOS_INPUT_EXCLUSIVE`, `HOS_INPUT_BACKGROUND`, `HOS_INPUT_SCRIPT_BACKGROUND` (set) | As above; the last lets every device count while the window is behind another one |

@@ -97,8 +97,9 @@ enum MenuTab {
     // (hookshot fork) DLSS 5 neural rendering's own tab. Its rows are the model's own knobs, which belong together and
     // would have doubled the Graphics tab on their own.
     TAB_NEURAL = 4,
-    TAB_DEBUG = 5,   // (the OoT debug tools of #785, a tab of their own)
-    TAB_COUNT = 6,
+    TAB_NFC = 5,     // (hookshot: the player's NFC tags, held to the game's reader: host/nn_nfp.c)
+    TAB_DEBUG = 6,   // (the OoT debug tools of #785, a tab of their own)
+    TAB_COUNT = 7,
     TAB_MOTION = TAB_COUNT,   // (hookshot: not a tab of the strip, the Motion page that the Controls tab's Motion row
                               // opens: one past the strip's tabs, so a tab added before TAB_COUNT moves it along)
     TAB_PAGE = TAB_MOTION + 1   // (hookshot: the Controls page's rows, above its grid; no tab shows them)
@@ -1354,6 +1355,56 @@ MENU_HINTS(hn_prompts, 0,
            "The Switch's buttons.", "An Xbox controller's.", "A PlayStation 4 controller's.", "A PlayStation 5 controller's.",
            "A Steam Deck's.", "The keys and mouse buttons your controls put each action on.")
 
+// (hookshot) the NFC tab: the NFC tags in the player's folder (host/nn_nfp.c: the files the player puts there),
+// one chosen and held to the game's reader. The list is the host's, asked again each time the menu opens (refresh_nfc)
+constexpr int kMaxNfc = 256;
+int nfc_choice = 0, nfc_listed = 0;
+std::string nfc_said;   // (what the last tap did, under the row's help)
+bool can_nfc() { return host && host->nfc_count && host->nfc_name && host->nfc_tap && host->nfc_state; }
+const char* tx_nfc(int v) {
+    static char b[160];
+    if (!can_nfc() || !nfc_listed) return "None in your NFC folder";
+    snprintf(b, sizeof b, "%s", host->nfc_name(std::clamp(v, 0, nfc_listed - 1)));
+    return b;
+}
+/* The NFC tag row: what the game's reader is doing now (variant 0: the longest, for the help's height) */
+const char* hn_nfc(int, int variant) {
+    static const char* const waiting = "The game is waiting for an NFC tag: Tap tag holds the chosen one to it.";
+    if (variant > 0) return nullptr;
+    if (variant == 0 || !can_nfc()) return waiting;
+    const int st = host->nfc_state();
+    static int said_for = -1;   // (what a tap said stays until another tag is chosen)
+    if (said_for != nfc_choice) said_for = nfc_choice, nfc_said.clear();
+    if (!nfc_said.empty()) return nfc_said.c_str();
+    if (!nfc_listed) return "Put tag files (dumps of your own figures) in the NFC folder.";
+    if (st & 8) return "The game has read the NFC tag.";
+    if (st & 2) return waiting;
+    if (st & 4) return "An NFC tag is at the reader: the game reads it when it next asks for one.";
+    if (st & 1) return "The game is not asking for an NFC tag now. Open its NFC screen first, or tap one ahead.";
+    return "The game has not started its NFC reader yet.";
+}
+bool is_nfc_tap(const struct Row& r);
+bool is_nfc_remove(const struct Row& r);
+bool is_nfc_scan(const struct Row& r);
+/* The Scan row: what the scan is doing, or did (variant 0: the longest) */
+const char* nfc_scan_says(int variant) {
+    static char b[200];
+    static const char* const looking = "Hold the tag to the controller: on the logo in the middle of a Switch 2 Pro Controller, for up to ten seconds.";
+    if (variant == 0 || !host || !host->nfc_scan) return looking;
+    switch (host->nfc_scan(0)) {
+    case 1: return looking;
+    case 2:
+        snprintf(b, sizeof b, "Saved as \"%s\": it is in the NFC tag row's list now. The launcher's NFC page renames it.",
+                 host->nfc_scan_name ? host->nfc_scan_name() : "");
+        return b;
+    case 3: return "No tag was found in ten seconds. Hold it flat on the controller's logo and scan again.";
+    case 4: return "That tag was read, but it is not a figure's tag: nothing was saved.";
+    case 5: return "No Switch 2 Pro Controller over USB: plug it in, with Steam and any bridge program closed.";
+    case 6: return "The tag could not be read, or its file could not be written. Scan again.";
+    default: return nullptr;
+    }
+}
+
 Row rows[] = {
     // Graphics, in sections: a heading row is a section's title (draw_options draws it, the selection steps over it). The
     // Quality preset first, as it sets rows in every section. (Reflex, Anti-Lag 2, the Upscaler and the DLSS model only where
@@ -1637,6 +1688,18 @@ Row rows[] = {
      "Saves the picture as the window shows it, with the Graphics tab's looks and without this menu or the FPS counter, as a "
      "PNG in the screenshots folder of the game folder.",
      nullptr, false, true},
+    // NFC (hookshot): the NFC tags of the player's folder; the two actions hold the chosen one to the game's reader and take it away
+    // (the choice is kept in the options file as any row's, by its place in the list: refresh_nfc keeps it within the list)
+    {TAB_NFC, "NFC tag", &nfc_choice, 0, 0, 1, tx_nfc,
+     "Which of your NFC tags to use: the files of your NFC folder, by their names: dumps of your own figures "
+     "(.bin, or a Flipper Zero's .nfc), which you put in the folder yourself.", hn_nfc, false, true},
+    {TAB_NFC, "Tap tag", nullptr, 0, 0, 0, nullptr,
+     "Holds the chosen NFC tag to the reader, as tapping the figure on the controller does. It stays there until the game "
+     "has read it."},
+    {TAB_NFC, "Remove tag", nullptr, 0, 0, 0, nullptr, "Takes the NFC tag off the reader."},
+    {TAB_NFC, "Scan tag on controller", nullptr, 0, 0, 0, nullptr,
+     "Reads a tag you own with a Switch 2 Pro Controller's reader (over USB) and saves it in your NFC folder, so it can be "
+     "tapped from this tab from then on. The tag itself is not changed."},
     // Debug: the tools' switch, the tools themselves below it while they are on (cheat: menu_tick does what they do), then the
     // developer's rows
     {TAB_DEBUG, "Debug tools", &opts.debug_tools, 0, 1, 1, tx_onoff,
@@ -1923,6 +1986,36 @@ const char* cheat_button_text(int i) {
     return i >= 0 && i < kCheatRows ? buttons[i] : "";
 }
 constexpr int kRows = sizeof rows / sizeof rows[0];
+bool is_nfc_tap(const Row& r) { return r.tab == TAB_NFC && !r.value && !strcmp(r.name, "Tap tag"); }
+bool is_nfc_remove(const Row& r) { return r.tab == TAB_NFC && !r.value && !strcmp(r.name, "Remove tag"); }
+bool is_nfc_scan(const Row& r) { return r.tab == TAB_NFC && !r.value && !strcmp(r.name, "Scan tag on controller"); }
+/// The NFC tags listed again (the menu opened): the row's range is theirs, the choice kept by its name
+void refresh_nfc() {
+    if (!can_nfc()) return;
+    const std::string was = nfc_listed ? host->nfc_name(std::clamp(nfc_choice, 0, nfc_listed - 1)) : "";
+    nfc_listed = std::min(host->nfc_count(), kMaxNfc);
+    nfc_choice = 0;
+    for (int i = 0; i < nfc_listed && !was.empty(); i++)
+        if (was == host->nfc_name(i)) nfc_choice = i;
+    for (Row& r : rows)
+        if (r.value == &nfc_choice) r.hi = std::max(0, nfc_listed - 1);
+    nfc_said.clear();
+}
+void nfc_press(bool tap) {
+    if (!can_nfc()) return;
+    if (!tap) {
+        host->nfc_tap(-1);
+        nfc_said = "The NFC tag is off the reader.";
+    } else if (!nfc_listed) {
+        nfc_said = "There is no tag to tap: put a tag file in the NFC folder.";
+    } else if (!host->nfc_tap(nfc_choice)) {
+        nfc_said = std::string("\"") + host->nfc_name(nfc_choice) + "\" is not an NFC tag's dump.";
+    } else {
+        nfc_said = std::string("\"") + host->nfc_name(nfc_choice) + ((host->nfc_state() & 2) || (host->nfc_state() & 8)
+                       ? "\" is at the reader: close the menu and the game reads it."
+                       : "\" is at the reader. The game is not asking for one yet: it reads it when it does.");
+    }
+}
 
 int ultrawide_read = 1;   // (ultrawide= as read: saved again while HOS_OUTPUT_RES holds the Output resolution and the row is as it was)
 /// (hookshot) The Aspect ratio and Output resolution rows' ends from the screen's sizes and the player's own (known once the
@@ -2994,7 +3087,7 @@ float scroll_at[TAB_MOTION + 2];   // (the first row shown, eased toward the sel
                                    // the Controls page: kControlsSlot)
 constexpr int kControlsSlot = TAB_MOTION + 1;
 int wheel_rows[TAB_MOTION + 2];   // (the mouse wheel's notches since the last drawing, a slot each: scroll_rows scrolls by them)
-int scrolled_to[TAB_MOTION + 2] = {-1, -1, -1, -1, -1, -1};   // (the selection scroll_rows last brought into view)
+int scrolled_to[TAB_MOTION + 2] = {-1, -1, -1, -1, -1, -1, -1, -1, -1};   // (the selection scroll_rows last brought into view)
 float scroll_want[TAB_MOTION + 2];   // (where scroll_at is going: the wheel moves it, a new selection too)
 float ease_step = 0;     // (this drawing's share of the way: the time since the last one)
 
@@ -3449,7 +3542,7 @@ const char* bug_report_hint() {
     return text.c_str();
 }
 
-const char* const tab_titles[TAB_COUNT] = {"Graphics", "Audio", "Gameplay", "Controls", "Neural", "Debug"};
+const char* const tab_titles[TAB_COUNT] = {"Graphics", "Audio", "Gameplay", "Controls", "Neural", "NFC", "Debug"};
 inline const char* tab_title(int t) { return t >= 0 && t < TAB_COUNT ? tab_titles[t] : "Settings"; }
 inline bool cheat_is_toggle(int c) { return c == 0 || c == 1 || c == 7; }
 
@@ -3541,6 +3634,8 @@ void draw_options(ui::Ctx& c) {
     const int count = tab_row_count(cur_tab), sel = tab_selected[cur_tab];
     const Row& selr = rows[tab_row_to_global(cur_tab, sel)];
     const char* hint = selr.value && selr.hint ? selr.hint(*selr.value, -1) : nullptr;
+    if ((is_nfc_tap(selr) || is_nfc_remove(selr)) && !nfc_said.empty()) hint = nfc_said.c_str();   // (what the press did)
+    if (is_nfc_scan(selr)) hint = nfc_scan_says(-1);
     if (is_share_row(selr) && !share_said.empty()) hint = share_said.c_str();   // (what the last save did)
     if (&selr == &rows[kBugReportRow]) hint = bug_report_hint();   // (the Bug report: where it was saved, or why not)
     const std::string pending_line = (cur_tab == TAB_GRAPHICS || cur_tab == TAB_DEBUG) && restart_pending() ? restart_line(c, 16 * s, hx1 - hx0 - 66 * s) : "";
@@ -3561,7 +3656,7 @@ void draw_options(ui::Ctx& c) {
         if (const char* says = cheat_confirm(selr.cheat)) prompt_list[prompts_n++] = {ui::kConfirm, says};
         prompt_list[prompts_n++] = {ui::kCompact, "Compact", compact_key_name};
     } else {
-        prompt_list[prompts_n++] = {ui::kConfirm, confirms ? (pending == &selr ? "Confirm" : selr.name) : &selr == &rows[kBugReportRow] || is_share_row(selr) ? "Save" : "Open"};
+        prompt_list[prompts_n++] = {ui::kConfirm, is_nfc_tap(selr) ? "Tap" : is_nfc_remove(selr) ? "Remove" : is_nfc_scan(selr) ? "Scan" : confirms ? (pending == &selr ? "Confirm" : selr.name) : &selr == &rows[kBugReportRow] || is_share_row(selr) ? "Save" : "Open"};
     }
     if (cur_tab == TAB_MOTION) prompt_list[prompts_n++] = {ui::kBack, "Back"};   // (Esc: to Controls)
     else {
@@ -4975,7 +5070,7 @@ void menu_option_set(int id, int value) {
 // its own thread: menu_mu keeps them apart from menu_tick (the present's thread) and from menu_option_set (the game's)
 bool bridge_row(int i) { return rows[i].value && !rows[i].heading && rows[i].cheat < 0 && row_shown(i); }
 void bridge_fill(int i, MkwVkSetting* out) {
-    static const char* const tabs[] = {"graphics", "audio", "gameplay", "controls", "neural", "debug", "motion", "controls"};
+    static const char* const tabs[] = {"graphics", "audio", "gameplay", "controls", "neural", "nfc", "debug", "motion", "controls"};
     static_assert(sizeof tabs / sizeof tabs[0] == TAB_PAGE + 1, "a name for each MenuTab");
     const Row& r = rows[i];
     *out = MkwVkSetting{};
@@ -5464,6 +5559,7 @@ void menu_tick() {
         if (open_now.load()) opts.pad_layout = detect_pad_layout();
         if (open_now.load()) dlss_probe(), fsr4_probe();   // (whether the Upscaler row can offer DLSS and FSR here: asked once)
         if (open_now.load()) refresh_mics();   // (the microphones as they are now)
+        if (open_now.load()) refresh_nfc();    // (and the NFC tags of the player's folder)
     }
     if (open_now.load() && page == 5) {   // (hookshot) the restart question: Later (the default) or Restart now
         if (mouse) {   // (a button under the cursor chosen, a click on it pressed, a right click is Later; no list: the wheel does nothing)
@@ -5732,9 +5828,22 @@ void menu_tick() {
             }
         } else if (r.cheat >= 0) cheat_press(r.cheat, press, changed);   // (a debug tool: on the Debug tab itself)
         else if (press[7] && is_motion_row(r)) cur_tab = TAB_MOTION, tab_selected[TAB_MOTION] = 0, press[7] = false, changed = true;
+        else if (press[7] && (is_nfc_tap(r) || is_nfc_remove(r))) nfc_press(is_nfc_tap(r)), press[7] = false, changed = true;
+        else if (press[7] && is_nfc_scan(r)) {
+            if (host && host->nfc_scan) host->nfc_scan(1);
+            press[7] = false, changed = true;
+        }
         else if (press[7] && is_share_row(r)) share_pipeline_list(), press[7] = false, changed = true;
         else if (press[7] && &r == &rows[kBugReportRow]) bug_report_save(), press[7] = false, changed = true;
         else if (press[7] && !r.value && can_bind()) page = 1, csel = 0, ccol = menu_hit::kCtlPrimary, changed = true;
+        {   // (a scan ends by itself: its line drawn again, and the tag it saved in the row's list)
+            static int scan_was = 0;
+            const int scan = host && host->nfc_scan ? host->nfc_scan(0) : 0;
+            if (scan != scan_was) {
+                if (scan == 2) refresh_nfc();
+                scan_was = scan, changed = true;
+            }
+        }
         if ((press[3] || press[4] || press[7]) && r.value) {   // (Enter, or A, as Right)
             if (press[7]) press[4] = true;
             set_row(r, *r.value + (press[4] ? r.step : -r.step), press[4] ? 1 : -1);

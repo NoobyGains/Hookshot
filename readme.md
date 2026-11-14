@@ -611,6 +611,10 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Controller menu button | None, Home, Back left (GL), Back right (GR) | Home |
 | | Compact menu key | Right Shift, Right Ctrl | Right Shift |
 | | Screenshot key | Off, F12 (saves the picture as the window shows it, without the menu or the FPS counter, as a PNG in the `screenshots` folder: [Controls](#controls)) | F12 |
+| NFC | NFC tag | The tag files of your NFC folder, by their names | The first |
+| | Tap tag | Holds the chosen tag to the game's reader | |
+| | Remove tag | Takes it off the reader | |
+| | Scan tag on controller | Reads a tag you own with a Switch 2 Pro Controller (USB) and saves it in your NFC folder | |
 | Debug | Debug tools | Off, On (the tools below it while on) | Off |
 | | Player: Damage taken | Half, Normal, Double, Quadruple (live, while Debug tools is on; Half rounds damage up to a quarter heart; Heart protection wins) | Normal |
 | | Developer: Descriptor reuse | Off, On (changes at once) | On |
@@ -878,6 +882,16 @@ it. Without them the kernel's hid-nintendo driver runs the controller, and it ge
 anything SDL reports as a Switch Pro Controller or Joy-Con, and that includes third-party controllers in Switch mode
 (8BitDo, GameSir and others; SDL gives them Nintendo's ids). Some of them may turn it into weak rumble or none: set
 `HOS_HD_RUMBLE=0` to give them the plain motor rumble.
+
+**NFC tags:** where the game asks for a figure's NFC tag, the Insert menu's **NFC** tab gives it one. The tags are files
+in a folder of yours, dumps of tags you own: `.bin` (an NTAG215's 540 bytes; 532 and 572 byte ones too) or a Flipper
+Zero's `.nfc`. The folder is `%LOCALAPPDATA%\Hookshot\nfc` on Windows and `~/.local/share/hookshot/nfc` on Linux
+(`HOOKSHOT_NFC_DIR` names another); copy them in yourself.
+Choose one in the **NFC tag** row and press **Tap tag** while the game waits for one (or before: it stays at the reader
+until the game reads it). With a Nintendo Switch 2 Pro Controller plugged in over USB (Windows), a real tag held on the
+controller is read too, and **Scan tag on controller** saves one into the folder. Only a tag's ID and its figure's model
+are read from a file; what a game writes to a tag is kept beside your saves instead (`user/nfc`), and no tag, real or
+file, is ever written. [docs/nfc.md](docs/nfc.md) has the details.
 
 **The Nintendo Switch 2 Pro Controller over USB (Windows):** Windows has no driver a game can use for it, so the game
 reads it itself: plugged in with its cable, it is a controller with its motion sensor and rumble like any other, with no
