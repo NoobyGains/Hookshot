@@ -788,13 +788,56 @@ void memory_drop_shadow(uint64_t guest, uint64_t size);
 // and the GPU both write). ~1M a race, no effect seen; off by default: its lock on every dirty page cost the replay)
 std::mutex gpu_pages_mu;
 std::unordered_map<uint32_t, uint32_t> gpu_pages;   // page -> the generation of the GPU's last write
+thread_local bool gpu_write_recording = false;
+thread_local bool gpu_write_recording_all = false;
+thread_local std::vector<std::pair<uint64_t, uint64_t>> gpu_write_recording_ranges;
+thread_local uint64_t gpu_write_recording_view = 0;
+thread_local uint32_t gpu_write_recording_gen = 0;
 int64_t st_sync_gpu_pages, st_sync_gpu_live;
 bool gpu_pages_on() {
     static const bool v = env_on("RX_VK_GPU_PAGES");
     return v;
 }
+void memory_gpu_write_recording_begin(bool track) {
+    gpu_write_recording = track;
+    gpu_write_recording_all = false;
+    gpu_write_recording_ranges.clear();
+    if (track) {
+        gpu_write_recording_ranges.reserve(32);
+        gpu_write_recording_view = memory_capture_view();
+        gpu_write_recording_gen = memory_generation();
+    }
+}
+bool memory_gpu_written_in_recording(uint64_t guest, uint64_t size) {
+    if (!guest || !size || !gpu_write_recording) return false;
+    if (gpu_write_recording_all) return true;
+    const uint64_t end = guest + size;
+    for (const auto& [lo, hi] : gpu_write_recording_ranges)
+        if (guest < hi && lo < end) return true;
+    // (a parallel recording may have changed the page; its write is in this submission but not in this thread's ranges)
+    return gpu_write_recording_view != memory_capture_view() &&
+           memory_written_since(guest, size, gpu_write_recording_gen);
+}
+void memory_gpu_write_recording_note(uint64_t guest, uint64_t size) {
+    if (!gpu_write_recording || !guest || !size) return;
+    const uint64_t end = guest + size;
+    for (auto& [lo, hi] : gpu_write_recording_ranges) {
+        if (guest <= hi && lo <= end) {
+            lo = std::min(lo, guest);
+            hi = std::max(hi, end);
+            return;
+        }
+    }
+    if (gpu_write_recording_ranges.size() >= 128) {
+        gpu_write_recording_all = true;
+        gpu_write_recording_ranges.clear();
+        return;
+    }
+    gpu_write_recording_ranges.emplace_back(guest, end);
+}
 void memory_stamp_gpu(uint64_t guest, uint64_t size) {
     if (!size) return;
+    memory_gpu_write_recording_note(guest, size);
     memory_stamp(guest, size);
     if (!gpu_pages_on()) return;
     std::lock_guard lk(gpu_pages_mu);
@@ -4220,8 +4263,12 @@ int guest_cpu_write(uint64_t gpu, const void* src, uint64_t n) {
     guest_cpu_wrote(gpu, n);
     return ok;
 }
+std::atomic<uint64_t> replay_cpu_view{1};
+uint64_t memory_replay_cpu_view() { return replay_cpu_view.load(std::memory_order_acquire); }
 void guest_cpu_wrote(uint64_t gpu, uint64_t n) {
-    if (!n || !wb_diff_on()) return;
+    if (!n) return;
+    replay_cpu_view.fetch_add(1, std::memory_order_release);
+    if (!wb_diff_on()) return;
     uint32_t pages[64];
     int k = 0;
     for (uint64_t a = gpu & ~4095ull; a < gpu + n; a += 4096) {   // (GPU pages are mapped to guest memory page by page)

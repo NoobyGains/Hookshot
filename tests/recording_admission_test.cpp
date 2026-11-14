@@ -53,6 +53,8 @@ uint64_t largest_request = 0;
 std::mutex par_mutex;
 struct ParLock { std::lock_guard<std::mutex> lock{par_mutex}; };
 void logf(const char*, ...) {}
+bool ub_snapshot_on() { return false; }   // (draw_begin_recording: the uniform snapshot is off here)
+void memory_gpu_write_recording_begin(bool) {}
 bool create_buffer(uint64_t bytes, VkBufferUsageFlags, bool, VkBuffer& buffer, VmaAllocation& allocation, void** map, bool = false) {
     ++allocation_calls; largest_request = std::max(largest_request, bytes);
     if (fail_buffer || bytes > (16ull << 20)) return false;

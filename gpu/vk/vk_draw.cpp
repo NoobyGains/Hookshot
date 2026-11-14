@@ -407,10 +407,10 @@ struct RecordingRes {
     uint64_t before = 0;           // (what the recording used of the streams before this one)
     uint32_t idle = 0;             // (recordings of the slot that stayed in the first stream)
     std::unordered_map<const void*, std::pair<VkBuffer, uint64_t>> c1_at;   // (c1 of a stage: uploaded once a recording)
-    // (hookshot-deck) a uniform buffer copied as submitted (RX_VK_UB_SNAPSHOT), by its address and size: the copy serves the
+    // (hookshot) a uniform buffer copied as submitted (RX_VK_UB_SNAPSHOT), by its address and size: the copy serves the
     // recording's later draws of it while the capture view is the same, as a read then would give the same bytes.
     // RX_VK_UB_SNAPSHOT_REUSE=0: a copy for every binding
-    struct UbSnap { uint64_t addr, n, view; VkBuffer buf; uint64_t at; };
+    struct UbSnap { uint64_t addr, n, view, cpu_view; VkBuffer buf; uint64_t at; };
     std::unordered_map<uint64_t, UbSnap> ub_snap;
 };
 // (a recording's first stream: one for each of the kRecordings slots. RX_VK_STREAM_MB=<n>: that size, 2 by default; a recording
@@ -3082,6 +3082,17 @@ thread_local uint64_t grid_patch_at = UINT64_MAX;
 thread_local VkBuffer grid_patch_buf = VK_NULL_HANDLE;   // (the stream c0 went to: PR 585's streams can move on)
 
 int desc_reuse_level();   // (below: RX_VK_DESC_REUSE and the Descriptor reuse row)
+bool ub_snapshot_on() {
+    static const bool snapshot = [] {
+        const char* e = getenv("RX_VK_UB_SNAPSHOT");
+        const bool on = e ? env_on("RX_VK_UB_SNAPSHOT")
+                          : !pools_mirrored() && (dev.props.vendorID == 0x8086 ||
+                                                  dev.props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU);
+        logf("vk: uniform buffers %s (RX_VK_UB_SNAPSHOT=%d)", on ? "copied as submitted" : "bound in place", on ? 1 : 0);
+        return on;
+    }();
+    return snapshot;
+}
 VkDescriptorBufferInfo uniform_range(const NvnState& s, const Stage& st, uint32_t index) {
     VkDescriptorBufferInfo bi{VK_NULL_HANDLE, 0, VK_WHOLE_SIZE};
     const uint64_t align = std::max<uint64_t>(dev.props.limits.minUniformBufferOffsetAlignment, 16);
@@ -3181,29 +3192,31 @@ VkDescriptorBufferInfo uniform_range(const NvnState& s, const Stage& st, uint32_
         // over the ones submitted (the per-object matrices are in memory it reuses frame after frame). On Intel the depth
         // prepass drew the Kokiri ground with other objects' matrices, out of sight: the depth there stayed far, and the fog
         // pass painted sky over the ground (the white forest on Intel Core Ultra iGPUs, still there after the split-submission
-        // fence fix #2419). On a Steam Deck on main 6749ba21, bound in place, 1 of 3 starts froze in a conversation (a capture's
-        // and a readback's write-back never came) where 0 of ~25 did with the copy; the copy's cost there is ~1 fps. A mirror
-        // is made at the submission and does not see the rewrite. Discrete GPUs with no mirror (GCN since #2343,
+        // fence fix https://github.com/NotRexed/Hookshot/pull/2419). On a Steam Deck on main 6749ba21, bound in place, 1 of 3
+        // starts froze in a conversation (a capture's and a readback's write-back never came) where 0 of ~25 did with the copy;
+        // the copy's cost there is ~1 fps. A mirror
+        // is made at the submission and does not see the rewrite. Discrete GPUs with no mirror (GCN since
+        // https://github.com/NotRexed/Hookshot/pull/2343,
         // RX_VK_MIRROR=0) keep the default off until it is measured there. RX_VK_UB_SNAPSHOT=0: off)
-        static const bool snapshot = [] {
-            const char* e = getenv("RX_VK_UB_SNAPSHOT");
-            const bool on = e ? env_on("RX_VK_UB_SNAPSHOT")
-                              : !pools_mirrored() && (dev.props.vendorID == 0x8086 ||
-                                                      dev.props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU);
-            logf("vk: uniform buffers %s (RX_VK_UB_SNAPSHOT=%d)", on ? "copied as submitted" : "bound in place", on ? 1 : 0);
-            return on;        }();
-        BufferRef b = snapshot ? BufferRef{} : gpu_buffer_bind(u.addr, n, false);
+        const bool snapshot = ub_snapshot_on();
+        const uint64_t guest = u.addr < (1ull << 40) ? u.addr : host->gpu_guest(u.addr);
+        const bool gpu_written = snapshot && memory_gpu_written_in_recording(guest, n);
+        BufferRef b = snapshot && !gpu_written ? BufferRef{} : gpu_buffer_bind(u.addr, n, false);
         if (b && b.offset % align == 0) return {b.buffer, b.offset, n};
-        static const bool snap_reuse = [] {   // (unset: on; set, as env_on reads it)
+        static const bool snap_reuse = [] {   // (Intel keeps its old copy-per-binding default; explicit values force either way)
             const char* e = getenv("RX_VK_UB_SNAPSHOT_REUSE");
-            return !e || !env_value_off(e);
+            return e ? env_on("RX_VK_UB_SNAPSHOT_REUSE")
+                     : ub_snapshot_on() && dev.props.vendorID != 0x8086 &&
+                       dev.props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU && !pools_mirrored();
         }();
         const uint64_t snap_key = u.addr * 0x9E3779B97F4A7C15ull ^ n;
         const uint64_t view = snapshot && snap_reuse ? memory_capture_view() : 0;
+        const uint64_t cpu_view = view ? memory_replay_cpu_view() : 0;
         static std::atomic<int64_t> snap_hits{0};
         if (view) {
             auto it = cur->ub_snap.find(snap_key);
-            if (it != cur->ub_snap.end() && it->second.addr == u.addr && it->second.n == n && it->second.view == view) {
+            if (it != cur->ub_snap.end() && it->second.addr == u.addr && it->second.n == n &&
+                it->second.view == view && it->second.cpu_view == cpu_view) {
                 snap_hits.fetch_add(1, std::memory_order_relaxed);
                 return {it->second.buf, it->second.at, n};
             }
@@ -3213,7 +3226,9 @@ VkDescriptorBufferInfo uniform_range(const NvnState& s, const Stage& st, uint32_
         FINE_N(FC_UBO_STREAM, 1);
         // (as the submission had it, not as the game has rewritten it since: the captures' pages)
         // (a copy that could not be read is not kept for the recording's later bindings: each gets its own, as before)
-        if (memory_read_as_submitted(u.addr, cur->mapped + at, n) && view) cur->ub_snap[snap_key] = {u.addr, n, view, cur->stream, at};
+        if (memory_read_as_submitted(u.addr, cur->mapped + at, n) && view &&
+            cpu_view == memory_replay_cpu_view())
+            cur->ub_snap[snap_key] = {u.addr, n, view, cpu_view, cur->stream, at};
         static std::atomic<int64_t> copied{0};
         if (copied.fetch_add(1, std::memory_order_relaxed) % 5000 == 0)
             logf("vk: uniform buffer %#llx +%#llx copied into the stream (%s; %lld so, %lld reused copies)", (unsigned long long)u.addr,
@@ -5168,6 +5183,8 @@ void draw_begin_recording(int slot, VkCommandBuffer cmd, uint64_t value) {
     r.used = 0, r.before = 0;
     r.c1_at.clear();
     r.ub_snap.clear();
+    r.ub_snap.reserve(32);
+    memory_gpu_write_recording_begin(ub_snapshot_on());
     cur = &r;
     pass() = Pass{};
     work_since_barrier = false;

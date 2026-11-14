@@ -265,6 +265,9 @@ bool memory_read_as_submitted(uint64_t gpu, void* dst, uint64_t n);
 bool pools_mirrored();   // (vk_memory.cpp mirror_on: the buffer pools have VRAM mirrors)
 uint64_t memory_capture_view();          // (bumped when a capture is published or any page is stamped)
 uint32_t memory_page_stamp(uint64_t gpu); // (that address's page only)
+uint64_t memory_replay_cpu_view();        // (bumped by guest_cpu_write/wrote: a copied range may have changed in this recording)
+void memory_gpu_write_recording_begin(bool track);
+bool memory_gpu_written_in_recording(uint64_t guest, uint64_t size);
 uint64_t gpu_pool_end(uint64_t gpu);   // (hookshot) where the memory pool holding that address ends, 0: in none (vk_memory.cpp)
 uint64_t gpu_pool_start(uint64_t gpu); // (EvilOOT) and where it begins
 bool create_buffer_cached(uint64_t size, VkBufferUsageFlags usage, VkBuffer& buffer, VmaAllocation& allocation,

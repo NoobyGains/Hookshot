@@ -55,6 +55,7 @@ std::atomic<uint64_t> stream_extra{0},stream_grown{0},stream_peak{0};
 bool grow_off=false; bool stream_grow_off() { return grow_off; }
 /* BUFFER_TYPES */
 
+bool ub_snapshot_on(){return false;} void memory_gpu_write_recording_begin(bool){}   // (draw_begin_recording: the uniform snapshot is off here)
 /* STREAM */
 VkCommandBuffer rec_cmd{};
 uint64_t rec_value=0,targets_serial=0;
