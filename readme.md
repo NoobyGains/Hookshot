@@ -971,12 +971,35 @@ measured and what is not.
 
 Put mods in a `mods` folder in the game folder, beside `hookshot.exe` (or point `HOS_MODS` at another folder), in the
 layout emulators use: `mods/<name>/romfs/...` holds files that replace or add to the game's own. Deeper layouts such as
-`mods/contents/<title id>/<name>/romfs` work too. A folder whose name starts with `-` or `_` is off. When two mods
-have the same file, the one whose folder name sorts last wins, so name them `01-...`, `02-...` to set the order.
+`mods/contents/<title id>/<name>/romfs` work too. Hookshot reads the folder as the game starts.
+
+**Turning mods on and off: Gameplay → Mods.** The menu's Mods page lists every mod it found, in load order, each with its
+number of files and Off or On. <kbd>Up</kbd> and <kbd>Down</kbd> choose a mod; <kbd>Left</kbd>, <kbd>Right</kbd> or
+<kbd>Enter</kbd> turn it on or off; <kbd>Q</kbd> and <kbd>E</kbd> (or <kbd>Tab</kbd>, LB and RB on a controller) move it
+up or down the order. With the mouse, click Off or On, or the arrows beside the chosen mod. When two mods have the same
+file, the one lower in the list wins it: a mod's line names the mod on that shares files with it and which of the two
+wins, and the help beside the list names every one. Changes apply after a restart (closing the menu asks, as for the
+other settings that need one). Your folders are never renamed: the page keeps its choice in `mods/hookshot-mods.ini`, a
+text file you can also edit, with the game closed:
+
+```ini
+; Hookshot's mod list. The Insert menu's Mods page (Gameplay, Mods) writes it; edit it with the game closed.
+HD Textures = on
+Classic Voice = off
+contents/0100000000000000/Retro Models = on
+```
+
+A line a mod: its folder in the `mods` folder (`/` between folders, in any case), then `= on` or `= off` (a name alone
+is on); lines starting with `;` are comments. The lines are the load order, the first loading first. Mods the file does
+not name load after them, on, in name order; with no file at all that is every mod, so the one whose folder name sorts
+last wins (name them `01-...`, `02-...` to set the order without the file). A folder whose name starts with `-` or `_` is
+off whatever the file says, and so are the mods in it: the page lists them greyed; rename the folder to manage them there.
+A line for a folder that is not there is kept, for when it is back.
 
 Only RomFS mods are loaded. `exefs` patches (`.pchtxt`, `.ips`) are left out: Hookshot compiles the game's code ahead
-of time, so patching its instructions would need a rebuild. The log (`hookshot_log.txt`) names each mod and the files
-read from it.
+of time, so patching its instructions would need a rebuild. The log (`hookshot_log.txt`) has a line for each mod as the
+game starts (`mods: #1 HD Textures: on, 1234 RomFS files`), one for each two mods on that have files in common and which
+of them loads, and names the files read from the mods.
 
 A mod file larger than the game's own does not load unless the resource size table allows for it:
 `System/Resource/ResourceSizeTable.Product.111.Nin_Ounce_NVN2.rsizetable.zs` gives each file the memory the game sets
