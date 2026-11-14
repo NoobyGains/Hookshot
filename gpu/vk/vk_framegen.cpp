@@ -28,7 +28,7 @@
 // (hookshot fork: the Frame generation by row's AMD methods)
 #include "camera_vectors.h"   // (the scene's camera in the world, as AMD's runtime takes it)
 #include "framegen_methods.h"
-#include "fg_scale_post.h"     // (the FXAA, Bloom and Colour grade rows: framegen_scale's push constants)
+#include "fg_scale_post.h"     // (the FXAA, Bloom, Colour grade and Retro look rows: framegen_scale's push constants)
 #include "vk_ffx.h"           // (AMD FSR 4 frame generation)
 #include "vk_menu.h"
 #include "vk_present_rect.h"
@@ -647,7 +647,9 @@ VkImage framegen_scale(VkCommandBuffer cmd, VkImageView src, VkImage image, uint
     const int look = pq ? 0 : std::clamp(opts.grade, 0, kGrades - 1);
     const float bloom = pq ? 0.0f : kBloomLevels[std::clamp(opts.bloom, 0, kBloomSteps - 1)];
     const int fxaa = !pq && opts.fxaa ? 1 : 0;
-    if (!window_filter() && !opts.sharpness && !wide.side && !wide.cover && !look && bloom <= 0.0f && !fxaa)
+    // (and the Retro look, nor that on pq: its 5-bit steps and dither are of the SDR picture's codes, as the console's were)
+    const int retro = pq ? 0 : std::clamp(opts.retro, 0, kRetroLooks - 1);
+    if (!window_filter() && !opts.sharpness && !wide.side && !wide.cover && !look && bloom <= 0.0f && !fxaa && !retro)
         return VK_NULL_HANDLE;   // (hookshot fork: window_filter, vk_menu.h)
     if (!src || !image || !sw || !sh || !dw || !dh) return VK_NULL_HANDLE;
     const PresentSourceRect source = present_source_rect(sw, sh, crop);
@@ -722,12 +724,19 @@ VkImage framegen_scale(VkCommandBuffer cmd, VkImageView src, VkImage image, uint
         scale.scaled_w = dw, scale.scaled_h = dh;
         to_general(cmd, scale.scaled.image);
     }
-    ScalePush pc{window_filter(), opts.sharpness / 100.0f, wide.x0, 1.0f - wide.x0, wide.side, wide.cover / 65535.0f,
-                 kGradeLooks[look][0], kGradeLooks[look][1], kGradeLooks[look][2], kGradeLooks[look][3], look, bloom, fxaa};
-    const bool small_wanted = wide.side == 1 || bloom > 0.0f;   // (the blurred sides and the Bloom read the picture at 1/8)
+    // (the Retro look is not sharpened: the sharpen's neighbours are the full picture's, which would show through it)
+    ScalePush pc{window_filter(), retro ? 0.0f : opts.sharpness / 100.0f, wide.x0, 1.0f - wide.x0, wide.side, wide.cover / 65535.0f,
+                 kGradeLooks[look][0], kGradeLooks[look][1], kGradeLooks[look][2], kGradeLooks[look][3], look, bloom, fxaa, retro};
+    // (the blurred sides and the Bloom read the picture at 1/8, the Retro look its picture of kRetroLines)
+    const bool small_wanted = wide.side == 1 || bloom > 0.0f || retro;
     if (small_wanted) {   // (the blurred sides: first the picture at 1/8, each pixel the mean of its 8 x 8, which they blur)
-        // (from #1448's checked source rectangle, as the crop above: the picture src now holds)
-        const uint32_t smw = std::max(1u, source.w / 8), smh = std::max(1u, source.h / 8);
+        // (from #1448's checked source rectangle, as the crop above: the picture src now holds. With the Retro look the small
+        // picture is its own, 240 lines and as wide as the window's picture at that height, each pixel the mean of its block of
+        // the picture; the sides and the Bloom read that one then, their blur and glow a little narrower when it has more lines
+        // than the 1/8 would. Never more pixels than the picture has)
+        const uint32_t rh = std::min(source.h, kRetroLines);
+        const uint32_t rw = std::clamp((uint32_t)std::lround((double)rh * dw / dh), 1u, source.w);
+        const uint32_t smw = retro ? rw : std::max(1u, source.w / 8), smh = retro ? rh : std::max(1u, source.h / 8);
         if (scale.small_w != smw || scale.small_h != smh) {
             {
                 std::lock_guard qk(dev.present_mu);
@@ -745,7 +754,7 @@ VkImage framegen_scale(VkCommandBuffer cmd, VkImageView src, VkImage image, uint
         pc.side = 3;   // (fg_scale.comp: make the small copy)
         pass(cmd, pipe, {{src, scale.linear}, {scale.small.view, VK_NULL_HANDLE}, {src, scale.linear}}, smw, smh, &pc, sizeof pc);
         full_barrier(cmd);
-        pc.side = wide.side;   // (0 or 2 when only the Bloom asked for the small picture)
+        pc.side = wide.side;   // (0 or 2 when only the Bloom or the Retro look asked for the small picture)
     }
     pass(cmd, pipe, {{src, scale.linear}, {scale.scaled.view, VK_NULL_HANDLE}, {small_wanted ? scale.small.view : src, scale.linear}},
          dw, dh, &pc, sizeof pc);

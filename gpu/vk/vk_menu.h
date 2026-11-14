@@ -40,6 +40,7 @@ struct Options {
     int fxaa = 0;         // (hookshot, from Ocarina Reborn) FXAA on the finished picture: 0 Off, 1 On (vk_framegen.cpp framegen_scale)
     int bloom = 0;        // a glow around bright light on the finished picture: 0 Off, 1 Low, 2 Medium, 3 High (fg_scale_post.h)
     int grade = 0;        // the Colour grade: 0 Off, 1 Rich, 2 Vivid, 3 Warm, 4 Cool, 5 Cinematic (fg_scale_post.h)
+    int retro = 0;        // (hookshot) the Retro look: 0 Off, 1 N64, 2 N64 + CRT (fg_scale_post.h; vk_framegen.cpp framegen_scale)
     int texture_detail = 0;   // (hookshot) Texture detail: 0 Auto, 1 Full, 2 Medium, 3 Low (the big textures' top levels left out,
                               // gpu/vk/vk_texture.cpp texture_detail_dims; read as each texture is made)
     int anisotropy = 4;   // (hookshot) Anisotropic filtering: 0 the game's own (1x or 2x), 1 2x, 2 4x, 3 8x, 4 16x (the

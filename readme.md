@@ -493,6 +493,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | FXAA | Off, On (on the finished picture, in the Window scaling filter's place; not with HDR set to Native; changes at once) | Off |
 | | Bloom | Off, Low, Medium, High (a glow around bright light; not with HDR set to Native; changes at once) | Off |
 | | Colour grade | Off, Rich, Vivid, Warm, Cool, Cinematic (not with HDR set to Native; changes at once) | Off |
+| | Retro look | Off, N64 (the picture at the Nintendo 64's 240 lines, soft, its colours cut to 16 bits with the console's dither), N64 + CRT (with faint scanlines and darker corners); in the Window scaling filter's, FXAA's and Sharpness's place, the menu left sharp; not with HDR set to Native; changes at once | Off |
 | | Texture detail | Auto, Full, Medium, Low | Auto |
 | | Anisotropic filtering | Game's, 2x, 4x, 8x, 16x | 16x |
 | | View distance | Short, Original, Far, Very far, Max (how far trees, bushes and detailed models reach; changes at once) | Original |
@@ -1357,6 +1358,8 @@ Hookshot exists thanks to the work of many people:
   Grass and Shadow distance rows, FXAA, Bloom, the Colour grade, Classic counters, the Speedrun timer and the
   Death counter.
 - **hotoni** (the Graphics-Menu mod): where the game keeps its view, grass and shadow distances.
+- **[angrylion-rdp-plus](https://github.com/ata4/angrylion-rdp-plus)**: the Nintendo 64's colour dither (its magic square),
+  which the Retro look uses.
 - **Mesa (NAK)**: the reference for Ampere's instruction encoding.
 - Everyone who sent fixes: SkippySteve (Linux and the AppImage, and many more), monsterlag, klimovich008, hckrman101 (NVIDIA
   DLSS, DLAA and Reflex, the exposure flicker and fog fixes, build speed, CI), madebyjordan (AMD FSR 4.1), N3oTraX (FSR 4 on

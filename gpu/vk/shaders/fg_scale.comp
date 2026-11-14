@@ -15,13 +15,15 @@ const float kSteps = 255.0;
 #endif
 // (and ultrawide's menus: while a menu shows, the picture's sides outside the middle 16:9, x0..x1 of its width, out of focus
 // (side 1) or black (side 2), with a short soft edge; vk_framegen.cpp wide_sides. Side 3: this dispatch makes the picture at
-// 1/8 for side 1's blur instead, into dst; side 1 then reads it as small)
+// 1/8 for side 1's blur instead, into dst; side 1 then reads it as small. With the Retro look side 3 makes its 240 lines instead)
 layout(binding = 2) uniform sampler2D small;
 // (and the FXAA, Bloom and Colour grade rows, last on the picture before the sides: vk_framegen.cpp framegen_scale. From Ocarina
 // Reborn. Look 0 is the picture untouched; the grade's saturation and contrast are around mid grey, warm (+) or cool (-) its
-// white balance, and the vignette a soft darkening of the corners. Bloom 0 is none, 1 the glow at its strongest)
+// white balance, and the vignette a soft darkening of the corners. Bloom 0 is none, 1 the glow at its strongest. And the Retro
+// look row, retro: 0 Off, 1 N64, 2 N64 + CRT, in the filter's place: retro() below)
 layout(push_constant) uniform P { int mode; float sharp; float x0; float x1; int side; float cover;
-                                  float sat; float contrast; float warm; float vignette; int look; float bloom; int fxaa; } pc;
+                                  float sat; float contrast; float warm; float vignette; int look; float bloom; int fxaa;
+                                  int retro; } pc;
 // (and the loading cover between two areas, which the game draws in that middle too: pc.cover, 0 open to 1 closed, closes the
 // sides by as much. The game blends its cover over the picture's light, before the picture is coded for the screen (measured:
 // under a half-open cover a pixel's light is the same fraction of its light without it at every brightness, its code is
@@ -199,6 +201,61 @@ vec3 fxaa(vec2 uv) {
     if (hor) fuv.y += offset * stepLen; else fuv.x += offset * stepLen;
     return textureLod(src, fuv, 0.0).rgb;
 }
+// the Retro look row: the picture as the Nintendo 64 made it, 240 lines (small: side 3's dispatch makes each of its pixels the
+// mean of its block of the picture), each pixel's colour cut to the 5 bits a channel of the console's 16-bit picture with the
+// console's own ordered dither, then drawn at the window's size with the linear filter: N64, its dither showing in smooth
+// light such as the sky. Retro 2, N64 + CRT, as a TV of the day showed it: softer side to side (its analog picture), which
+// hides most of the dither, with faint scanlines and darker corners.
+// The dither is the RDP's magic square (angrylion-rdp-plus, rdp/dither.c): a channel goes up a step when the part of a step it
+// loses is more than the square's value, in eighths, at that pixel; the square repeats every 4 x 4 pixels, fixed to the screen
+const int kMagic[16] = int[](0, 6, 1, 7, 4, 2, 5, 3, 3, 5, 2, 4, 7, 1, 6, 0);
+vec3 n64_colour(vec3 c, ivec2 t) {
+    const float m = float(kMagic[(t.y & 3) * 4 + (t.x & 3)]);
+    return min(floor(clamp(c, 0.0, 1.0) * 31.0 + (7.5 - m) / 8.0), vec3(31.0)) / 31.0;
+}
+// (a pixel of the small picture, cut to 5 bits: dimmed first under the loading cover outside the middle, as pixel())
+vec3 retro_pixel(ivec2 t, ivec2 size) {
+    t = clamp(t, ivec2(0), size - 1);
+    vec3 c = texelFetch(small, t, 0).rgb;
+    if (pc.cover > 0.0) {
+        const float u = (float(t.x) + 0.5) / float(size.x);
+        if (u < pc.x0 || u > pc.x1) c = dimmed(c, 1.0 - pc.cover);
+    }
+    return n64_colour(c, t);
+}
+// N64 + CRT's scanlines: each line of the small picture brightest in its middle (t 0.5) and darker between lines, by k, its mean
+// light kept. Under 3 of the window's pixels to a line cannot show them: less from 3 down to none at 2
+float crt_lines(float t, float lines) {
+    const float k = 0.25 * clamp(lines - 2.0, 0.0, 1.0);
+    return (1.0 - k * (0.5 + 0.5 * cos(6.28318531 * t))) / (1.0 - 0.5 * k);
+}
+vec3 retro(vec2 uv, ivec2 d) {
+    const ivec2 size = textureSize(small, 0);
+    const vec2 p = uv * vec2(size) - 0.5;
+    const ivec2 b = ivec2(floor(p));
+    const vec2 f = p - vec2(b);
+    // (across, a tent of the linear filter's 1 pixel to each side, or for the CRT 1.5: a fifth to each neighbour)
+    const float across = pc.retro == 2 ? 1.5 : 1.0;
+    vec3 line[2];
+    for (int y = 0; y < 2; y++) {
+        vec3 sum = vec3(0.0);
+        float weight = 0.0;
+        for (int x = -1; x <= 2; x++) {
+            const float w = max(1.0 - abs(float(x) - f.x) / across, 0.0);
+            if (w <= 0.0) continue;   // (the outer two with the linear filter's 1)
+            sum += w * retro_pixel(b + ivec2(x, y), size);
+            weight += w;
+        }
+        line[y] = sum / weight;
+    }
+    vec3 c = mix(line[0], line[1], f.y);
+    if (pc.retro == 2) {
+        c *= crt_lines(fract(p.y + 0.5), float(d.y) / float(size.y));
+        const float r = length((uv - 0.5) * vec2(1.0, 0.75)) * 1.6;   // (0 in the middle, about 1 in the corners, as grade())
+        c *= 1.0 - 0.22 * smoothstep(0.5, 1.1, r);
+    }
+    return clamp(c, 0.0, 1.0);
+}
 // (and less than one of the destination's steps of noise over it, kSteps: the dim, smooth sides showed 8-bit steps as contour lines)
 float dither(ivec2 g) { return (fract(52.9829189 * fract(0.06711056 * float(g.x) + 0.00583715 * float(g.y))) - 0.5) / kSteps; }
 void main() {
@@ -206,7 +263,9 @@ void main() {
     const ivec2 d = imageSize(dst);
     if (any(greaterThanEqual(g, d))) return;
     const vec2 uv = (vec2(g) + 0.5) / vec2(d);
-    if (pc.side == 3) {   // the picture at 1/8: 4 x 4 bilinear taps on the corners of each pixel's block's 2 x 2s, its exact mean
+    // the picture at 1/8: 4 x 4 bilinear taps on the corners of each pixel's block's 2 x 2s, its exact mean. (The Retro look's
+    // 240 lines: the same 16 taps spread over a block of another size, 6 x 6 of a 1440p picture, 9 x 9 of a 4K one, near its mean)
+    if (pc.side == 3) {
         const vec2 block = 1.0 / vec2(d);   // (one pixel of dst: 8 x 8 of the picture)
         vec3 sum = vec3(0.0);
         for (int y = 0; y < 4; y++)
@@ -224,8 +283,9 @@ void main() {
             return;
         }
     }
-    // (FXAA in the window filter's place; not while the loading cover dims the sides, which only the filter's taps do)
-    vec3 c = pc.fxaa != 0 && pc.cover <= 0.0 ? fxaa(uv) : filtered(uv);
+    // (FXAA in the window filter's place; not while the loading cover dims the sides, which only the filter's taps do. The Retro
+    // look in the place of both, from its own small picture, which it dims under the cover itself; framegen_scale's sharp is 0)
+    vec3 c = pc.retro != 0 ? retro(uv, d) : pc.fxaa != 0 && pc.cover <= 0.0 ? fxaa(uv) : filtered(uv);
     if (pc.sharp > 0.0) {
         // The neighbours one picture pixel away (one window pixel when the window is the smaller). They were one window
         // pixel away, a fraction of a picture pixel when the window is larger (0.53 for 2048 x 1152 on a 3840 x 2160
