@@ -136,7 +136,7 @@ when the game closes.
 ## Roadmap
 
 <p align="center">
-  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 5 done, 2 in progress, 4 coming next, 8 feature requests, each as a card with a picture. The same items are listed as text below." width="820">
+  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 5 done, 3 in progress, 6 coming next, 5 feature requests, each as a card. The same items are listed as text below." width="820">
 </p>
 
 **Done** is on `main` now. **In progress** is being worked on at the moment. **Coming next** is planned but not
@@ -161,13 +161,16 @@ reaches.
 
 **🟡 In progress**: being worked on now
 
-- **Memory in long sessions:** a soak test on this PC levels off at about 33 GB; next, the same test held to a 16 GB
-  PC's memory, where players run out
-- **Faster towns and fields:** Castle Town and Hyrule Field, where each frame waits on the processor while the graphics
-  card sits idle
+- **A better CRT look:** soft scanlines, a phosphor mask, glow and curvature for the Retro look, each adjustable in
+  the menu (after Timothy Lottes' public-domain CRT shader)
+- **Mod manager:** your own mods listed in the menu, on and off, their load order and conflicts
+- **Hero mode and quiet Navi:** double damage and no recovery hearts; Navi's callouts off
 
 **⚪ Coming next**: planned, not started
 
+- **Memory in long sessions:** a soak test on this PC levels off at about 33 GB; next, the same test held to a 16 GB
+  PC's memory, where players run out
+- **Faster towns and fields:** Castle Town and Hyrule Field, where each frame waits on the processor
 - **Jump loop after Gohma:** Link repeating a jump in dialogue above 60 FPS
 - **Invisible doors and walls** in a few places of the game
 - **AMD on Windows:** crashes on some Radeon cards (needs an AMD tester)
@@ -177,9 +180,6 @@ reaches.
 **➕ Feature requests**: what players of the remake ask for most (GameBanana's most-liked mods and requests, and the
 ports' coverage, in its first week), limited to what Hookshot can build as a toggle over your own game files
 
-- **Mod manager:** turn your own mods on and off in the menu (the most liked: Playable Zelda, Classic Link Voice)
-- **Hero mode:** double damage and fewer hearts, as the Simple Hero Mode mod does
-- **Quiet Navi, no voices:** Navi's callouts and the voice acting off (the top audio request)
 - **Photo mode:** a free camera with the HUD hidden
 - **First-person aim:** bow, slingshot and Hookshot from Link's eyes, with the mouse
 - **Small toggles:** auto jump, Young Link on Epona, gear on and off, N64-style controls

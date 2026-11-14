@@ -31,12 +31,13 @@ STAGES = [
         ("retro.jpg", "Retro N64 look", "240 lines and the N64's own dither, at no cost."),
     ]),
     ("doing", "IN PROGRESS", "being worked on now", AMBER, [
-        ("chart:memory", "Memory in long sessions",
-         "Soak test: levels off at about 33 GB on a 96 GB PC. Next: the same test held to a 16 GB PC's memory."),
-        ("towns.jpg", "Faster towns and fields",
-         "Castle Town and Hyrule Field: cutting the processor time each frame takes while the graphics card sits idle."),
+        ("panel:name:CRT", "A better CRT look", "Soft scanlines, phosphor mask, glow and curvature, each adjustable in the menu."),
+        ("panel:name:Mods", "Mod manager", "Your own mods listed in the menu: on and off, load order, conflicts."),
+        ("panel:name:Hero", "Hero mode, quiet Navi", "Double damage and no recovery hearts; Navi's callouts off."),
     ]),
     ("next", "COMING NEXT", "planned, not started", BLUE, [
+        ("chart:memory", "Memory in long sessions", "Levels off at about 33 GB on a 96 GB PC; next, held to 16 GB."),
+        ("towns.jpg", "Faster towns and fields", "Castle Town and Hyrule Field, where the processor holds frames back."),
         ("gohma.jpg", "Jump loop after Gohma", "Link repeats a jump in dialogue above 60 FPS."),
         ("invisible.jpg", "Invisible doors and walls", "Objects that vanish in a few places of the game."),
         ("panel:amd", "AMD on Windows", "Crashes on some Radeon cards: needs a tester."),
@@ -45,9 +46,6 @@ STAGES = [
     # (what players of the remake ask for most, from GameBanana's likes and requests and the ports' coverage in its first
     # week; only what Hookshot can build as a toggle over the player's own game files: no Nintendo assets)
     ("request", "FEATURE REQUESTS", "what players ask for most", PURPLE, [
-        ("panel:name:Mods", "Mod manager", "Turn your own mods on and off in the menu. Most liked: Playable Zelda, Classic Link Voice."),
-        ("panel:name:Hero", "Hero mode", "Double damage and fewer hearts, as the Simple Hero Mode mod does."),
-        ("panel:name:Navi", "Quiet Navi, no voices", "Navi's callouts and the voice acting off: the top audio request."),
         ("panel:name:Photo", "Photo mode", "A free camera with the HUD hidden."),
         ("panel:name:Aim", "First-person aim", "Bow, slingshot and Hookshot from Link's eyes, with the mouse."),
         ("panel:name:QoL", "Small toggles", "Auto jump, Young Link on Epona, gear on and off, N64 controls."),
@@ -55,9 +53,17 @@ STAGES = [
         ("panel:name:Online", "Online co-op", "Play together: shown working on another port, not released yet."),
     ]),
 ]
-PER_ROW = 4   # (the feature requests' cards to a row; they wrap to a second row. Other stages keep one row)
+PER_ROW = 4   # (a stage of more than five cards wraps, four to a row)
 
 W, M, GAP = 1600, 48, 20
+
+
+def per_row_of(n):
+    """Cards to a row: all of them up to five, else as even rows of at most PER_ROW (six: two rows of three)"""
+    if n <= 5:
+        return n
+    rows = (n + PER_ROW - 1) // PER_ROW
+    return (n + rows - 1) // rows
 
 
 def font(name, size):
@@ -148,7 +154,7 @@ def panel(kind, w, h, colour):
             size -= 2
         f = font("Unbounded-ExtraBold.ttf", size)
         box = d.textbbox((0, 0), name, font=f)
-        tint = (82, 70, 128) if kind.startswith("name:") else (70, 84, 112)
+        tint = tuple(int(c * 0.5) for c in colour) if kind.startswith("name:") else (70, 84, 112)
         mid = (top_free + h) / 2 if h < 160 else h / 2
         d.text(((w - (box[2] - box[0])) / 2 - box[0], mid - (box[3] - box[1]) / 2 - box[1]), name, font=f, fill=tint)
     return im
@@ -196,7 +202,7 @@ def main():
     y = 196
     for kind, title, note, colour, items in STAGES:
         wide = len(items) <= 2
-        n = min(len(items), PER_ROW) if kind == "request" else len(items)
+        n = per_row_of(len(items))
         rows = (len(items) + n - 1) // n
         cw = (W - 2 * M - (n - 1) * GAP) // n
         if wide:
@@ -206,7 +212,7 @@ def main():
             pw, ph = cw, round(cw * 9 / 16)
             lines = max(len(wrap(probe, t, card_b, cw - 36)) for _, _, t in items)
             ch = ph + 58 + lines * 22 + 16
-        if kind == "request":   # (requests have no picture of their own: a shorter tile)
+        if kind == "request" or all(src.startswith("panel:name:") for src, _, _ in items):   # (no pictures: shorter tiles)
             ph = round(cw * 9 / 32)
             ch = ph + 58 + max(len(wrap(probe, t, card_b, cw - 36)) for _, _, t in items) * 22 + 16
         bands.append((kind, title, note, colour, items, wide, cw, pw, ph, ch, y))
@@ -242,7 +248,7 @@ def main():
         mark(d, kind, M + 40, top + 24, 14, colour)
         d.text((M + 66, top + 7), title, font=title_f, fill=colour)
         d.text((M + 76 + d.textlength(title, font=title_f), top + 15), note, font=sub_f, fill=MUTED)
-        per_row = min(len(items), PER_ROW) if kind == "request" else len(items)
+        per_row = per_row_of(len(items))
         for i, (source, ctitle, ctext) in enumerate(items):
             cx = M + (i % per_row) * (cw + GAP)
             cy = top + 64 + (i // per_row) * (ch + GAP)
