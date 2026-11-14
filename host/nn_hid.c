@@ -729,7 +729,8 @@ static uint64_t bound_pad_buttons(uint64_t raw) {
 }
 
 static volatile LONG pad_raw_now;   /* the gamepads' inputs at the last read, 1 << HOS_PAD_* */
-static int pad_after_menu;          /* (the menu just closed: the pads wait until they are let go; oc_pad_word too) */
+static uint64_t pad_after_menu;     /* (the pads' inputs the Insert menu had, 1 << HOS_PAD_*: each waits until let go) */
+static uint64_t pad_raw_game;       /* (pads_read: the last read's inputs without the menu's Back+Start chord) */
 uint32_t hos_pad_raw(void) { return (uint32_t)pad_raw_now; }
 
 /* Apply the Insert menu's Stick dead zone to each stick as a pair, for XInput and SDL.
@@ -840,6 +841,7 @@ static void pads_read(uint64_t *buttons, int32_t stick[4]) {
        keeps): they reach the game only one at a time */
     const uint64_t chord = 1ULL << HOS_PAD_BACK | 1ULL << HOS_PAD_START;
     if ((raw & chord) == chord) raw &= ~chord;
+    pad_raw_game = raw;
     const uint64_t b = bound_pad_buttons(raw);
     cached_buttons = b;
     memcpy(cached_stick, s, sizeof s);
@@ -908,7 +910,7 @@ static int pad_sprint_down(void) {
     AcquireSRWLockShared(&pad_bind_lock);
     for (int k = 0; k < 2; k++) {
         const int p = pad_bind[HOS_KEY_SPRINT][k];
-        down |= p >= 0 && p < HOS_PAD_N && (pad_raw_now >> p & 1);
+        down |= p >= 0 && p < HOS_PAD_N && (((uint64_t)pad_raw_now & ~pad_after_menu) >> p & 1);
     }
     ReleaseSRWLockShared(&pad_bind_lock);
     return down ? SPRINT_PAD : 0;
@@ -1042,7 +1044,7 @@ static void oc_notes(void) {
         const int row = HOS_KEY_OC_NOTE_L + i;
         int held = keys && bound_down(row, 0);
         for (int k = 0; k < 2 && !held; k++)
-            if (pad_bind[row][k] >= 0 && (pad_raw_now >> pad_bind[row][k] & 1)) held = 1;
+            if (pad_bind[row][k] >= 0 && ((uint64_t)pad_raw_now & ~pad_after_menu) >> pad_bind[row][k] & 1) held = 1;
         if (held) bits |= 1ULL << i;
     }
     for (int i = 0; i < 5; i++) {
@@ -1060,9 +1062,9 @@ static void oc_notes(void) {
 /* (npad_states writes the game's one merged word: during a button wait its five note buttons are the note controls) */
 static uint64_t oc_pad_word(uint64_t buttons) {
     if (hos_oc_wait != 1) return buttons;
-    /* (no notes where read_input gives the game no player input either: menu open, pads held after it, background
-       unless the pads count there) */
-    if (rx_option(1, 0) || pad_after_menu || (!game_in_front() && !pads_behind())) return buttons;
+    /* (no notes where read_input gives the game no player input either: menu open, background unless the pads count
+       there; the pads' inputs still held after the menu are left out in oc_notes) */
+    if (rx_option(1, 0) || (!game_in_front() && !pads_behind())) return buttons;
     static const uint64_t note_to[5] = {1ULL << HOS_SW_L, 1ULL << HOS_SW_R, 1ULL << HOS_SW_A,
                                         1ULL << HOS_SW_Y, 1ULL << HOS_SW_X};
     uint64_t w = buttons;
@@ -1080,17 +1082,21 @@ static uint64_t oc_pad_word(uint64_t buttons) {
 }
 
 /* (hookshot) The pads into the game's input, in front and behind other windows alike: while the Insert menu is open they
-   are its own, as the keyboard is (key()), and after it closed until they are let go (the press that closed it never
-   reaches the game). They are read either way, so the letting go is seen. Whether they were used (a button, or a stick
-   past a third) */
+   are its own, as the keyboard is (key()), and after it closed each input it had waits until it is let go (the press
+   that closed it never reaches the game); the others and the sticks count again at once, so one input that stays down
+   (a worn trigger, a second pad) no longer keeps the rest from the game. They are read either way, so the letting go
+   is seen. Whether they were used (a button, or a stick past a third) */
 static int pads_merge(uint64_t *buttons, int32_t stick[4]) {
     uint64_t pb = 0;
     int32_t ps[4] = {0};
     pads_read(&pb, ps);
-    if (rx_option(1, 0)) pad_after_menu = 1;
-    else if (pad_after_menu && !pad_raw_now) pad_after_menu = 0;
-    if (!pad_after_menu) {
-        *buttons |= pb;
+    static int menu_was;
+    const int menu = rx_option(1, 0);
+    if (menu || menu_was) pad_after_menu |= (uint32_t)pad_raw_now;   /* (the first read after the close too) */
+    else pad_after_menu &= (uint32_t)pad_raw_now;
+    menu_was = menu;
+    if (!menu) {
+        *buttons |= pad_after_menu ? bound_pad_buttons(pad_raw_game & ~pad_after_menu) : pb;
         stick_max(stick, ps);
         sprint_now = pad_sprint_down();   /* (Sprint's gamepad input, as read now) */
     }
