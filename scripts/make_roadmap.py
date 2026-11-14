@@ -1,56 +1,74 @@
-"""The README's roadmap as a picture: Done, In progress and Coming next, each item with its own status mark.
+"""The README's roadmap picture, laid out as game roadmaps are: a title, then one band per stage (Done, In progress,
+Coming next), each with a ribbon and a row of feature cards, each card a picture, a title and a line or two.
 
     python scripts/make_roadmap.py     (assets/brand/roadmap.png)
 
-Edit STAGES and run it again. readme.md repeats the same items as text under the picture, for search and screen
-readers; keep the two alike. "In progress" lists only what someone is working on now. Pillow is the only dependency.
+The card pictures are in assets/brand/roadmap/ (screenshots of the game, which CONTRIBUTING.md allows; memory-soak.csv
+is the memory card's chart). Edit STAGES and run it again. readme.md repeats the items as text under the picture, for
+search and screen readers; keep the two alike. "In progress" lists only what is being worked on now. Needs Pillow.
 """
 import argparse
+import csv
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
 BRAND = Path(__file__).resolve().parent.parent / "assets" / "brand"
-FONTS = BRAND / "fonts"
-BG, CARD, EDGE = (6, 7, 11), (13, 16, 24), (30, 36, 52)
-TEXT, MUTED = (226, 232, 240), (140, 150, 170)
+FONTS, PICS = BRAND / "fonts", BRAND / "roadmap"
+BG, CARD, EDGE = (7, 9, 14), (15, 19, 29), (34, 41, 58)
+TEXT, MUTED = (232, 236, 243), (146, 156, 176)
 GREEN, AMBER, BLUE = (52, 211, 153), (251, 191, 36), (96, 165, 250)
+GRADIENT = [(248, 250, 252), (59, 130, 246), (34, 211, 238), (251, 191, 36)]
+UPDATED = "14 November 2026"
 
-# (kind, title, what it means, colour, items)
+# (kind, title, what it means, colour, [(picture or drawn panel, title, text)])
 STAGES = [
-    ("done", "DONE", "in this repository now", GREEN, [
-        "Shader prep never stalls at 99%",
-        "Gohma, slow motions, water above 60",
-        "View distance, grass, shadow rows",
-        "FXAA, bloom and colour grade",
-        "Speedrun timer, death, rupee counters",
-        "One-click HDR launcher",
-        "Longshot and Ocarina Reborn fixes",
+    ("done", "DONE", "on main now, tested in the game", GREEN, [
+        ("above-60.jpg", "Smooth above 60 FPS", "Gohma steers, slow motions and water behave at 120 to 240 FPS."),
+        ("graphics.jpg", "New graphics options", "View distance, grass, shadows, bloom, colour grade, FXAA."),
+        ("counters.jpg", "Timer and counters", "Speedrun timer, death counter and the N64's rupee counter."),
+        ("panel:shaders", "No more stuck at 99%", "Shader preparation carries on past a stuck graphics driver."),
     ]),
     ("doing", "IN PROGRESS", "being worked on now", AMBER, [
-        "Memory filling up in long sessions",
-        "Low FPS in Castle Town, Hyrule Field",
+        ("chart:memory", "Memory in long sessions",
+         "Soak test: levels off at about 33 GB on a 96 GB PC. Next: the same test held to a 16 GB PC's memory."),
+        ("towns.jpg", "Faster towns and fields",
+         "Castle Town and Hyrule Field: cutting the processor time each frame takes while the graphics card sits idle."),
     ]),
     ("next", "COMING NEXT", "planned, not started", BLUE, [
-        "Link's jump loop after Gohma",
-        "Objects and doors turning invisible",
-        "AMD crashes on Windows",
-        "amiibo support",
-        "A signed Builder",
-        "Intel cards; cards without mesh shaders",
+        ("gohma.jpg", "Jump loop after Gohma", "Link repeats a jump in dialogue above 60 FPS."),
+        ("invisible.jpg", "Invisible doors and walls", "Objects that vanish in a few places of the game."),
+        ("panel:amd", "AMD on Windows", "Crashes on some Radeon cards: needs a tester."),
+        ("panel:amiibo", "amiibo", "From Ocarina Reborn: scan your own amiibo files."),
     ]),
 ]
 
-W, PAD, GAP = 1600, 56, 26
-TOP, ROW, CARD_PAD = 190, 62, 30
+W, M, GAP = 1600, 48, 20
 
 
 def font(name, size):
     return ImageFont.truetype(str(FONTS / name), size)
 
 
+def gradient_text(canvas, xy, text, f):
+    """Text filled with the header's gradient, left to right."""
+    mask = Image.new("L", canvas.size, 0)
+    ImageDraw.Draw(mask).text(xy, text, font=f, fill=255)
+    box = mask.getbbox()
+    grad = Image.new("RGB", (box[2] - box[0], 1))
+    n = len(GRADIENT) - 1
+    for x in range(grad.width):
+        t = x / max(grad.width - 1, 1) * n
+        i = min(int(t), n - 1)
+        a, b = GRADIENT[i], GRADIENT[i + 1]
+        grad.putpixel((x, 0), tuple(round(a[k] + (b[k] - a[k]) * (t - i)) for k in range(3)))
+    full = Image.new("RGB", canvas.size)
+    full.paste(grad.resize((grad.width, canvas.height)), (box[0], 0))
+    canvas.paste(full, (0, 0), mask)
+
+
 def mark(d, kind, cx, cy, r, colour):
-    """The item's status mark: a filled circle with a tick (done), a half-filled ring (in progress), an empty ring (next)."""
+    """The stage's mark: a filled circle with a tick (done), a half-filled ring (in progress), an empty ring (next)."""
     if kind == "done":
         d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=colour)
         d.line((cx - r * 0.45, cy + r * 0.02, cx - r * 0.1, cy + r * 0.38, cx + r * 0.5, cy - r * 0.35), fill=BG,
@@ -62,66 +80,163 @@ def mark(d, kind, cx, cy, r, colour):
         d.ellipse((cx - r, cy - r, cx + r, cy + r), outline=colour, width=max(2, int(r * 0.22)))
 
 
+def wrap(d, text, f, width):
+    lines, line = [], ""
+    for word in text.split():
+        trial = (line + " " + word).strip()
+        if d.textlength(trial, font=f) <= width:
+            line = trial
+        else:
+            lines.append(line)
+            line = word
+    return lines + [line] if line else lines
+
+
+def panel(kind, w, h, colour):
+    """A drawn picture for a card with no screenshot: the shader bar, the memory chart, or a name on a tile."""
+    im = Image.new("RGB", (w, h), (11, 14, 22))
+    d = ImageDraw.Draw(im)
+    for y in range(0, h, 24):   # (a faint grid)
+        d.line((0, y, w, y), fill=(17, 21, 32))
+    for x in range(0, w, 24):
+        d.line((x, 0, x, h), fill=(17, 21, 32))
+    if kind == "shaders":
+        f, small = font("JetBrainsMono-Medium.ttf", 22), font("JetBrainsMono-Regular.ttf", 17)
+        d.text((28, h * 0.30), "Preparing shaders", font=f, fill=TEXT)
+        d.rounded_rectangle((28, h * 0.50, w - 28, h * 0.50 + 16), radius=8, fill=(30, 36, 52))
+        d.rounded_rectangle((28, h * 0.50, w - 28, h * 0.50 + 16), radius=8, fill=colour)
+        d.text((28, h * 0.50 + 28), "50,940 of 50,940 (100%)", font=small, fill=MUTED)
+    elif kind == "memory":
+        rows = list(csv.DictReader(open(PICS / "memory-soak.csv")))
+        ys = [float(r["private_gb"]) for r in rows]
+        top, bottom, left, right = 54, h - 40, 74, w - 18
+        lo, hi = 0, 40
+        f = font("JetBrainsMono-Regular.ttf", 15)
+        for g in (0, 10, 20, 30, 40):
+            y = bottom - (g - lo) / (hi - lo) * (bottom - top)
+            d.line((left, y, right, y), fill=(32, 38, 54))
+            d.text((14, y - 9), "%d GB" % g, font=f, fill=MUTED)
+        pts = [(left + i / (len(ys) - 1) * (right - left), bottom - (v - lo) / (hi - lo) * (bottom - top))
+               for i, v in enumerate(ys)]
+        d.polygon(pts + [(right, bottom), (left, bottom)], fill=(54, 44, 18))
+        d.line(pts, fill=colour, width=4, joint="curve")
+        d.text((left, h - 30), "44 area changes, 8 minutes", font=f, fill=MUTED)
+    else:
+        name = {"amd": "Radeon", "amiibo": "amiibo"}[kind]
+        f = font("Unbounded-ExtraBold.ttf", 44)
+        tw = d.textlength(name, font=f)
+        d.text(((w - tw) / 2, h / 2 - 34), name, font=f, fill=(70, 84, 112))
+    return im
+
+
+def picture(source, w, h, kind, colour):
+    if source.startswith("panel:") or source.startswith("chart:"):
+        im = panel(source.split(":", 1)[1], w, h, colour)
+    else:
+        im = Image.open(PICS / source).convert("RGB")
+        scale = max(w / im.width, h / im.height)
+        im = im.resize((round(im.width * scale), round(im.height * scale)), Image.LANCZOS)
+        x, y = (im.width - w) // 2, (im.height - h) // 2
+        im = im.crop((x, y, x + w, y + h))
+    if kind == "next":   # (not started: grey and dimmed)
+        im = ImageEnhance.Brightness(ImageEnhance.Color(im).enhance(0.15)).enhance(0.55)
+    return im
+
+
+def rounded(im, radius, corners=(True, True, False, False)):
+    mask = Image.new("L", im.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, im.width - 1, im.height - 1), radius=radius, fill=255,
+                                           corners=corners)
+    return mask
+
+
+def badge(d, x, y, kind, label, colour):
+    f = font("JetBrainsMono-Medium.ttf", 15)
+    tw = d.textlength(label, font=f)
+    d.rounded_rectangle((x, y, x + tw + 44, y + 28), radius=14, fill=(7, 9, 14))
+    mark(d, kind, x + 15, y + 14, 8, colour)
+    d.text((x + 30, y + 5), label, font=f, fill=colour)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(BRAND / "roadmap.png"))
     a = ap.parse_args()
-    rows = max(len(s[4]) for s in STAGES)
-    card_h = 96 + rows * ROW + CARD_PAD
-    H = TOP + card_h + PAD
-    card_w = (W - 2 * PAD - 2 * GAP) // 3
-    im = Image.new("RGB", (W, H), BG)
-    head, sub = font("Unbounded-ExtraBold.ttf", 34), font("JetBrainsMono-Regular.ttf", 20)
-    count_f, legend_f = font("Unbounded-ExtraBold.ttf", 56), font("JetBrainsMono-Medium.ttf", 21)
-    probe = ImageDraw.Draw(im)
-    longest = max((t for s in STAGES for t in s[4]), key=len)
-    size = 25
-    while probe.textlength(longest, font=font("JetBrainsMono-Medium.ttf", size)) > card_w - 2 * CARD_PAD - 44:
-        size -= 1
-    item = font("JetBrainsMono-Medium.ttf", size)
+    title_f, sub_f = font("Unbounded-ExtraBold.ttf", 30), font("JetBrainsMono-Regular.ttf", 18)
+    card_t, card_b = font("Unbounded-ExtraBold.ttf", 19), font("JetBrainsMono-Regular.ttf", 16)
+    probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
 
-    # a soft glow under each card's coloured top, then the cards
+    # measure the bands first: a stage of up to two items has wide cards, picture on the left
+    bands = []
+    y = 196
+    for kind, title, note, colour, items in STAGES:
+        wide = len(items) <= 2
+        n = len(items)
+        cw = (W - 2 * M - (n - 1) * GAP) // n
+        if wide:
+            pw, ph = 380, 214
+            ch = ph
+        else:
+            pw, ph = cw, round(cw * 9 / 16)
+            lines = max(len(wrap(probe, t, card_b, cw - 36)) for _, _, t in items)
+            ch = ph + 58 + lines * 22 + 16
+        bands.append((kind, title, note, colour, items, wide, cw, pw, ph, ch, y))
+        y += 64 + ch + 40
+    H = y + 34
+
+    im = Image.new("RGB", (W, H), BG)
     glow = Image.new("RGB", (W, H), BG)
     gd = ImageDraw.Draw(glow)
-    for n, (_, _, _, colour, _) in enumerate(STAGES):
-        x0 = PAD + n * (card_w + GAP)
-        gd.rounded_rectangle((x0 + 20, TOP - 6, x0 + card_w - 20, TOP + 30), radius=16, fill=colour)
-    im = Image.blend(im, glow.filter(ImageFilter.GaussianBlur(22)), 0.55)
+    gd.ellipse((W * 0.28, -160, W * 0.72, 200), fill=(22, 40, 84))
+    im = Image.blend(im, glow.filter(ImageFilter.GaussianBlur(70)), 0.9)
     d = ImageDraw.Draw(im)
 
-    # the legend: how many in each stage, with the marks the items use
-    x = PAD
-    for kind, title, _, colour, items in STAGES:
-        mark(d, kind, x + 22, 74, 20, colour)
-        d.text((x + 56, 40), str(len(items)), font=count_f, fill=colour)
-        nx = x + 56 + d.textlength(str(len(items)), font=count_f) + 14
-        d.text((nx, 56), title.lower(), font=legend_f, fill=TEXT)
-        x = nx + d.textlength(title.lower(), font=legend_f) + 64
-    total = sum(len(s[4]) for s in STAGES)
-    bar_y, bx = 128, PAD   # (one bar, split by stage, across the picture)
-    for kind, _, _, colour, items in STAGES:
-        w = (W - 2 * PAD) * len(items) / total
-        d.rounded_rectangle((bx, bar_y, bx + w - 6, bar_y + 12), radius=6, fill=colour if kind != "next" else (40, 60, 92))
-        bx += w
+    # the title
+    word = font("Unbounded-ExtraBold.ttf", 76)
+    tw = d.textlength("Hookshot", font=word)
+    gradient_text(im, ((W - tw) / 2, 18), "Hookshot", word)
+    d = ImageDraw.Draw(im)
+    road = font("Unbounded-ExtraBold.ttf", 30)
+    label = "R O A D M A P"
+    lw = d.textlength(label, font=road)
+    d.text(((W - lw) / 2, 120), label, font=road, fill=TEXT)
+    small = font("JetBrainsMono-Regular.ttf", 16)
+    upd = "updated " + UPDATED
+    d.text((W - M - d.textlength(upd, font=small), 132), upd, font=small, fill=MUTED)
+    counts = "   ".join("%d %s" % (len(s[4]), s[1].lower()) for s in STAGES)
+    d.text((M, 132), counts, font=small, fill=MUTED)
 
-    for n, (kind, title, note, colour, items) in enumerate(STAGES):
-        x0 = PAD + n * (card_w + GAP)
-        d.rounded_rectangle((x0, TOP, x0 + card_w, TOP + card_h), radius=22, fill=CARD, outline=EDGE, width=2)
-        d.rounded_rectangle((x0, TOP, x0 + card_w, TOP + 10), radius=5, fill=colour)
-        mark(d, kind, x0 + CARD_PAD + 18, TOP + 50, 18, colour)
-        d.text((x0 + CARD_PAD + 48, TOP + 30), title, font=head, fill=colour)
-        d.text((x0 + CARD_PAD + 48, TOP + 74), note, font=sub, fill=MUTED)
-        for i, text in enumerate(items):
-            y = TOP + 124 + i * ROW
-            mark(d, kind, x0 + CARD_PAD + 12, y + size * 0.62, 12, colour)
-            d.text((x0 + CARD_PAD + 38, y), text, font=item, fill=TEXT if kind != "next" else (196, 204, 218))
-            if i < len(items) - 1:
-                d.line((x0 + CARD_PAD, y + ROW - 14, x0 + card_w - CARD_PAD, y + ROW - 14), fill=(24, 29, 42), width=1)
+    for kind, title, note, colour, items, wide, cw, pw, ph, ch, top in bands:
+        # the stage's ribbon
+        d.rounded_rectangle((M, top, W - M, top + 48), radius=12, fill=CARD, outline=EDGE)
+        d.rounded_rectangle((M, top, M + 10, top + 48), radius=5, fill=colour)
+        mark(d, kind, M + 40, top + 24, 14, colour)
+        d.text((M + 66, top + 7), title, font=title_f, fill=colour)
+        d.text((M + 76 + d.textlength(title, font=title_f), top + 15), note, font=sub_f, fill=MUTED)
+        cy = top + 64
+        for i, (source, ctitle, ctext) in enumerate(items):
+            cx = M + i * (cw + GAP)
+            d.rounded_rectangle((cx, cy, cx + cw, cy + ch), radius=16, fill=CARD, outline=EDGE)
+            pic = picture(source, pw, ph, kind, colour)
+            if wide:
+                im.paste(pic, (cx, cy), rounded(pic, 16, (True, False, False, True)))
+                tx, ty, tw_ = cx + pw + 22, cy + 22, cw - pw - 44
+            else:
+                im.paste(pic, (cx, cy), rounded(pic, 16))
+                tx, ty, tw_ = cx + 18, cy + ph + 16, cw - 36
+            d = ImageDraw.Draw(im)
+            badge(d, cx + 12, cy + 12, kind, {"done": "DONE", "doing": "IN PROGRESS", "next": "PLANNED"}[kind], colour)
+            d.text((tx, ty), ctitle, font=card_t, fill=TEXT if kind != "next" else (200, 208, 222))
+            for j, line in enumerate(wrap(d, ctext, card_b, tw_)):
+                d.text((tx, ty + 34 + j * 22), line, font=card_b, fill=MUTED)
+            if kind == "doing":   # (an amber stripe along the bottom: work under way)
+                d.rounded_rectangle((cx + (pw if wide else 0) + 1, cy + ch - 6, cx + cw - 1, cy + ch - 1), radius=3,
+                                    fill=colour)
 
+    foot = "Contents subject to change. The order follows docs/worklist.md: how bad a problem is, times how many players it reaches."
+    d.text(((W - d.textlength(foot, font=small)) / 2, H - 30), foot, font=small, fill=MUTED)
     out = im.convert("RGBA")
-    mask = Image.new("L", out.size, 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, W - 1, H - 1), radius=28, fill=255)
-    out.putalpha(mask)
+    out.putalpha(rounded(out, 28, (True, True, True, True)))
     out.save(a.out, optimize=True)
     print("wrote", a.out, out.size)
 

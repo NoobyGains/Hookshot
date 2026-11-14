@@ -101,7 +101,7 @@ when the game closes.
 ## Roadmap
 
 <p align="center">
-  <img src="assets/brand/roadmap.png" alt="Roadmap: 7 done, 2 in progress, 6 coming next. The same items are listed as text below." width="800">
+  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 4 done, 2 in progress, 4 coming next, each as a card with a picture. The same items are listed as text below." width="820">
 </p>
 
 **Done** is on `main` now. **In progress** is being worked on at the moment. **Coming next** is planned but not
@@ -111,30 +111,32 @@ reaches.
 <details>
 <summary><b>The roadmap as text</b></summary>
 
-**✅ Done**
+**✅ Done**: on `main` now, tested in the game
 
-- The Builder's "Preparing shaders" step never waits forever on a stuck driver; a closed start isn't counted as failed
-- Above a 60 FPS cap: Gohma steers, slow motions keep their length, water, ice and sand keep moving
-- View distance, Grass and Shadow distance rows (memory locations by hotoni, via Ocarina Reborn)
-- FXAA, Bloom and Colour grade rows
-- Speedrun timer, Death counter and Classic counters
-- One-click Windows HDR launcher
-- Fixes from the Longshot fork and Ocarina Reborn, the water's per-light shadow maps (YakuzaFanA), several users,
-  each game in its own folders, the RX 6600 / 6650 XT / 6500 XT mesh fallback
+- **Smooth above 60 FPS:** Gohma steers instead of sticking to the walls, slow motions keep their length, water, ice
+  and sand keep moving
+- **New graphics options:** View distance, Grass and Shadow distance (memory locations by hotoni, via Ocarina Reborn),
+  Bloom, Colour grade and FXAA
+- **Timer and counters:** Speedrun timer, Death counter and the N64's rupee counter
+- **No more stuck at 99%:** the Builder's shader preparation carries on past a graphics driver that never finishes a
+  shader, and closing the game while shaders build no longer counts against you
+- Also: the one-click Windows HDR launcher, fixes from the Longshot fork and Ocarina Reborn, the water's per-light
+  shadow maps (YakuzaFanA), several users, each game in its own folders, the RX 6600 / 6650 XT / 6500 XT fallback
 
-**🟡 In progress**
+**🟡 In progress**: being worked on now
 
-- Memory that fills up over a long session until the game slows or stops: the most reported problem
-- Low frame rates with an idle GPU in Castle Town and Hyrule Field
+- **Memory in long sessions:** a soak test on this PC levels off at about 33 GB; next, the same test held to a 16 GB
+  PC's memory, where players run out
+- **Faster towns and fields:** Castle Town and Hyrule Field, where each frame waits on the processor while the graphics
+  card sits idle
 
-**⚪ Coming next**
+**⚪ Coming next**: planned, not started
 
-- Link looping a jump animation in dialogue after Gohma, above a 60 FPS cap
-- Objects, walls and doors that turn invisible
-- Crashes and lost devices on AMD cards on Windows (needs an AMD tester)
-- amiibo, from Ocarina Reborn
-- A signed Builder, so antivirus programs stop flagging it
-- Intel cards, and cards without mesh shaders
+- **Jump loop after Gohma:** Link repeating a jump in dialogue above 60 FPS
+- **Invisible doors and walls** in a few places of the game
+- **AMD on Windows:** crashes on some Radeon cards (needs an AMD tester)
+- **amiibo**, from Ocarina Reborn
+- Later: a signed Builder, Intel cards, cards without mesh shaders
 
 </details>
 
