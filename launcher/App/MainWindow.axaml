@@ -7,7 +7,7 @@
         x:DataType="vm:MainViewModel"
         Title="Hookshot"
         Icon="avares://HookshotLauncher/Assets/hookshot.png"
-        Width="960" Height="600" CanResize="False"
+        Width="1040" Height="680" CanResize="False"
         WindowDecorations="None" Background="Transparent" TransparencyLevelHint="Transparent"
         DragDrop.AllowDrop="True"
         WindowStartupLocation="CenterScreen">
@@ -85,20 +85,27 @@
     </Style>
   </Window.Styles>
 
-  <Border Name="Frame" CornerRadius="18" BorderBrush="{StaticResource GlassLine}" BorderThickness="1" ClipToBounds="True">
-    <Border.Background>
-      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Offset="0" Color="#1A1D23"/>
-        <GradientStop Offset="1" Color="#121418"/>
-      </LinearGradientBrush>
-    </Border.Background>
+  <!-- the studio the brand art is lit in: near black, a soft blue glow from above (the README header's) -->
+  <Border Name="Frame" CornerRadius="18" BorderBrush="{StaticResource GlassLine}" BorderThickness="1" ClipToBounds="True"
+          Background="{StaticResource Page}">
     <Panel>
+      <Border IsHitTestVisible="False">
+        <Border.Background>
+          <RadialGradientBrush Center="50%,0%" GradientOrigin="50%,0%" RadiusX="70%" RadiusY="80%">
+            <GradientStop Offset="0" Color="#3A1E40AF"/>
+            <GradientStop Offset="0.55" Color="#101E40AF"/>
+            <GradientStop Offset="1" Color="#001E40AF"/>
+          </RadialGradientBrush>
+        </Border.Background>
+      </Border>
       <Grid RowDefinitions="64,*">
         <!-- the title bar: drag it to move the window -->
         <Grid Name="TitleBar" ColumnDefinitions="*,Auto,*" Background="Transparent">
-          <StackPanel Orientation="Horizontal" Spacing="10" Margin="28,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False">
-            <Image Source="avares://HookshotLauncher/Assets/hookshot.png" Width="28" Height="28" RenderOptions.BitmapInterpolationMode="HighQuality"/>
-            <TextBlock Text="Hookshot" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
+          <StackPanel Orientation="Horizontal" Spacing="10" Margin="24,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False">
+            <Image Source="avares://HookshotLauncher/Assets/hookshot.png" Width="30" Height="30" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+            <TextBlock Classes="wordmark" Text="Hookshot" FontSize="16" VerticalAlignment="Center"/>
+            <TextBlock Text="LAUNCHER" FontFamily="{StaticResource Mono}" FontSize="10.5" FontWeight="Medium" LetterSpacing="1.6"
+                       Foreground="{StaticResource InkFaintText}" VerticalAlignment="Center" Margin="0,2,0,0"/>
           </StackPanel>
           <Border Grid.Column="1" IsVisible="{Binding InWizard}" Height="40" CornerRadius="20" Padding="4" Background="#0BFFFFFF"
                   BorderBrush="{StaticResource GlassLine}" BorderThickness="1" VerticalAlignment="Center">
@@ -154,7 +161,7 @@
       </Grid>
 
       <!-- a dialog over the window -->
-      <Border IsVisible="{Binding HasModal}" Background="#B30A0B0E">
+      <Border IsVisible="{Binding HasModal}" Background="#B3040509">
         <ContentControl Content="{Binding Modal}" HorizontalAlignment="Center" VerticalAlignment="Center">
           <ContentControl.DataTemplates>
             <DataTemplate DataType="vm:ChannelPickerViewModel"><views:ChannelPickerView/></DataTemplate>
@@ -170,7 +177,7 @@
 
       <!-- a file dragged over step 1 -->
       <Border IsVisible="{Binding Dropping}" Margin="10" CornerRadius="14" BorderBrush="{StaticResource Brand}" BorderThickness="2"
-              Background="#1F3D63E6" IsHitTestVisible="False">
+              Background="#1F3B82F6" IsHitTestVisible="False">
         <TextBlock Text="{c:T 'Drop your game file to check it'}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource BrandInk}"
                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
       </Border>

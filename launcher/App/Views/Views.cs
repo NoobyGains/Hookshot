@@ -5,6 +5,8 @@ namespace HookshotLauncher.Views;
 // The pages and dialogs: each its .axaml, bound to its view model (compiled bindings); no logic here but where the view scrolls
 
 public sealed partial class HomeView : UserControl { public HomeView() => InitializeComponent(); }
+/// The home's banner: the README header, live (its Hookshot turns)
+public sealed partial class HeroBanner : UserControl { public HeroBanner() => InitializeComponent(); }
 public sealed partial class FilesStepView : UserControl { public FilesStepView() => InitializeComponent(); }
 public sealed partial class SettingsStepView : UserControl
 {

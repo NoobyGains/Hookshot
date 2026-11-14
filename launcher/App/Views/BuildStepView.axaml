@@ -24,21 +24,35 @@
       <Button Classes="link soft" Content="{Binding LogButton}" Command="{Binding ToggleLogCommand}"/>
       <Button Grid.Column="1" Content="{c:T 'Cancel'}" Command="{Binding CancelCommand}"/>
     </Grid>
-    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="24">
-      <StackPanel VerticalAlignment="Bottom">
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="20">
+      <!-- the 3D Hookshot turning while the build runs (the game's loading screen's), still once it stops -->
+      <Panel Width="92" Height="92" VerticalAlignment="Bottom" Margin="0,0,0,-8">
+        <Ellipse Width="84" Height="70" IsHitTestVisible="False">
+          <Ellipse.Fill>
+            <RadialGradientBrush>
+              <GradientStop Offset="0" Color="#663B82F6"/>
+              <GradientStop Offset="1" Color="#003B82F6"/>
+            </RadialGradientBrush>
+          </Ellipse.Fill>
+        </Ellipse>
+        <c:Turntable Width="92" Height="92" Spinning="{Binding Running}"/>
+      </Panel>
+      <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
         <TextBlock Classes="heading" Text="{Binding Title}"/>
         <TextBlock Classes="sub" Text="{c:T 'You can keep using your PC. Closing the launcher stops the build.'}"/>
       </StackPanel>
-      <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
-        <TextBlock Classes="tnum" Text="{Binding Percent}" FontSize="40" FontWeight="Bold" LetterSpacing="-0.8" HorizontalAlignment="Right" LineHeight="44"/>
+      <StackPanel Grid.Column="2" VerticalAlignment="Bottom">
+        <TextBlock Classes="tnum" Text="{Binding Percent}" FontFamily="{StaticResource Display}" FontSize="38" FontWeight="ExtraBold"
+                   Foreground="{StaticResource Wordmark}" HorizontalAlignment="Right" LineHeight="44"/>
         <TextBlock Classes="note tnum" Text="{Binding Left}" HorizontalAlignment="Right" Margin="0,6,0,0"/>
       </StackPanel>
     </Grid>
     <c:Bar DockPanel.Dock="Top" Height="10" Margin="0,18,0,16" Value="{Binding Overall}" Notches="{Binding Notches}">
       <c:Bar.Fill>
         <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-          <GradientStop Offset="0" Color="#3D63E6"/>
-          <GradientStop Offset="1" Color="#4B70F0"/>
+          <GradientStop Offset="0" Color="#3B82F6"/>
+          <GradientStop Offset="0.7" Color="#22D3EE"/>
+          <GradientStop Offset="1" Color="#FBBF24"/>
         </LinearGradientBrush>
       </c:Bar.Fill>
     </c:Bar>

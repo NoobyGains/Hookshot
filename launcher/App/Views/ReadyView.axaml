@@ -6,7 +6,7 @@
              x:DataType="vm:ReadyViewModel">
   <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
     <Border Width="84" Height="84" CornerRadius="42" Background="{StaticResource GoSoft}" HorizontalAlignment="Center"
-            BoxShadow="0 0 60 0 #8C5FB08A, 0 0 0 10 #125FB08A">
+            BoxShadow="0 0 60 0 #8CFBBF24, 0 0 0 10 #12FBBF24">
       <c:Icon Kind="check" Width="36" Height="36" Foreground="{StaticResource Go}"/>
     </Border>
     <TextBlock Classes="heading" Text="{Binding Heading}" HorizontalAlignment="Center" Margin="0,26,0,0"/>

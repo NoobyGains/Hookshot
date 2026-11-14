@@ -194,7 +194,7 @@ public sealed class HomeViewModel : ViewModelBase
 
     public string HeroSaves => Default is { } d ? SaveText.Short(d.Saves, DateTime.Now) : "";
     public bool HeroHasUpdate => Default?.HasUpdate == true;
-    public string HeroUpdate => Default is { Update: { } u } d ? Tr.F("{0} is out on the {1} channel.", u, ChannelPickerViewModel.NameOf(d.Channel)) : "";
+    public string HeroUpdate => Default is { Update: { } u } d ? Tr.F("{0} is out on the {1} channel.", Versions.Shown(u), ChannelPickerViewModel.NameOf(d.Channel)) : "";
 
     /// "3 versions use 116.7 GB in D:\Games\Hookshot."
     public string Footer

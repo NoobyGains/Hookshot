@@ -222,7 +222,17 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    public string Version => "Hookshot Launcher " + (typeof(SettingsViewModel).Assembly.GetName().Version?.ToString(3) ?? "3.0.0");
+    public string Version => "Hookshot Launcher " + (Main.Service.OwnTag != "dev" ? Versions.Shown(Main.Service.OwnTag)
+        : (typeof(SettingsViewModel).Assembly.GetName().Version?.ToString(3) ?? "1.0.0") + " (dev)");
+
+    // ---- About: where it comes from, and whose work it carries ----
+
+    public string AboutFrom => Tr.F("Based on the Magic Bean team's {0} (commit {1}), written by HumanBean and the Longshot contributors. Releases come from {2}.",
+                                    Upstream.Name, Upstream.Short, Main.Service.Releases.Product.Repo);
+    public string AboutArt => Tr.T("The turning Hookshot and the shield are renders of fan-made 3D models (the Hookshot by DTStheTDS), not taken from the game. Type: Unbounded, JetBrains Mono and Inter, under the SIL Open Font License. Window: Avalonia (MIT).");
+    public string AboutLicence => Tr.T("Free software under the GNU General Public License, version 3 or later. An unofficial fan project, not affiliated with Nintendo.");
+    public Command SourceCommand => new(() => Main.Host?.Open(Repository.Page(Main.Service.Releases.Product.Repo)));
+    public Command UpstreamCommand => new(() => Main.Host?.Open(Upstream.Url));
 
     public Command DoneCommand { get; }
     public Command ChangeBuildsCommand { get; }

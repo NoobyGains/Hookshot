@@ -35,9 +35,17 @@
     <ProjectReference Include="../Core/HookshotLauncher.Core.csproj"/>
   </ItemGroup>
   <ItemGroup>
-    <!-- (Inter, under its own licence, Assets/Fonts/Inter-LICENSE.txt, and the Hookshot logo, and its icon for the Windows window) -->
+    <!-- (Inter, under its own licence, Assets/Fonts/Inter-LICENSE.txt; the icon, made from Hookshot's assets/brand/icon.png, and
+         the blank shield, by scripts/make_art.py) -->
     <AvaloniaResource Include="Assets/Fonts/Inter-*.ttf"/>
     <AvaloniaResource Include="Assets/hookshot.png"/>
     <AvaloniaResource Include="Assets/hookshot.ico"/>
+    <AvaloniaResource Include="Assets/shield.png"/>
+    <!-- (Hookshot's own brand art and type, taken from assets/ as they are, so there is one copy: the turning 3D Hookshot the game's
+         loading screen turns, and Unbounded and JetBrains Mono, SIL OFL, their licences in assets/brand/fonts) -->
+    <AvaloniaResource Include="../../assets/hookshot_turn.png" Link="Assets/hookshot_turn.png"/>
+    <AvaloniaResource Include="../../assets/brand/fonts/Unbounded-ExtraBold.ttf" Link="Assets/Fonts/Unbounded-ExtraBold.ttf"/>
+    <AvaloniaResource Include="../../assets/brand/fonts/JetBrainsMono-Regular.ttf" Link="Assets/Fonts/JetBrainsMono-Regular.ttf"/>
+    <AvaloniaResource Include="../../assets/brand/fonts/JetBrainsMono-Medium.ttf" Link="Assets/Fonts/JetBrainsMono-Medium.ttf"/>
   </ItemGroup>
 </Project>

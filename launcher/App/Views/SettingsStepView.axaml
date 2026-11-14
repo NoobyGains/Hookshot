@@ -25,23 +25,24 @@
       <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
     <Style Selector="TextBlock.glabel">
-      <Setter Property="FontSize" Value="12"/>
-      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="FontFamily" Value="{StaticResource Mono}"/>
+      <Setter Property="FontSize" Value="11.5"/>
+      <Setter Property="FontWeight" Value="Medium"/>
       <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
-      <Setter Property="LetterSpacing" Value="0.48"/>
+      <Setter Property="LetterSpacing" Value="0.9"/>
       <Setter Property="Margin" Value="0,12,0,6"/>
     </Style>
     <Style Selector="Border.card.on">
-      <Setter Property="BorderBrush" Value="#595FB08A"/>
+      <Setter Property="BorderBrush" Value="#59FBBF24"/>
       <Setter Property="Background">
         <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-          <GradientStop Offset="0" Color="#125FB08A"/>
-          <GradientStop Offset="1" Color="#045FB08A"/>
+          <GradientStop Offset="0" Color="#12FBBF24"/>
+          <GradientStop Offset="1" Color="#04FBBF24"/>
         </LinearGradientBrush>
       </Setter>
     </Style>
     <Style Selector="Border.card.short">
-      <Setter Property="BorderBrush" Value="#66E2776B"/>
+      <Setter Property="BorderBrush" Value="#66F87171"/>
     </Style>
     <Style Selector="c|Icon.chev">
       <Setter Property="RenderTransform" Value="rotate(0deg)"/>

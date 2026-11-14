@@ -3,71 +3,87 @@
              xmlns:c="using:HookshotLauncher.Controls"
              x:Class="HookshotLauncher.App"
              RequestedThemeVariant="Dark">
-  <!-- The launcher in the 2.x Builder's "Slate, frosted" look: the mockup's tokens.css (launcher/mockup), under App.xaml's names -->
+  <!-- The launcher in Hookshot's own look: the README header's colours and type (assets/brand/README.md, scripts/make_hero.py),
+       dark. The studio black the 3D art is lit in, the objects' own blue, cyan and the grip cap's gold; the names are the
+       Longshot Launcher's (from the 2.x Builder's App.xaml), so every view keeps its keys -->
   <Application.Resources>
     <ResourceDictionary>
-      <!-- the palette (builder/HookshotBuilder/App.xaml) -->
-      <SolidColorBrush x:Key="Page" Color="#14161A"/>
-      <SolidColorBrush x:Key="Raised" Color="#1C1F24"/>
-      <SolidColorBrush x:Key="RaisedHover" Color="#23272D"/>
-      <SolidColorBrush x:Key="Line" Color="#2C3037"/>
-      <SolidColorBrush x:Key="LineStrong" Color="#3D434C"/>
-      <SolidColorBrush x:Key="Ink" Color="#EDEFF2"/>
-      <SolidColorBrush x:Key="InkSoft" Color="#A2A9B3"/>
-      <SolidColorBrush x:Key="InkFaint" Color="#6E7681"/>
-      <SolidColorBrush x:Key="Brand" Color="#3D63E6"/>
-      <SolidColorBrush x:Key="BrandHover" Color="#4B70F0"/>
-      <SolidColorBrush x:Key="BrandInk" Color="#DFE6FF"/>
-      <SolidColorBrush x:Key="Go" Color="#5FB08A"/>
-      <SolidColorBrush x:Key="GoHover" Color="#70C09A"/>
-      <SolidColorBrush x:Key="GoInk" Color="#06150E"/>
-      <SolidColorBrush x:Key="Warn" Color="#E2B86B"/>
-      <SolidColorBrush x:Key="Bad" Color="#E2776B"/>
-      <SolidColorBrush x:Key="Accent" Color="#5FB08A"/>
-      <SolidColorBrush x:Key="Glass" Color="#0DFFFFFF"/>
-      <SolidColorBrush x:Key="GlassHover" Color="#17FFFFFF"/>
-      <SolidColorBrush x:Key="GlassLine" Color="#17FFFFFF"/>
+      <!-- the palette: page #06070B, text #F8FAFC / #CBD5E1, blue #3B82F6, cyan #22D3EE, gold #FBBF24, glow #1E40AF -->
+      <SolidColorBrush x:Key="Page" Color="#06070B"/>
+      <SolidColorBrush x:Key="Raised" Color="#0F121A"/>
+      <SolidColorBrush x:Key="RaisedHover" Color="#161A25"/>
+      <SolidColorBrush x:Key="Line" Color="#1C2230"/>
+      <SolidColorBrush x:Key="LineStrong" Color="#2B3446"/>
+      <SolidColorBrush x:Key="Ink" Color="#F8FAFC"/>
+      <SolidColorBrush x:Key="InkSoft" Color="#CBD5E1"/>
+      <SolidColorBrush x:Key="InkFaint" Color="#5B6577"/>
+      <SolidColorBrush x:Key="Brand" Color="#3B82F6"/>
+      <SolidColorBrush x:Key="BrandHover" Color="#5B97F8"/>
+      <SolidColorBrush x:Key="BrandInk" Color="#DBEAFE"/>
+      <!-- go: Play, done, a stable version: the Hookshot's gold -->
+      <SolidColorBrush x:Key="Go" Color="#FBBF24"/>
+      <SolidColorBrush x:Key="GoHover" Color="#FCD15A"/>
+      <SolidColorBrush x:Key="GoInk" Color="#1A1203"/>
+      <SolidColorBrush x:Key="Warn" Color="#FB923C"/>
+      <SolidColorBrush x:Key="Bad" Color="#F87171"/>
+      <!-- the cyan between the blue and the gold: the build's bar, links -->
+      <SolidColorBrush x:Key="Accent" Color="#22D3EE"/>
+      <SolidColorBrush x:Key="Glass" Color="#0AFFFFFF"/>
+      <SolidColorBrush x:Key="GlassHover" Color="#14FFFFFF"/>
+      <SolidColorBrush x:Key="GlassLine" Color="#16FFFFFF"/>
       <SolidColorBrush x:Key="GlassLineStrong" Color="#2AFFFFFF"/>
-      <SolidColorBrush x:Key="GoSoft" Color="#265FB08A"/>
-      <SolidColorBrush x:Key="BadSoft" Color="#26E2776B"/>
-      <SolidColorBrush x:Key="WarnSoft" Color="#1FE2B86B"/>
-      <SolidColorBrush x:Key="BrandSoft" Color="#333D63E6"/>
+      <SolidColorBrush x:Key="GoSoft" Color="#24FBBF24"/>
+      <SolidColorBrush x:Key="BadSoft" Color="#26F87171"/>
+      <SolidColorBrush x:Key="WarnSoft" Color="#1FFB923C"/>
+      <SolidColorBrush x:Key="BrandSoft" Color="#333B82F6"/>
+      <SolidColorBrush x:Key="AccentSoft" Color="#2622D3EE"/>
       <!-- small text that must be read (InkFaint is for disabled text and decoration only) -->
-      <SolidColorBrush x:Key="InkFaintText" Color="#8A919B"/>
-      <!-- the literals App.xaml uses inline -->
+      <SolidColorBrush x:Key="InkFaintText" Color="#94A3B8"/>
+      <!-- the literals App.xaml used inline -->
       <SolidColorBrush x:Key="ChipFill" Color="#0DFFFFFF"/>
       <SolidColorBrush x:Key="ChipLine" Color="#14FFFFFF"/>
-      <SolidColorBrush x:Key="QuietFill" Color="#08FFFFFF"/>
+      <SolidColorBrush x:Key="QuietFill" Color="#0AFFFFFF"/>
       <SolidColorBrush x:Key="QuietLine" Color="#1FFFFFFF"/>
       <SolidColorBrush x:Key="PrimaryLine" Color="#33FFFFFF"/>
-      <SolidColorBrush x:Key="GoLine" Color="#40FFFFFF"/>
+      <SolidColorBrush x:Key="GoLine" Color="#59FFFFFF"/>
       <SolidColorBrush x:Key="RowHover" Color="#08FFFFFF"/>
       <SolidColorBrush x:Key="TickLine" Color="#40FFFFFF"/>
       <SolidColorBrush x:Key="BarTrack" Color="#12FFFFFF"/>
       <SolidColorBrush x:Key="DisabledFill" Color="#14FFFFFF"/>
       <SolidColorBrush x:Key="CaptionInk" Color="#80FFFFFF"/>
-      <SolidColorBrush x:Key="InfoInk" Color="#B9C8FF"/>
-      <SolidColorBrush x:Key="Selected" Color="#143D63E6"/>
+      <SolidColorBrush x:Key="InfoInk" Color="#BFDBFE"/>
+      <SolidColorBrush x:Key="Selected" Color="#1A3B82F6"/>
       <SolidColorBrush x:Key="SoftNum" Color="#0FFFFFFF"/>
       <!-- pressed: a step darker than hover -->
       <SolidColorBrush x:Key="QuietPressed" Color="#05FFFFFF"/>
-      <SolidColorBrush x:Key="BrandPressed" Color="#3357D0"/>
-      <SolidColorBrush x:Key="GoPressed" Color="#539C7A"/>
-      <SolidColorBrush x:Key="BadHover" Color="#EC8B80"/>
-      <SolidColorBrush x:Key="BadPressed" Color="#D2685C"/>
+      <SolidColorBrush x:Key="BrandPressed" Color="#2563EB"/>
+      <SolidColorBrush x:Key="GoPressed" Color="#F59E0B"/>
+      <SolidColorBrush x:Key="BadHover" Color="#FA8B8B"/>
+      <SolidColorBrush x:Key="BadPressed" Color="#EF5B5B"/>
       <!-- Windows' own close red -->
       <SolidColorBrush x:Key="CloseHover" Color="#C42B1C"/>
       <SolidColorBrush x:Key="ClosePressed" Color="#A8261A"/>
-      <!-- the keyboard / controller focus ring: a light brand ring (8:1 on the page), 2 px clear of the control -->
-      <SolidColorBrush x:Key="FocusRing" Color="#93AAFF"/>
-      <BoxShadows x:Key="PrimaryGlow">0 6 22 0 #8C3D63E6</BoxShadows>
-      <BoxShadows x:Key="GoGlow">0 8 30 0 #805FB08A</BoxShadows>
+      <!-- the keyboard / controller focus ring: a light blue ring (10:1 on the page), 2 px clear of the control -->
+      <SolidColorBrush x:Key="FocusRing" Color="#93C5FD"/>
+      <BoxShadows x:Key="PrimaryGlow">0 6 22 0 #803B82F6</BoxShadows>
+      <BoxShadows x:Key="GoGlow">0 8 30 0 #73FBBF24</BoxShadows>
+      <!-- the wordmark's gradient: white to the objects' blue, cyan and gold (make_hero.py GRADIENT) -->
+      <LinearGradientBrush x:Key="Wordmark" StartPoint="0%,0%" EndPoint="100%,0%">
+        <GradientStop Offset="0" Color="#F8FAFC"/>
+        <GradientStop Offset="0.25" Color="#E2E8F0"/>
+        <GradientStop Offset="0.5" Color="#3B82F6"/>
+        <GradientStop Offset="0.75" Color="#22D3EE"/>
+        <GradientStop Offset="1" Color="#FBBF24"/>
+      </LinearGradientBrush>
       <!-- digits all one width, so versions, sizes, times and percentages do not jitter as they change -->
       <FontFeatureCollection x:Key="Tabular">
         <FontFeature>+tnum</FontFeature>
       </FontFeatureCollection>
+      <!-- the brand's type (assets/brand/fonts, SIL OFL): Unbounded ExtraBold for the name and the headings, JetBrains Mono for
+           labels, tags and versions; Inter for everything read at length -->
+      <FontFamily x:Key="Display">avares://HookshotLauncher/Assets/Fonts#Unbounded</FontFamily>
       <FontFamily x:Key="Ui">avares://HookshotLauncher/Assets/Fonts#Inter</FontFamily>
-      <FontFamily x:Key="Mono">Cascadia Mono, Consolas, JetBrains Mono, DejaVu Sans Mono, monospace</FontFamily>
+      <FontFamily x:Key="Mono">avares://HookshotLauncher/Assets/Fonts#JetBrains Mono</FontFamily>
     </ResourceDictionary>
   </Application.Resources>
 
@@ -82,15 +98,23 @@
 
     <!-- type, one scale: 11 (small chips), 12 (faint, labels), 13 (notes), 14 (body), 16, 18 (dialog titles), 24 (headings),
          34 (the game's name), 40 (a build's percentage); weights Medium, SemiBold, Bold -->
+    <!-- headings in the wordmark's Unbounded ExtraBold (its one weight, 800: asked for as such, so nothing is made bolder) -->
     <Style Selector="TextBlock.heading">
-      <Setter Property="FontSize" Value="24"/>
-      <Setter Property="FontWeight" Value="Bold"/>
-      <Setter Property="LetterSpacing" Value="-0.24"/>
+      <Setter Property="FontFamily" Value="{StaticResource Display}"/>
+      <Setter Property="FontSize" Value="22"/>
+      <Setter Property="FontWeight" Value="ExtraBold"/>
+      <Setter Property="LineHeight" Value="30"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
     <Style Selector="TextBlock.title">
-      <Setter Property="FontSize" Value="34"/>
-      <Setter Property="FontWeight" Value="Bold"/>
-      <Setter Property="LetterSpacing" Value="-0.5"/>
+      <Setter Property="FontFamily" Value="{StaticResource Display}"/>
+      <Setter Property="FontSize" Value="30"/>
+      <Setter Property="FontWeight" Value="ExtraBold"/>
+    </Style>
+    <Style Selector="TextBlock.wordmark">
+      <Setter Property="FontFamily" Value="{StaticResource Display}"/>
+      <Setter Property="FontWeight" Value="ExtraBold"/>
+      <Setter Property="Foreground" Value="{StaticResource Wordmark}"/>
     </Style>
     <Style Selector="TextBlock.sub">
       <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
@@ -110,16 +134,17 @@
       <Setter Property="Margin" Value="0,6,0,0"/>
     </Style>
     <Style Selector="TextBlock.label">
-      <Setter Property="FontSize" Value="12"/>
-      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="FontFamily" Value="{StaticResource Mono}"/>
+      <Setter Property="FontSize" Value="11.5"/>
+      <Setter Property="FontWeight" Value="Medium"/>
       <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
-      <Setter Property="LetterSpacing" Value="0.48"/>
+      <Setter Property="LetterSpacing" Value="0.9"/>
       <Setter Property="Margin" Value="0,24,0,10"/>
     </Style>
     <Style Selector="TextBlock.strong">
       <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
-    <Style Selector="TextBlock.mono">
+    <Style Selector="TextBlock.mono, SelectableTextBlock.mono">
       <Setter Property="FontFamily" Value="{StaticResource Mono}"/>
       <Setter Property="FontSize" Value="12"/>
     </Style>
@@ -214,6 +239,10 @@
     </Style>
     <Style Selector="Border.tag TextBlock">
       <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="FontFamily" Value="{StaticResource Mono}"/>
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="FontWeight" Value="Medium"/>
+      <Setter Property="LetterSpacing" Value="0.4"/>
     </Style>
     <Style Selector="Border.tag.rc">
       <Setter Property="Background" Value="{StaticResource WarnSoft}"/>
@@ -224,7 +253,7 @@
       <Setter Property="TextElement.Foreground" Value="{StaticResource BrandInk}"/>
     </Style>
 
-    <!-- buttons: quiet (glass), primary (blue: the step's action), go (green: Play), bad (red: delete), link, icon, caption -->
+    <!-- buttons: quiet (glass), primary (blue: the step's action), go (gold: Play), bad (red: delete), link, icon, caption -->
     <Style Selector="Button">
       <Setter Property="FontFamily" Value="{StaticResource Ui}"/>
       <Setter Property="FontWeight" Value="SemiBold"/>

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The launcher's pages drawn with no screen (Avalonia's headless platform, Skia): the pictures in docs/images/launcher and
+       launcher/README.md, and CI's check that every page draws. Never shown on the desktop, so it never captures anything but the
+       launcher's own window. Run it as scripts/screens.py does -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>HookshotLauncher.Screens</RootNamespace>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia"/>
+    <PackageReference Include="Avalonia.Headless"/>
+    <PackageReference Include="Avalonia.Desktop"/>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../App/HookshotLauncher.csproj"/>
+  </ItemGroup>
+</Project>

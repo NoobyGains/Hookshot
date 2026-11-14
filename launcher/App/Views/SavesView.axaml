@@ -22,8 +22,20 @@
     </Style>
   </UserControl.Styles>
   <Grid RowDefinitions="Auto,*,Auto" RowSpacing="18">
-    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20">
-      <StackPanel>
+    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
+      <!-- the saves page's mark: the blank Hyrule shield -->
+      <Panel Width="64" Height="64" VerticalAlignment="Center">
+        <Ellipse Width="60" Height="52" IsHitTestVisible="False">
+          <Ellipse.Fill>
+            <RadialGradientBrush>
+              <GradientStop Offset="0" Color="#593B82F6"/>
+              <GradientStop Offset="1" Color="#003B82F6"/>
+            </RadialGradientBrush>
+          </Ellipse.Fill>
+        </Ellipse>
+        <Image Source="avares://HookshotLauncher/Assets/shield.png" Width="62" Height="62" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+      </Panel>
+      <StackPanel Grid.Column="1" VerticalAlignment="Center">
         <TextBlock Classes="heading" Text="{c:T 'Saves'}"/>
         <TextBlock Classes="sub" Text="{Binding Sub}"/>
       </StackPanel>

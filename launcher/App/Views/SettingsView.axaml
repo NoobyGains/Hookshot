@@ -97,6 +97,22 @@
           </StackPanel>
         </Grid>
         <CheckBox Classes="tick" Content="{c:T 'Check for updates when the launcher starts'}" IsChecked="{Binding CheckUpdates}"/>
+        <TextBlock Classes="label" Text="{c:T 'ABOUT'}"/>
+        <Border Classes="card" Padding="18,16" Margin="0,0,0,8">
+          <Grid ColumnDefinitions="72,*" ColumnSpacing="18">
+            <c:Turntable Width="72" Height="72" VerticalAlignment="Top"/>
+            <StackPanel Grid.Column="1" Spacing="6">
+              <TextBlock Text="{Binding Version}" FontFamily="{StaticResource Display}" FontWeight="ExtraBold" FontSize="15"/>
+              <TextBlock Classes="note" TextWrapping="Wrap" Text="{Binding AboutFrom}"/>
+              <TextBlock Classes="note" TextWrapping="Wrap" Text="{Binding AboutArt}"/>
+              <TextBlock Classes="note" TextWrapping="Wrap" Text="{Binding AboutLicence}"/>
+              <StackPanel Orientation="Horizontal" Spacing="18" Margin="0,4,0,0">
+                <Button Classes="link smaller" Content="{c:T 'Source code'}" Command="{Binding SourceCommand}"/>
+                <Button Classes="link smaller" Content="{c:T 'The Longshot Launcher'}" Command="{Binding UpstreamCommand}"/>
+              </StackPanel>
+            </StackPanel>
+          </Grid>
+        </Border>
       </StackPanel>
     </ScrollViewer>
   </DockPanel>

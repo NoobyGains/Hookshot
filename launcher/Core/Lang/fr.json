@@ -587,5 +587,9 @@
   "Longshot's graphics and controls replace the same settings in this version's hookshot_options.ini; its other settings stay as they are. The game language replaces this version's. Longshot keeps its originals. Saves are imported separately.": "Les graphismes et les commandes de Longshot remplacent les mêmes paramètres dans le hookshot_options.ini de cette version ; ses autres paramètres restent tels quels. La langue du jeu remplace celle de cette version. Longshot garde ses originaux. Les sauvegardes s'importent séparément.",
   "There is no release on this channel yet.": "Il n’y a pas encore de version sur ce canal.",
   "None released yet": "Aucune publiée pour l’instant",
-  "Choose another channel": "Choisir un autre canal"
+  "Choose another channel": "Choisir un autre canal",
+  "PLAY": "JOUER",
+  "ABOUT": "À PROPOS",
+  "Source code": "Code source",
+  "The Longshot Launcher": "Le Longshot Launcher"
 }

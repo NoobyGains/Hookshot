@@ -6,7 +6,7 @@ namespace HookshotLauncher.Controls;
 
 public static class Converters
 {
-    static readonly IBrush Selected = new SolidColorBrush(Color.Parse("#143D63E6"));
+    static readonly IBrush Selected = new SolidColorBrush(Color.Parse("#143B82F6"));
 
     /// The build whose saves the page shows: tinted
     public static readonly IValueConverter ThisRow = new FuncValueConverter<bool, IBrush>(b => b ? Selected : Brushes.Transparent);

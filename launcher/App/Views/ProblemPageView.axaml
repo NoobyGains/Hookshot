@@ -13,11 +13,11 @@
     <StackPanel>
       <TextBlock Classes="heading" Text="{Binding Headline}"/>
       <TextBlock Classes="sub" Text="{Binding Sub}"/>
-      <Border Margin="0,22,0,0" Padding="24,22" CornerRadius="10" BorderBrush="#55E2776B" BorderThickness="1">
+      <Border Margin="0,22,0,0" Padding="24,22" CornerRadius="10" BorderBrush="#55F87171" BorderThickness="1">
         <Border.Background>
           <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-            <GradientStop Offset="0" Color="#14E2776B"/>
-            <GradientStop Offset="0.7" Color="#00E2776B"/>
+            <GradientStop Offset="0" Color="#14F87171"/>
+            <GradientStop Offset="0.7" Color="#00F87171"/>
           </LinearGradientBrush>
         </Border.Background>
         <StackPanel Spacing="12">

@@ -174,6 +174,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
             return;
         }
         running = true;
+        Raise(nameof(Running));
         watch.Start();
         ticker?.Start();
         Task.Run(async () =>
@@ -228,6 +229,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     void Exited(int code)
     {
         running = false;
+        Raise(nameof(Running));
         ticker?.Stop();
         Update();
         if (progress.Finished && code == 0) Complete();
@@ -286,6 +288,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     public void Stop()
     {
         running = false;
+        Raise(nameof(Running));
         ticker?.Stop();
         cancel.Cancel();
         Job.Main.ShowHome();
@@ -295,6 +298,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     void Fail(string why)
     {
         running = false;
+        Raise(nameof(Running));
         ticker?.Stop();
         var at = progress.Stages.FirstOrDefault(s => s.Id == progress.Current) ?? progress.Stages.LastOrDefault(s => s.State == StageState.Done);
         var name = at != null ? Tr.T(Names.GetValueOrDefault(at.Id, at.Title)) : Tr.T("the build");

@@ -555,5 +555,9 @@
   "Longshot's graphics and controls replace the same settings in this version's hookshot_options.ini; its other settings stay as they are. The game language replaces this version's. Longshot keeps its originals. Saves are imported separately.": "Longshot 的畫面和操作設定會取代此版本 hookshot_options.ini 中的相同設定；其他設定保持不變。遊戲語言會取代此版本的語言。Longshot 中的原始設定會保留。存檔需另行匯入。",
   "There is no release on this channel yet.": "此通道還沒有推出任何版本。",
   "None released yet": "尚未推出",
-  "Choose another channel": "選擇其他通道"
+  "Choose another channel": "選擇其他通道",
+  "PLAY": "開始遊戲",
+  "ABOUT": "關於",
+  "Source code": "原始碼",
+  "The Longshot Launcher": "Longshot Launcher"
 }

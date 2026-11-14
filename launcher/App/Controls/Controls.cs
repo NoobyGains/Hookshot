@@ -123,7 +123,7 @@ public sealed class Bar : Control
     public IBrush? Track { get => GetValue(TrackProperty); set => SetValue(TrackProperty, value); }
     public IReadOnlyList<double>? Notches { get => GetValue(NotchesProperty); set => SetValue(NotchesProperty, value); }
 
-    static readonly IBrush Notch = new SolidColorBrush(Color.Parse("#9914161A"));
+    static readonly IBrush Notch = new SolidColorBrush(Color.Parse("#9906070B"));
 
     public override void Render(DrawingContext context)
     {
@@ -147,7 +147,7 @@ public sealed class Bar : Control
 public sealed class Spinner : Control
 {
     static readonly IPen Ring = new Pen(new SolidColorBrush(Color.Parse("#26FFFFFF")), 2);
-    static readonly IPen Arc = new Pen(new SolidColorBrush(Color.Parse("#4B70F0")), 2, lineCap: PenLineCap.Round);
+    static readonly IPen Arc = new Pen(new SolidColorBrush(Color.Parse("#5B97F8")), 2, lineCap: PenLineCap.Round);
     DispatcherTimer? timer;
     double angle;
 
