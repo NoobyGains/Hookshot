@@ -1422,6 +1422,9 @@ looks like.
 
 - **[Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot)**: another build of the same engine, by the Magic Bean
   team, with its own [Longshot Launcher](https://git.magicbean.dev/MagicBeanDev/LongshotLauncher).
+- **[oot-mod](https://github.com/craftycorvid/oot-mod)** by craftycorvid: ultrawide (21:9, 32:9) and 16:10 patches for
+  playing the remake on an emulator. Hookshot has the same built in: the Aspect ratio row widens the view and keeps the
+  HUD and movies in the middle 16:9.
 
 ## Credits
 
