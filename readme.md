@@ -123,6 +123,7 @@ a full build through it is the next test.
   picture is larger than the window; the button prompts ready in about 20 s instead of 160; a new install starts at the
   game's 2560x1440
 - **Intel and AMD fixes:** Intel Arc and Iris, the Radeon RX 6600 family; the mouse cursor hidden in play
+- **Steam Deck profile:** settings made for the Deck, on by themselves on a Deck
 
 <img src="docs/images/features/field-of-view.jpg" alt="Kakariko Village at field of view 60 percent, the game's 100 percent and 140 percent">
 
@@ -187,7 +188,7 @@ when the game closes.
 ## Roadmap
 
 <p align="center">
-  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 8 done, 12 in progress, 14 coming next, each as a card. The same items are listed as text below." width="820">
+  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 8 done, 13 in progress, 13 coming next, each as a card. The same items are listed as text below." width="820">
 </p>
 
 **Done** is on `main` now. **In progress** is being worked on at the moment. **Coming next** is planned but not
@@ -224,6 +225,7 @@ reaches.
 - **A steadier picture:** HUD labels that stay sharp, the Gossip Stones whole with frame generation, no HDR flicker,
   sharper scaling when the picture is larger than the window
 - **Intel and AMD fixes:** Intel Arc and Iris, the Radeon RX 6600 family; the mouse cursor hidden in play
+- **Steam Deck profile:** settings made for the Deck, on by themselves on a Deck
 - **Walk, sprint and mouse look:** a walk key, a sprint button, and the mouse for aiming, locking on and riding
 - **Pro Controller and amiibo:** the Switch 2 Pro Controller over USB, and NFC tags from your own files
 - **Every screen shape:** the HUD placed right on ultrawide screens, filling the window, any output size, field of view
@@ -239,7 +241,6 @@ reaches.
 - **Jump loop after Gohma:** Link repeating a jump in dialogue above 60 FPS
 - **Invisible doors and walls** in a few places of the game
 - **Play in VR:** PC VR headsets through OpenXR, with a VR tab in the menu
-- **Steam Deck profile:** settings made for the Deck, on by themselves on a Deck
 - **Item wheel:** pick items from a wheel, with instant equip
 - **Find my best settings:** the menu measures your PC and picks the settings
 - **Photo mode:** a free camera with the HUD hidden (F12 screenshots already work)

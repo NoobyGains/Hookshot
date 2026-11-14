@@ -45,6 +45,7 @@ STAGES = [
         ("panel:name:Pad", "Pro Controller, amiibo", "Switch 2 Pro Controller over USB; NFC tags from your own files."),
         ("panel:name:Screens", "Every screen shape", "The HUD on ultrawide, fill the window, any output size, FOV to 300%."),
         ("panel:name:Quick", "Straight into play", "Skip the title screen into your newest save; the menu from pause."),
+        ("panel:name:Deck", "Steam Deck profile", "Settings made for the Deck, on by themselves on a Deck."),
         ("panel:name:Fixes", "Hundreds of fixes", "Renderer, runtime and build fixes, each checked by tests."),
     ]),
     ("next", "COMING NEXT", "planned, not started", BLUE, [
@@ -53,7 +54,6 @@ STAGES = [
         ("gohma.jpg", "Jump loop after Gohma", "Link repeats a jump in dialogue above 60 FPS."),
         ("invisible.jpg", "Invisible doors and walls", "Objects that vanish in a few places of the game."),
         ("panel:name:VR", "Play in VR", "PC VR headsets through OpenXR, with a VR tab in the menu."),
-        ("panel:name:Deck", "Steam Deck profile", "Settings made for the Deck, on by themselves on a Deck."),
         ("panel:name:Wheel", "Item wheel", "Pick items from a wheel, with instant equip."),
         ("panel:name:Best", "Find my best settings", "The menu measures your PC and picks the settings."),
         ("panel:name:Photo", "Photo mode", "A free camera with the HUD hidden (F12 screenshots already work)."),
