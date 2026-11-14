@@ -96,13 +96,12 @@ static void hos_vcore_back(void) {}
 static int sleeps;
 static void hos_sleep_ns(int64_t ns) { sleeps++, clock_ns += ns; }
 /* the system events (host/nn_os_sync.c): made from the system region, never freed */
-static int event_state[16], events_made, clears, signals;
+static int event_state[64], event_signals[64], events_made, clears, signals;
 static uint64_t hos_sys_alloc(uint64_t size, uint64_t align) { (void)size, (void)align; return (uint64_t)++events_made; }
 static void hos_system_event_init(uint64_t key, int autoclear) { (void)autoclear; event_state[key] = 0; }
-static void hos_system_event_signal(uint64_t key) { event_state[key] = 1, signals++; }
+static void hos_system_event_signal(uint64_t key) { event_state[key] = 1, event_signals[key]++, signals++; }
 static void hos_system_event_clear(uint64_t key) { event_state[key] = 0, clears++; }
-static uint64_t ids;
-static uint64_t submitted(void) { submissions++; return ++ids; }
+static LONG64 InterlockedIncrement64(volatile LONG64 *p) { return ++*p; }   /* (submitted(): a submission's id) */
 
 @TYPES@
 
@@ -116,7 +115,7 @@ static void pool_rgba(Pool *o) { (void)o; }
 static void picture_free(Picture *p) { free(p->rgba), free(p->nv12); memset(p, 0, sizeof *p); }
 static void movie_report(Dec *d) { (void)d; }
 /* libavcodec's stand-in: a decoder that holds DELAY pictures back, as dav1d's frame threads do; the end lets them out
-   (seven: with the one already decoded they fill the queue's eight places at the end) */
+   (seven: with the one already decoded and the end's own picture they fill the queue's nine places at the end) */
 #define DELAY 7
 static AVCodecContext context;
 static int64_t held_pts[DELAY + 1];
@@ -209,10 +208,10 @@ static void play(int pictures, int late_at) {
     for (int frame = 0; frame < pictures + 400 && !(dec.eos && !dec.qn && taken); frame++) {
         while (next < pictures) {
             uint64_t id = 0;
-            const uint64_t before = ids;
+            const LONG64 before = submissions;
             const uint64_t r = submit((int64_t)next * FRAME_NS, next == pictures - 1, &id);
             if (r == RESULT_INPUT_FULL) {
-                if (ids != before || id) check(0, "a refused submission used a submission id");
+                if (submissions != before || id) check(0, "a refused submission used a submission id");
                 break;
             }
             if (r) { check(0, "a submission failed with another result"); return; }
@@ -324,15 +323,22 @@ def main():
                        through(src, "typedef void (*mf_av1_picture_fn)", "int64_t pts);"),
                        through(src, "typedef struct {\n    const char *name;", "} Av1Decoder;"),
                        through(src, "typedef struct {\n    AVCodecContext *ctx;", "} Dec;")))
+    # (the reservations of buffers acquired before their pictures, whole: from their sync handles to dec_submit, as
+    # tests/test_video_reserved_buffers.py cuts them; the system event's declaration is the harness's own)
+    reservations = src[src.index("#define SYNC_RESERVED_TAG"):src.index("static void dec_submit(Ctx *c) {")]
+    reservations = reservations.replace("void hos_system_event_signal(uint64_t key);\n", "")
     code = "\n".join((block(src, "static int input_limit(void) {"),
                       block(src, "static int input_full(int pending, int queued, int limit) {"),
                       block(src, "static void input_room(Dec *d) {"),
+                      block(src, "static int submit_refused(Dec *d, int last) {"),
                       block(src, "static void pending_free(Dec *d) {"),
+                      block(src, "static void end_picture(Dec *d) {"),
                       "static void decode_next(Dec *d);",
                       block(src, "static void decode_pending(Dec *d) {"),
                       block(src, "static void decode_next(Dec *d) {"),
                       block(src, "static void pending_push(Dec *d, AVPacket *pkt) {"),
-                      block(src, "static int submit_refused(Dec *d, int last) {"),
+                      reservations,
+                      block(src, "static void put_picture(Dec *d, int slot, int reserved) {"),
                       block(src, "static void dec_submit(Ctx *c) {"),
                       block(src, "static void dec_flush(Ctx *c, const char *what) {"),
                       block(src, "static void dec_acquire(Ctx *c) {"),
