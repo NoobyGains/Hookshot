@@ -16,6 +16,7 @@
 </p>
 
 <p align="center">
+  <a href="#whats-new-here">What's new</a> •
   <a href="#roadmap">Roadmap</a> •
   <a href="#project-status">Status</a> •
   <a href="#install-and-play">Install and play</a> •
@@ -66,55 +67,74 @@
   </tr>
 </table>
 
+## What's new here
+
+Everything below is on `main` in this repository, tested in the game on a GeForce RTX 5090 and a Ryzen 9 9950X3D.
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/features/counters-and-timer.jpg" alt="The game with a speedrun timer and death counter at the top centre, and the rupee count in the bottom left corner">
+      <b>Speedrun timer, death counter and classic rupee counter</b><br>
+      Gameplay tab. The timer and the death count sit at the top centre, clear of the hearts; the rupees stay in the
+      bottom left corner, as on the N64.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/features/above-60-fps.jpg" alt="Kakariko Village running at 93 frames per second with the FPS counter on">
+      <b>Above 60 FPS, without the bugs</b><br>
+      With a Frame rate cap above 60, Gohma now steers instead of sticking to the walls, slow motions keep their
+      length and water keeps moving. (Pictured: Kakariko at 93 FPS.)
+    </td>
+  </tr>
+</table>
+
+<img src="docs/images/features/bloom-and-colour-grade.jpg" alt="Kakariko Village four ways: original, bloom high, colour grade rich, colour grade warm">
+
+**Bloom, Colour grade and FXAA** (Graphics tab), plus **View distance, Grass and Shadow distance** rows that change
+how far the game draws models, grass and shadows. Each has an Original setting that looks exactly like the game.
+
+Behind the scenes: the Builder's **"Preparing shaders" step no longer hangs at 99%** on a driver that never finishes a
+shader, and closing the game while shaders build no longer counts against you. On Windows,
+[`scripts/windows/launch-hdr.ps1`](scripts/windows/launch-hdr.ps1) turns Windows HDR on for one session and back off
+when the game closes.
+
 ## Roadmap
 
-Where the work is going. The order follows the scored [worklist](docs/worklist.md) (how bad a problem is, times how
-many players it reaches), so it changes as reports come in. Nothing here is a promise or a date.
-
 <p align="center">
-  <img src="assets/brand/roadmap.png" alt="Roadmap in three stages: merged here ahead of the release, next, and later. The same items are listed as text below." width="800">
+  <img src="assets/brand/roadmap.png" alt="Roadmap: 7 done, 2 in progress, 6 coming next. The same items are listed as text below." width="800">
 </p>
+
+**Done** is on `main` now. **In progress** is being worked on at the moment. **Coming next** is planned but not
+started. The order follows the scored [worklist](docs/worklist.md): how bad a problem is, times how many players it
+reaches.
 
 <details>
 <summary><b>The roadmap as text</b></summary>
 
-<table>
-  <tr>
-    <th width="33%">✅ Merged here, ahead of the release</th>
-    <th width="33%">🔨 Next</th>
-    <th width="33%">🔭 Later</th>
-  </tr>
-  <tr>
-    <td valign="top">
-      <ul>
-        <li>The Builder's "Preparing shaders" step no longer waits forever on a shader the driver never finishes, and closing the game while shaders build no longer counts as a failed start</li>
-        <li>Above a 60 FPS cap: Gohma steers instead of sticking to the walls, slow motions keep their length, and water, ice and sand keep moving</li>
-        <li>New Graphics rows from Ocarina Reborn: View distance, Grass and Shadow distance (memory locations by hotoni), FXAA, Bloom and Colour grade</li>
-        <li>New Gameplay rows: Classic counters, Speedrun timer and Death counter</li>
-        <li>Fixes from the Longshot fork, occlusion queries answered with the GPU's real counts, a moving floor that carries Link above 100 FPS, the water's per-light shadow maps (YakuzaFanA), and a log deadlock fixed</li>
-        <li>Several users with a user selector, each game in its own folders, and the task + mesh fallback for the RX 6600, 6650 XT and 6500 XT</li>
-      </ul>
-    </td>
-    <td valign="top">
-      <ul>
-        <li>Memory that fills up over a long session until the game slows or stops: the most reported problem</li>
-        <li>Link looping a jump animation in dialogue after Gohma above a 60 FPS cap (the Scarecrow's Song is fixed)</li>
-        <li>Crashes and lost devices on AMD cards on Windows</li>
-        <li>Low frame rates with an idle GPU in Castle Town and Hyrule Field; stutter on camera turns in Kokiri Forest</li>
-        <li>Objects, walls and doors that turn invisible</li>
-        <li>amiibo, from Ocarina Reborn</li>
-      </ul>
-    </td>
-    <td valign="top">
-      <ul>
-        <li>A signed Builder, so antivirus programs stop flagging it</li>
-        <li>Intel cards, which have few reports and many black screens</li>
-        <li>Cards without mesh shaders, which today miss parts of the picture</li>
-        <li>More games on the same engine (<a href="docs/one-engine.md">one engine</a>)</li>
-      </ul>
-    </td>
-  </tr>
-</table>
+**✅ Done**
+
+- The Builder's "Preparing shaders" step never waits forever on a stuck driver; a closed start isn't counted as failed
+- Above a 60 FPS cap: Gohma steers, slow motions keep their length, water, ice and sand keep moving
+- View distance, Grass and Shadow distance rows (memory locations by hotoni, via Ocarina Reborn)
+- FXAA, Bloom and Colour grade rows
+- Speedrun timer, Death counter and Classic counters
+- One-click Windows HDR launcher
+- Fixes from the Longshot fork and Ocarina Reborn, the water's per-light shadow maps (YakuzaFanA), several users,
+  each game in its own folders, the RX 6600 / 6650 XT / 6500 XT mesh fallback
+
+**🟡 In progress**
+
+- Memory that fills up over a long session until the game slows or stops: the most reported problem
+- Low frame rates with an idle GPU in Castle Town and Hyrule Field
+
+**⚪ Coming next**
+
+- Link looping a jump animation in dialogue after Gohma, above a 60 FPS cap
+- Objects, walls and doors that turn invisible
+- Crashes and lost devices on AMD cards on Windows (needs an AMD tester)
+- amiibo, from Ocarina Reborn
+- A signed Builder, so antivirus programs stop flagging it
+- Intel cards, and cards without mesh shaders
 
 </details>
 
@@ -473,8 +493,8 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | Gameplay | FPS counter | Off, FPS, Frame time, Graph, Breakdown, Dev | Off |
 | | FPS counter position | Top right, Top left, Bottom right, Bottom left | Top right |
 | | Classic counters | Off, On (as on the N64: no count over Link at a pick-up, the rupees always in the bottom left corner once a save is loaded; changes at once) | Off |
-| | Speedrun timer | Off, On (real time in the top left corner, paused while the menu is open; off and on again starts it from zero) | Off |
-| | Death counter | Off, On (how often Link's hearts ran out since the game started, a fairy's revive not counted; top left corner) | Off |
+| | Speedrun timer | Off, On (real time at the top of the screen, in the middle, paused while the menu is open; off and on again starts it from zero) | Off |
+| | Death counter | Off, On (how often Link's hearts ran out since the game started, a fairy's revive not counted; at the top, in the middle) | Off |
 | | Menu size | Small, Medium, Large | Medium |
 | | Game speed | Per frame, Real time | Real time |
 | | Field of view | 50% to 150%, in steps of 5; applies immediately during gameplay | 100% (original) |
