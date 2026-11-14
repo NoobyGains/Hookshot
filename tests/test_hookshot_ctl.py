@@ -635,7 +635,9 @@ class Sessions(unittest.TestCase):
         self.addCleanup(release.touch)
         wrapper.write_text("import pathlib, subprocess, sys, time\n"
                            "code = subprocess.call(sys.argv[3:])\n"
-                           "pathlib.Path(sys.argv[1]).write_text(str(code))\n"
+                           "part = pathlib.Path(sys.argv[1] + '.part')\n"
+                           "part.write_text(str(code))\n"
+                           "part.replace(sys.argv[1])\n"
                            "while not pathlib.Path(sys.argv[2]).exists(): time.sleep(0.02)\n", encoding="utf-8")
         with mock.patch.object(self.m.subprocess, "Popen", wraps=subprocess.Popen) as spawn:
             session = self.start(wrapper=[sys.executable, "-I", str(wrapper), str(receipt), str(release)])
