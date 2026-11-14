@@ -97,6 +97,12 @@ does. An on/off switch ("(set)" below) is on for `1` or any other value, and off
 `off` or `no` (`env_on` in `gpu/vk/compat/hookshot_env.h`, `kit.env_on` in Python); it used to be that any value turned
 one on, `0` included. A switch that takes a number or a list reads its value as it says.
 
+The native mouse (`host/mouse_native.c`): `HOS_MOUSE_NATIVE=1` or `0` stands in for the menu's Mouse camera (Native or
+not), `HOS_MOUSE_INVERT_Y` (set) for Invert mouse vertical, `HOS_MOUSE_AIM_SCALE=<x>` scales the aims' sensitivity
+(the bow's, the locked-on aim's) against the camera's (1), and `HOS_MOUSE_DEBUG` (set) logs whose the mouse is, which
+lock-on node runs in which mode, and the follow camera update by update for 40 updates after each aim (`mouse native
+trace:` lines: what the game left, what the hook put, the view's own pitch).
+
 `RX_VK_MESH_NOCULL=<prefix,...>` turns off the culling in the task shaders whose native code key starts with one of
 the prefixes. On a Steam Deck, `RX_VK_MESH_NOCULL=2c56dc1006942f74` avoids the same hang without leaving anything out:
 that task shader walks a coarse depth grid cell by cell for every meshlet and ends with

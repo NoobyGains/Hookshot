@@ -1195,12 +1195,20 @@ static void read_input(uint64_t *buttons, uint64_t *taps, int32_t stick[4]) {
     const int native = mode == 1;
     int hos_mouse_native(void);
     void hos_mouse_native_free(int free);
-    const uint64_t game_stick = (1ULL << B_ZR) | (1ULL << B_L) | (1ULL << B_R);
+    void hos_mouse_native_held(int zr, int wheel);
+    /* (ZR, the aim, is no longer among them: the aiming camera takes the mouse's motion itself, mouse_native.c
+       hos_mouse_aim. A mouse button bound to ZR or L is only known after the capture below: the last read's counts) */
+    const uint64_t game_stick = (1ULL << B_L) | (1ULL << B_R);
+    static uint64_t last_buttons;
     int captured = 0, as_stick = mode == 0;
     if (native) {
         mouse_setup();
         mouse_sens_keys();
         hos_mouse_native_free(!((*buttons | *taps | toggles.latched) & game_stick));
+        {   /* (a button held by the hold-to-toggle counts as held: ZR's aim and L's wheel too) */
+            const uint64_t held = *buttons | *taps | toggles.latched | last_buttons;
+            hos_mouse_native_held((int)(held >> B_ZR & 1), (int)(held >> B_L & 1));
+        }
         captured = hos_mouse_native();
         if (captured < 0) captured = 0, as_stick = 1;
     }
@@ -1212,6 +1220,7 @@ static void read_input(uint64_t *buttons, uint64_t *taps, int32_t stick[4]) {
     if (captured)
         for (int i = 0; i < HOS_SW_N; i++)
             if (bound_down(i, 1)) *buttons |= 1ULL << i;
+    last_buttons = *buttons;
     if (bound_down(HOS_KEY_SPRINT, captured)) sprint_now |= SPRINT_KEY, player_used();
     /* (the left stick's and the camera's keys: WASD and the arrows or IJKL by default; the movement keys tilt the stick
        less while Link walks: walk_held) */

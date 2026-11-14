@@ -127,6 +127,7 @@ void binds_load(void) {
 int hos_mouse_native(void) { return controls_case ? (native_free ? 1 : -1) : -1; }
 void hos_mouse_native_free(int free) { native_free = free; }
 void hos_mouse_native_stick(int held) { (void)held; }
+void hos_mouse_native_held(int zr, int wheel) { (void)zr; (void)wheel; }
 static void mouse_setup(void) {}
 static void mouse_sens_keys(void) {}
 int mouse_stick(int32_t *x, int32_t *y, int held) { (void)x; (void)y; mouse_pointing = held; mouse_queries++; return 0; }
@@ -228,7 +229,8 @@ static void hold_mouse_case(void) {
             physical_buttons = 0; packet(0, 0, 0, 0);
             physical_buttons = 1ULL << b; packet(physical_buttons, 0, 0, 0);
             physical_buttons = 0; packet(1ULL << b, 0, 0, 0);
-            if (mode == 1) CHECK(native_free == (b == B_ZL));
+            /* (ZL and ZR leave the camera free: ZR's aim takes the mouse itself, mouse_native.c hos_mouse_aim) */
+            if (mode == 1) CHECK(native_free == (b == B_ZL || b == B_ZR));
             if (mode == 0 || (mode == 1 && b != B_ZL)) CHECK(mouse_pointing == (b == B_L));
             physical_buttons = 1ULL << b; packet(0, 0, 0, 0);
             physical_buttons = 0; packet(0, 0, 0, 0);

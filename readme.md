@@ -792,13 +792,17 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   nothing unless a Discord client is running on this PC; with the row Off nothing is sent to it.
 - **Controller in background:** On keeps the controller working while another window has the focus. The keyboard and
   mouse still need the game's window.
-- **Mouse camera:** Native turns the camera with the mouse one to one, as in a PC game. As the stick uses the mouse in
-  place of the right stick. The <kbd>-</kbd> and <kbd>=</kbd> keys change the sensitivity in game too.
+- **Mouse camera:** Native turns the camera with the mouse one to one, as in a PC game: the camera that follows Link,
+  and also the aim (bow, slingshot, hookshot, first-person view), the aim while locked on, lock-on's manual turn, riding
+  Epona and the event and talk cameras you can turn. The aim starts at the pitch the view had, not level. As the stick
+  uses the mouse in place of the right stick. The <kbd>-</kbd> and <kbd>=</kbd> keys change the sensitivity in game too.
   When another camera takes over, Native leaves it alone; on returning, mouse look starts from the game's current
   pitch and yaw rather than restoring the old view. Off leaves the mouse out of play: a click in the window doesn't
   capture it, so it neither turns the camera nor presses buttons. Play with a controller or the keyboard.
 - **Disable camera centering:** On stops the game gradually turning the camera toward your movement, so it does not fight
-  native mouse look. Off keeps the game's standard behavior. Changes apply immediately with either Mouse camera mode.
+  native mouse look. With Mouse camera on Native, it also keeps the aim's direction when you stop aiming instead of
+  swinging the camera back behind Link. Off keeps the game's standard behavior. Changes apply immediately with either
+  Mouse camera mode.
   Manual controls, explicit recentering and scripted camera headings still work; automatic pitch adjustment is unchanged.
 - **Sprint:** On lets Link run with <kbd>Shift</kbd> held or the left stick pressed once while you move (see **Sprint**
   under Controls). Turning it on moves Shift from B to Sprint (B goes to <kbd>V</kbd>) and the left stick's press from LS

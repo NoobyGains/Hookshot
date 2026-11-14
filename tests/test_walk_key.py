@@ -133,6 +133,7 @@ static void pads_read(uint64_t *b, int32_t s[4]) { (void)b; stick_max(s, pad_sti
 int hos_mouse_native(void) { return -1; }
 void hos_mouse_native_free(int free) { (void)free; }
 void hos_mouse_native_stick(int held) { (void)held; }
+void hos_mouse_native_held(int zr, int wheel) { (void)zr; (void)wheel; }
 static void mouse_setup(void) {}
 static void mouse_sens_keys(void) {}
 static int mouse_stick(int32_t *x, int32_t *y, int pointing) {

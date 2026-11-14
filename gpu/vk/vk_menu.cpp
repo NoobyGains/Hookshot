@@ -1337,7 +1337,8 @@ MENU_HINTS(hn_text_size, 0, "The game's original size.", "A little larger.", "La
 MENU_HINTS(hn_background, 0, "Only while the game's window has the focus.",
            "Also behind other windows, for streaming or other apps. The keyboard and mouse still need the game's window.")
 MENU_HINTS(hn_mousecam, 0, "The mouse stands in for the right stick, with its curve and top speed.",
-           "The mouse turns the camera itself, one to one, as in a PC game.",
+           "The mouse turns the camera itself, one to one, as in a PC game. The aim, the locked-on aim, riding and event "
+           "cameras too, and the aim starts where the view looks.",
            "The mouse plays no part: a click in the window doesn't capture it. For a controller or the keyboard alone.")
 MENU_HINTS(hn_mouse_invert, 0, nullptr, "Moving the mouse forward tilts the camera down.")
 MENU_HINTS(hn_gyro, 0, "The sticks alone aim.",
@@ -1610,7 +1611,8 @@ Row rows[] = {
      hn_mousecam, false, true},
     {TAB_CONTROLS, "Disable camera centering", &opts.disable_camera_centering, 0, 1, 1, tx_onoff,
      "Stops the camera gradually turning toward the direction you move, useful with native mouse look. Off keeps the "
-     "game's standard behavior. Manual camera controls and recentering still work.", nullptr, false, true},
+     "game's standard behavior. Manual camera controls and recentering still work. With Mouse camera Native, the camera "
+     "also keeps the aim's direction when the aim ends.", nullptr, false, true},
     {TAB_CONTROLS, "Sprint", &opts.sprint, 0, 1, 1, tx_onoff,
      "Link runs while you move: Shift held, or the left stick pressed once until you stop, without rolling, talking or "
      "picking things up. Turning it "

@@ -51,7 +51,7 @@ RULES = [
     (GAME_MODULES, r"^host_(nvn_native|nvn_layout|nvdrv|nn_syncpt|rx_backend)", None, "os/nvn-bridge"),
     (GAME_MODULES, r"^host_nn_(audio|audio_in|codec)", None, "os/audio-services"),
     (GAME_MODULES, r"^host_(nn_video|mf_av1)", None, "os/video-decode"),
-    (GAME_MODULES, r"^host_(nn_hid|pad_sdl|mouse_native|hos_sdl|display|prompts)", None, "os/input-and-window"),
+    (GAME_MODULES, r"^host_(nn_hid|pad_sdl|mouse_native|mouse_look|hos_sdl|display|prompts)", None, "os/input-and-window"),
     (GAME_MODULES, r"^host_nn_fs", None, "os/filesystem"),
     (GAME_MODULES, r"^host_nn_libc", None, "os/libc"),
     (GAME_MODULES, r"^host_(nn_vi|nn_gs)", None, "os/display-and-pacing"),
