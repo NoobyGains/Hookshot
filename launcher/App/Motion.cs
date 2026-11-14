@@ -1,16 +1,16 @@
 using System.Runtime.InteropServices;
 
-namespace LongshotLauncher;
+namespace HookshotLauncher;
 
 /// Whether the desktop asks for less motion: Windows' "Animation effects" off, GTK's gtk-enable-animations off, or
-/// LONGSHOT_LAUNCHER_REDUCED_MOTION=1. Then the window drops its transitions (App.axaml's Window.still) and pages change at once
+/// HOOKSHOT_LAUNCHER_REDUCED_MOTION=1. Then the window drops its transitions (App.axaml's Window.still) and pages change at once
 static class Motion
 {
     public static bool Reduced { get; } = Ask();
 
     static bool Ask()
     {
-        if (Environment.GetEnvironmentVariable("LONGSHOT_LAUNCHER_REDUCED_MOTION") is { Length: > 0 } v) return v != "0";
+        if (Environment.GetEnvironmentVariable("HOOKSHOT_LAUNCHER_REDUCED_MOTION") is { Length: > 0 } v) return v != "0";
         try
         {
             if (OperatingSystem.IsWindows()) return SystemParametersInfo(SpiGetClientAreaAnimation, 0, out var on, 0) && !on;

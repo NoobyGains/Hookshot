@@ -2,10 +2,10 @@
 no game, no network and no window. The version vectors (TRACKS, ORDER, UNORDERED) are this file's own; the signed release files
 are tests/fixtures/release's (made by scripts/release.py). Its scratch folder is named "ゲーム Zélda 🎮", as tests/test_utf8_paths.py's.
 
-    python -I tests/test_launcher_core.py [--dotnet <dotnet>] [--strict] [--longshot <checkout of MagicBeanDev/Longshot>]
+    python -I tests/test_launcher_core.py [--dotnet <dotnet>] [--strict] [--hookshot <checkout of MagicBeanDev/Hookshot>]
 
-With --longshot it also checks what the launcher copies from Longshot: make_game.py's languages, the SDK commits the DLSS and
-FSR 4 licence texts name, and the first-import player ID (CI checks out Longshot's main for it).
+With --hookshot it also checks what the launcher copies from Hookshot: make_game.py's languages, the SDK commits the DLSS and
+FSR 4 licence texts name, and the first-import player ID (CI checks out Hookshot's main for it).
 
 With no dotnet here the check is skipped (exit 0, saying why), unless --strict.
 """
@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUN_ALL_ARGS = ["--dotnet", "{dotnet}"]
 
 
-# The version order the launcher keeps (Core/Versions.cs, docs/releases.md): (version, channel). Longshot's versions
+# The version order the launcher keeps (Core/Versions.cs, docs/releases.md): (version, channel). Hookshot's versions
 # start at v3.0.0: what came before is no version, on no track
 TRACKS = [
     ("v3.0.0", "stable"), ("v3.1.0", "stable"), ("v10.0.0", "stable"),
@@ -55,9 +55,9 @@ def vectors():
     return {"tracks": TRACKS, "order": ORDER, "unordered": UNORDERED}
 
 
-def check_languages(longshot):
-    """Core/Languages.cs lists Longshot's make_game.py LANGUAGES, in its order (the codes --language takes)"""
-    tree = ast.parse((longshot / "nx2" / "make_game.py").read_text(encoding="utf-8"))
+def check_languages(hookshot):
+    """Core/Languages.cs lists Hookshot's make_game.py LANGUAGES, in its order (the codes --language takes)"""
+    tree = ast.parse((hookshot / "nx2" / "make_game.py").read_text(encoding="utf-8"))
     want = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and len(n.targets) == 1
                 and isinstance(n.targets[0], ast.Name) and n.targets[0].id == "LANGUAGES")
     source = (ROOT / "Core" / "Languages.cs").read_text(encoding="utf-8")
@@ -67,12 +67,12 @@ def check_languages(longshot):
         raise SystemExit("Core/Languages.cs differs from make_game.py's LANGUAGES:\n%s\n%s" % (have, want))
 
 
-def check_licences(longshot):
+def check_licences(hookshot):
     """The DLSS and FSR 4 licences the launcher shows before a build fetches the SDKs link the commits scripts/ngx_sdk.py and
     scripts/ffx_sdk.py fetch (CONTRIBUTING.md: a change to the pinned release changes the licence text the player accepts)"""
     source = (ROOT / "App" / "ViewModels" / "SettingsStepViewModel.cs").read_text(encoding="utf-8")
     for script in ("ngx_sdk.py", "ffx_sdk.py"):
-        tree = ast.parse((longshot / "scripts" / script).read_text(encoding="utf-8"))
+        tree = ast.parse((hookshot / "scripts" / script).read_text(encoding="utf-8"))
         commit = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and len(n.targets) == 1
                       and isinstance(n.targets[0], ast.Name) and n.targets[0].id == "COMMIT")
         if commit not in source:
@@ -80,16 +80,16 @@ def check_licences(longshot):
                              % (script, commit))
 
 
-def check_save_user(longshot):
+def check_save_user(hookshot):
     """A first import must use the player the game opens, not the emulator's profile ID."""
-    host = (longshot / "host" / "nn_applet.c").read_text(encoding="utf-8")
+    host = (hookshot / "host" / "nn_applet.c").read_text(encoding="utf-8")
     uid = re.search(r"user_uid\[2\]\s*=\s*\{\s*0x([0-9a-fA-F]+)ULL,\s*0x([0-9a-fA-F]+)ULL\s*\}", host)
     if uid is None:
-        raise SystemExit("Longshot's user_uid changed: review the first-import save destination.")
+        raise SystemExit("Hookshot's user_uid changed: review the first-import save destination.")
     expected = f"{int(uid[2], 16):016x}{int(uid[1], 16):016x}"
     source = (ROOT / "Core" / "Saves.cs").read_text(encoding="utf-8")
     if f'UserId = "{expected}"' not in source:
-        raise SystemExit("Core/Saves.cs's UserId differs from Longshot's player: " + expected)
+        raise SystemExit("Core/Saves.cs's UserId differs from Hookshot's player: " + expected)
 
 
 def check_translations():
@@ -109,15 +109,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dotnet", default=None)
     parser.add_argument("--strict", action="store_true")
-    parser.add_argument("--longshot", type=Path, default=None)
+    parser.add_argument("--hookshot", type=Path, default=None)
     args = parser.parse_args()
     check_translations()
-    if args.longshot:
-        check_languages(args.longshot)
-        check_licences(args.longshot)
-        check_save_user(args.longshot)
+    if args.hookshot:
+        check_languages(args.hookshot)
+        check_licences(args.hookshot)
+        check_save_user(args.hookshot)
     elif args.strict:
-        raise SystemExit("--strict needs --longshot <checkout of MagicBeanDev/Longshot>")
+        raise SystemExit("--strict needs --hookshot <checkout of MagicBeanDev/Hookshot>")
     dotnet = args.dotnet or shutil.which("dotnet") or (str(Path.home() / ".dotnet" / "dotnet")
                                                        if (Path.home() / ".dotnet" / "dotnet").is_file() else None)
     if not dotnet:

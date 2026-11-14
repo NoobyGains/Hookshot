@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Windows.Input;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// A button's action that takes time (a check, a download, a delete): from the click until it ends the button is off
 /// (CanExecute false, so a second click starts nothing), says what it is doing (Status, and Fraction when the amount is known) and

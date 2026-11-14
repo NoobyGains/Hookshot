@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:LongshotLauncher.ViewModels"
-             xmlns:c="using:LongshotLauncher.Controls"
-             x:Class="LongshotLauncher.Views.HomeView"
+             xmlns:vm="using:HookshotLauncher.ViewModels"
+             xmlns:c="using:HookshotLauncher.Controls"
+             x:Class="HookshotLauncher.Views.HomeView"
              x:DataType="vm:HomeViewModel">
   <UserControl.Styles>
     <Style Selector="Border.vrow.selected">
@@ -48,20 +48,20 @@
         </Button>
       </Grid>
     </Border>
-    <!-- Hookshot's saves found, offered once -->
-    <Border DockPanel.Dock="Top" IsVisible="{Binding HasHookshotOffer}" Margin="0,0,0,6" Padding="16,12,14,12" CornerRadius="10"
+    <!-- Longshot's saves found, offered once -->
+    <Border DockPanel.Dock="Top" IsVisible="{Binding HasLongshotOffer}" Margin="0,0,0,6" Padding="16,12,14,12" CornerRadius="10"
             BorderBrush="#4D5FB08A" BorderThickness="1">
       <Grid ColumnDefinitions="30,*,Auto" ColumnSpacing="14">
         <Border Width="30" Height="30" CornerRadius="15" Background="{StaticResource GoSoft}" VerticalAlignment="Center">
           <c:Icon Kind="disk" Width="16" Height="16" Foreground="{StaticResource Go}"/>
         </Border>
         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-          <TextBlock Text="{c:T 'Your Hookshot saves'}" FontWeight="SemiBold"/>
-          <TextBlock Classes="note" Text="{Binding HookshotOffer}" TextWrapping="Wrap"/>
+          <TextBlock Text="{c:T 'Your Longshot saves'}" FontWeight="SemiBold"/>
+          <TextBlock Classes="note" Text="{Binding LongshotOffer}" TextWrapping="Wrap"/>
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <Button Classes="small" Content="{c:T 'Not now'}" Command="{Binding NotNowHookshotCommand}"/>
-          <Button Classes="small" Content="{c:T 'Import…'}" Command="{Binding ImportHookshotCommand}"/>
+          <Button Classes="small" Content="{c:T 'Not now'}" Command="{Binding NotNowLongshotCommand}"/>
+          <Button Classes="small" Content="{c:T 'Import…'}" Command="{Binding ImportLongshotCommand}"/>
         </StackPanel>
       </Grid>
     </Border>
@@ -104,13 +104,13 @@
               </RadialGradientBrush>
             </Ellipse.Fill>
           </Ellipse>
-          <Image Source="avares://LongshotLauncher/Assets/longshot.png" Width="132" Height="132" RenderOptions.BitmapInterpolationMode="HighQuality">
+          <Image Source="avares://HookshotLauncher/Assets/hookshot.png" Width="132" Height="132" RenderOptions.BitmapInterpolationMode="HighQuality">
             <Image.Effect><DropShadowEffect OffsetX="0" OffsetY="12" BlurRadius="14" Color="#99000000"/></Image.Effect>
           </Image>
         </Panel>
         <TextBlock Classes="heading" Text="{c:T 'Build your game'}" HorizontalAlignment="Center" Margin="0,2,0,0"/>
         <TextBlock Classes="sub" MaxWidth="470" TextAlignment="Center" HorizontalAlignment="Center"
-                   Text="{c:T 'Longshot turns your own copy of Ocarina of Time into a PC game. It takes about 15 to 30 minutes, once per version.'}"/>
+                   Text="{c:T 'Hookshot turns your own copy of Ocarina of Time into a PC game. It takes about 15 to 30 minutes, once per version.'}"/>
         <Button Classes="primary tall" HorizontalAlignment="Center" Margin="0,26,0,0" MinWidth="190" FontSize="16" Command="{Binding BuildCommand}">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <c:Icon Kind="download" Width="16" Height="16"/>
@@ -144,7 +144,7 @@
       <!-- the default version, and every version -->
       <Grid IsVisible="{Binding HasBuilds}" ColumnDefinitions="300,*" ColumnSpacing="44">
         <StackPanel VerticalAlignment="Center" Margin="0,0,0,12">
-          <TextBlock Classes="title" Text="Longshot"/>
+          <TextBlock Classes="title" Text="Hookshot"/>
           <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,18,0,0">
             <TextBlock Text="{Binding HeroVersion}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
             <Border Classes="tag" Classes.rc="{Binding HeroIsCandidate}" Classes.nightly="{Binding HeroIsNightly}">
@@ -272,11 +272,11 @@
               </ItemsControl>
             </ScrollViewer>
           </Border>
-          <!-- the footer, and Check for updates: Longshot's channels and the launcher's own, now -->
+          <!-- the footer, and Check for updates: Hookshot's channels and the launcher's own, now -->
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,16,0,0">
             <TextBlock Classes="faint" Text="{Binding Footer}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
             <Button Grid.Column="1" Classes="link smaller" Command="{Binding CheckForUpdatesCommand}" VerticalAlignment="Center"
-                    ToolTip.Tip="{c:T 'Look for a new Longshot on your versions\' channels, and a new launcher'}">
+                    ToolTip.Tip="{c:T 'Look for a new Hookshot on your versions\' channels, and a new launcher'}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <c:Icon Kind="refresh" Width="13" Height="13"/>
                 <TextBlock Text="{c:T 'Check for updates'}"/>

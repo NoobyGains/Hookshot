@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// A program that runs the game and keeps its saves (scripts/oot_saves.py Program): where it keeps its data on each platform,
 /// in the order tried ({data}, {home}, {appdata}, {localappdata}), its process names (lower case, no .exe) and other names
@@ -42,7 +42,7 @@ public sealed class SaveFailure(string message, SaveRefusal reason = SaveRefusal
 }
 
 /// Running: a game or an emulator runs; Waiting: NX2navi has a commit or menu import waiting; Exists: the copy would replace a
-/// save the player has not agreed to replace (HookshotSaves.Import); Other: anything else
+/// save the player has not agreed to replace (LongshotSaves.Import); Other: anything else
 public enum SaveRefusal { Other, Running, Waiting, Exists }
 
 /// The environment the save folders are worked out from: the platform and its variables (HOME, XDG_DATA_HOME, APPDATA,
@@ -63,19 +63,19 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
     /// Where the backups go instead of BackupRoot's default (a portable launcher's own folder); null: the default
     public string? BackupFolder { get; init; }
 
-    /// (Windows) Longshot's user folder instead of LongshotUser's default (a portable launcher's own folder); null: the default
+    /// (Windows) Hookshot's user folder instead of HookshotUser's default (a portable launcher's own folder); null: the default
     public string? UserFolder { get; init; }
 
-    /// Longshot's user folder, the same for every build (the game's --user: save\&lt;user id&gt;\, its cache and its temp). On
-    /// Windows %APPDATA%\Longshot, which the launcher starts every build with; on Linux $XDG_DATA_HOME/longshot, where the game
+    /// Hookshot's user folder, the same for every build (the game's --user: save\&lt;user id&gt;\, its cache and its temp). On
+    /// Windows %APPDATA%\Hookshot, which the launcher starts every build with; on Linux $XDG_DATA_HOME/hookshot, where the game
     /// keeps it by itself
-    public string LongshotUser => Path.GetFullPath(Platform == Platform.Windows
-        ? UserFolder ?? Path.Combine(AppData, "Longshot")
-        : Path.Combine(Data, "longshot"));
+    public string HookshotUser => Path.GetFullPath(Platform == Platform.Windows
+        ? UserFolder ?? Path.Combine(AppData, "Hookshot")
+        : Path.Combine(Data, "hookshot"));
 
     /// oot_saves.default_backup_dir: the script's and the launcher's backups in one place
     public string BackupRoot => BackupFolder ?? (Platform == Platform.Windows
-        ? Path.Combine(LocalAppData, "Longshot", "oot-save-backups")
+        ? Path.Combine(LocalAppData, "Hookshot", "oot-save-backups")
         : Path.Combine(Data, "oot-save-backups"));
 
     /// oot_saves.folders: a program's data folders on this platform, in the order they are tried
@@ -86,21 +86,21 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
             : Array.Empty<string>();
 }
 
-/// The game's saves, the same files in Longshot and in the emulators and ports that run it (Longshot's docs/saves.md): found, summed up and
+/// The game's saves, the same files in Hookshot and in the emulators and ports that run it (Hookshot's docs/saves.md): found, summed up and
 /// copied one way after a backup. A port of scripts/oot_saves.py, rule for rule (each piece names the function it mirrors), so
 /// that the launcher needs no Python and no installed tools for it. Every build shares one save folder
-/// (SaveEnvironment.LongshotUser: save\&lt;user id&gt;\ in %APPDATA%\Longshot on Windows, $XDG_DATA_HOME/longshot on Linux). Windows
+/// (SaveEnvironment.HookshotUser: save\&lt;user id&gt;\ in %APPDATA%\Hookshot on Windows, $XDG_DATA_HOME/hookshot on Linux). Windows
 /// builds kept their own in their game folder (&lt;folder&gt;\user) before: Gather brings those into the shared one.
 public static class Saves
 {
     public const string Title = "0400486024DEC000";
     public const string NoAccount = "0000000000000000";
-    // Longshot's host/nn_applet.c returns this one user; an emulator's profile id is not read by the game.
+    // Hookshot's host/nn_applet.c returns this one user; an emulator's profile id is not read by the game.
     public const string UserId = "5a3c9e1f0b7d24680000000000000001";
 
     static Dictionary<Platform, string[]> On(string[] linux, string[] windows) => new() { [Platform.Linux] = linux, [Platform.Windows] = windows };
 
-    // (oot_saves.EDEN, LICHII, EMULATORS, LONGSHOT, FOLDER; their sources are in Longshot's docs/saves.md)
+    // (oot_saves.EDEN, LICHII, EMULATORS, HOOKSHOT, FOLDER; their sources are in Hookshot's docs/saves.md)
     static readonly string[] EdenLinux = { "{data}/eden" }, EdenWindows = { "{appdata}/eden" };
     public static readonly IReadOnlyList<SaveProgram> Emulators = new[]
     {
@@ -115,7 +115,7 @@ public static class Saves
         new SaveProgram("nx2navi", "NX2navi", On(new[] { "{home}/Games/Ocarina" }, new[] { "{localappdata}/Programs/NX2navi/game", "C:/Games/Ocarina" }),
                         new[] { "nx2navi", "ocarina" }, Array.Empty<string>()),
     };
-    public static readonly SaveProgram Longshot = new("longshot", "Longshot", On(new[] { "{data}/longshot" }, new[] { "{appdata}/Longshot" }), new[] { "longshot" }, Array.Empty<string>());
+    public static readonly SaveProgram Hookshot = new("hookshot", "Hookshot", On(new[] { "{data}/hookshot" }, new[] { "{appdata}/Hookshot" }), new[] { "hookshot" }, Array.Empty<string>());
     public static readonly SaveProgram Folder = new("folder", "the folder", On(Array.Empty<string>(), Array.Empty<string>()), Array.Empty<string>(), Array.Empty<string>());
 
     // (oot_saves.LAYOUTS: where the save folders sit under a data folder; "<id>" is one folder per profile. A folder deeper down
@@ -125,8 +125,8 @@ public static class Saves
         new[] { "nand", "user", "save", "account", "<id>", Title, "0" },   // (Eden's newer layout: used first when it exists)
         new[] { "nand", "user", "save", NoAccount, "<id>", Title },        // (Eden and its forks: Lichii, Eglantine, ...)
         new[] { "profile", "save", "<id>" },                                // (NX2navi's game folder)
-        new[] { "user", "save", "<id>" },                                   // (a Windows Longshot game folder of before, Hookshot's)
-        new[] { "save", "<id>" },                                           // (Longshot's data folder)
+        new[] { "user", "save", "<id>" },                                   // (a Windows Hookshot game folder of before, Longshot's)
+        new[] { "save", "<id>" },                                           // (Hookshot's data folder)
     };
 
     // ---- finding them ----
@@ -272,16 +272,16 @@ public static class Saves
 
     // ---- by build, and everything at once (oot_saves.list_all) ----
 
-    /// Longshot's saves, the same for every build: in SaveEnvironment.LongshotUser (save\&lt;user id&gt;)
+    /// Hookshot's saves, the same for every build: in SaveEnvironment.HookshotUser (save\&lt;user id&gt;)
     public static SaveSet Shared(SaveEnvironment env)
     {
-        var user = env.LongshotUser;
+        var user = env.HookshotUser;
         var found = Directory.Exists(user) ? Find(user) : Array.Empty<SaveProfile>();
-        return new SaveSet("longshot", "Longshot", user, found, found.Count == 0 ? $"No Longshot save in {user} yet." : null);
+        return new SaveSet("hookshot", "Hookshot", user, found, found.Count == 0 ? $"No Hookshot save in {user} yet." : null);
     }
 
-    /// Where Longshot's save of a profile goes when there is none yet: &lt;LongshotUser&gt;\save\&lt;id&gt;
-    public static string SharedSavePath(SaveEnvironment env, string profile) => System.IO.Path.Combine(env.LongshotUser, "save", profile);
+    /// Where Hookshot's save of a profile goes when there is none yet: &lt;HookshotUser&gt;\save\&lt;id&gt;
+    public static string SharedSavePath(SaveEnvironment env, string profile) => System.IO.Path.Combine(env.HookshotUser, "save", profile);
 
     /// Where an import goes: the save of the one user the game opens (UserId: host/nn_applet.c's user_uid, which host/nn_fs.c
     /// names save\&lt;high word&gt;&lt;low word&gt;), whether it is there yet or not. Another profile folder in save\ (a stray one, a copy
@@ -319,7 +319,7 @@ public static class Saves
     {
         var names = new Dictionary<string, string>(StringComparer.Ordinal);
         var order = new List<string>();
-        foreach (var program in Emulators.Prepend(Longshot).Append(HookshotSaves.Program))
+        foreach (var program in Emulators.Prepend(Hookshot).Append(LongshotSaves.Program))
             foreach (var p in program.Processes)
                 if (names.TryGetValue(p, out var was)) names[p] = was + " or " + program.Display;
                 else
@@ -352,7 +352,7 @@ public static class Saves
         return names.ToList();
     }
 
-    /// The games running on this PC now, this launcher left out (its AppImage may be named Longshot-...AppImage)
+    /// The games running on this PC now, this launcher left out (its AppImage may be named Hookshot-...AppImage)
     public static IReadOnlyList<string> Running(Platform platform)
     {
         var own = Environment.ProcessId;
@@ -430,7 +430,7 @@ public static class Saves
     {
         var parent = System.IO.Path.GetDirectoryName(target)!;
         var name = Base(target);
-        return (System.IO.Path.Combine(parent, $".{name}.longshot-staging"), System.IO.Path.Combine(parent, $".{name}.longshot-old"));
+        return (System.IO.Path.Combine(parent, $".{name}.hookshot-staging"), System.IO.Path.Combine(parent, $".{name}.hookshot-old"));
     }
 
     /// path with every link on the way resolved (a symlinked ~/Games, a junction, the folder itself), the parts not there yet
@@ -567,8 +567,8 @@ public static class Saves
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
     }
 
-    /// Import (an emulator's save into Longshot) and export (Longshot's save into an emulator), as oot_saves.run picks the two sides:
-    /// Longshot's one profile, the emulator's (profile: when it has several); folder: the emulator's folder instead of where it is
+    /// Import (an emulator's save into Hookshot) and export (Hookshot's save into an emulator), as oot_saves.run picks the two sides:
+    /// Hookshot's one profile, the emulator's (profile: when it has several); folder: the emulator's folder instead of where it is
     /// looked for (a portable user folder, NX2navi's game folder, any folder holding a save)
     public static SaveCopy ImportExport(bool import, SaveProgram other, string? folder, SaveEnvironment env, string? profile = null,
                                         bool keepSettings = false, bool dryRun = false, bool force = false, string? backupRoot = null,
@@ -577,8 +577,8 @@ public static class Saves
         var build = Shared(env);
         var em = Locate(other, folder, env).Profiles;
         var emulator = Pick(em, other.Display, profile);
-        if (!import && !build.Found) throw new SaveFailure((build.Problem ?? "No Longshot save found.") + " Start Longshot once and save first.");
-        var hs = import ? ImportTarget(env) : Pick(build.Profiles, "Longshot").Path;
+        if (!import && !build.Found) throw new SaveFailure((build.Problem ?? "No Hookshot save found.") + " Start Hookshot once and save first.");
+        var hs = import ? ImportTarget(env) : Pick(build.Profiles, "Hookshot").Path;
         var (src, dst) = import ? (emulator.Path, hs) : (hs, emulator.Path);
         return Copy(src, dst, backupRoot ?? env.BackupRoot, import ? "import" : "export", other.Name, keepSettings, dryRun, force, running, now);
     }
@@ -587,12 +587,12 @@ public static class Saves
 
     /// The user folders where Windows builds kept their saves before they shared one (Gather takes them in): each build's own
     /// (&lt;folder&gt;\user, until the launcher started every build with --user) and the 2.x Builder's game folder's, oldBuilder
-    /// (%USERPROFILE%\Games\Longshot; null for a portable launcher, which writes nothing outside its own folder). None on Linux,
+    /// (%USERPROFILE%\Games\Hookshot; null for a portable launcher, which writes nothing outside its own folder). None on Linux,
     /// where the game has always shared them
     public static IReadOnlyList<string> OldUserFolders(SaveEnvironment env, IEnumerable<string> buildFolders, string? oldBuilder)
     {
         if (env.Platform != Platform.Windows) return Array.Empty<string>();
-        var shared = System.IO.Path.TrimEndingDirectorySeparator(env.LongshotUser);
+        var shared = System.IO.Path.TrimEndingDirectorySeparator(env.HookshotUser);
         var list = new List<string>();
         foreach (var f in oldBuilder == null ? buildFolders : buildFolders.Append(oldBuilder))
         {
@@ -628,27 +628,27 @@ public static class Saves
     /// one of them is backed up whole first, in one folder (&lt;backups&gt;/gather-&lt;yyyyMMdd-HHmmss&gt;/&lt;name&gt;), and each old folder's
     /// save\ is then renamed save.moved-&lt;stamp&gt;, so the game does not find it there again and nothing is deleted. An old folder
     /// that is a link, or holds one as its user\ or save\ (a player's own synced folder, or the shared one itself), is the
-    /// player's own arrangement and is left alone. Null when no old folder has a save, or while Longshot runs (the next start
+    /// player's own arrangement and is left alone. Null when no old folder has a save, or while Hookshot runs (the next start
     /// tries again). A failure changes nothing (SaveFailure). An old save that cannot be renamed (a file in use) is taken in
     /// again at the next start, where it ties with the shared one and loses
     public static SaveGathered? Gather(SaveEnvironment env, IReadOnlyList<string> oldUsers, Func<IReadOnlyList<string>>? running = null,
                                        Func<DateTime>? now = null)
     {
         if (env.Platform != Platform.Windows) return null;
-        var shared = env.LongshotUser;
+        var shared = env.HookshotUser;
         var sharedSave = System.IO.Path.Combine(shared, "save");
         var sharedReal = Real(sharedSave);
         var old = oldUsers.Where(u => HasSave(u) && !IsLinked(u) && !IsLinked(System.IO.Path.Combine(u, "save"))
                                       && !Inside(sharedReal, Real(System.IO.Path.Combine(u, "save"))) && !Inside(Real(System.IO.Path.Combine(u, "save")), sharedReal))
                           .ToList();
         if (old.Count == 0) return null;
-        if ((running ?? (() => Running(Platforms.Current)))().Any(n => n.Contains(Longshot.Display, StringComparison.Ordinal))) return null;
+        if ((running ?? (() => Running(Platforms.Current)))().Any(n => n.Contains(Hookshot.Display, StringComparison.Ordinal))) return null;
 
         // (a gather cut short between its two renames, the PC off: the shared save waits beside itself, and goes back first)
         var (staging, aside) = Beside(sharedSave);
         if (!Directory.Exists(sharedSave) && Directory.Exists(aside)) Directory.Move(aside, sharedSave);
 
-        // (each one named in the backup for its game folder: "v3.0.0-rc.1", or "Longshot" for the 2.x Builder's)
+        // (each one named in the backup for its game folder: "v3.0.0-rc.1", or "Hookshot" for the 2.x Builder's)
         var sides = new List<(string User, string Name)>();
         if (HasSave(shared)) sides.Add((shared, "shared"));
         foreach (var u in old)

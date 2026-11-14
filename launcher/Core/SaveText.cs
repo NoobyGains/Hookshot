@@ -1,4 +1,4 @@
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// A save folder summed up as the window writes it: "3 slots, saved yesterday 22:14" (Long) or "3 saves, last yesterday 22:14"
 public static class SaveText
@@ -27,8 +27,8 @@ public static class SaveText
     public static string Gathered(SaveGathered g)
     {
         return g.WasShared
-            ? Tr.F("Every Longshot version now uses the same saves: the shared ones, which were the newest. All of them are backed up in {0}.", g.Backup)
-            : Tr.F("Every Longshot version now uses the same saves: the newest, from {0}. All of them are backed up in {1}.",
+            ? Tr.F("Every Hookshot version now uses the same saves: the shared ones, which were the newest. All of them are backed up in {0}.", g.Backup)
+            : Tr.F("Every Hookshot version now uses the same saves: the newest, from {0}. All of them are backed up in {1}.",
                    System.IO.Path.GetDirectoryName(g.From), g.Backup);
     }
 

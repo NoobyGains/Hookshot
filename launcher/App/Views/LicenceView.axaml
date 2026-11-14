@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:c="using:LongshotLauncher.Controls"
-             xmlns:vm="using:LongshotLauncher.ViewModels"
-             x:Class="LongshotLauncher.Views.LicenceView"
+             xmlns:c="using:HookshotLauncher.Controls"
+             xmlns:vm="using:HookshotLauncher.ViewModels"
+             x:Class="HookshotLauncher.Views.LicenceView"
              x:DataType="vm:LicenceViewModel">
   <Border Classes="dialog">
     <StackPanel>

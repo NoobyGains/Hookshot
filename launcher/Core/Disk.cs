@@ -1,4 +1,4 @@
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// Space on the disk: what a folder holds, what is free where a build goes, and what a build needs
 public static class Disk

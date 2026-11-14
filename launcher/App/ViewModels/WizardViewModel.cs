@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher.ViewModels;
+namespace HookshotLauncher.ViewModels;
 
 public enum JobKind { Build, Rebuild, Update }
 
@@ -165,7 +165,7 @@ public sealed class FilesStepViewModel : ViewModelBase, IWizardPage
 
     public string Sub => Job.Kind == JobKind.Update
         ? Tr.F("Updating {0} to {1}. The file you built it from is picked; pick another if it moved.", Job.ShownFrom, Job.Shown)
-        : Tr.T("Pick your dump of the game. Longshot reads it on this PC; nothing is uploaded.");
+        : Tr.T("Pick your dump of the game. Hookshot reads it on this PC; nothing is uploaded.");
 
     // ---- the tools ----
 

@@ -1,9 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:LongshotLauncher.ViewModels"
-             xmlns:core="using:LongshotLauncher.Core"
-             xmlns:c="using:LongshotLauncher.Controls"
-             x:Class="LongshotLauncher.Views.SavesView"
+             xmlns:vm="using:HookshotLauncher.ViewModels"
+             xmlns:core="using:HookshotLauncher.Core"
+             xmlns:c="using:HookshotLauncher.Controls"
+             x:Class="HookshotLauncher.Views.SavesView"
              x:DataType="vm:SavesViewModel">
   <UserControl.Styles>
     <Style Selector="Button.transfer">
@@ -32,7 +32,7 @@
     <Grid Grid.Row="1" ColumnDefinitions="*,290" ColumnSpacing="24">
       <Grid RowDefinitions="Auto,*" RowSpacing="10">
         <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Classes="label" Text="{c:T 'YOUR LONGSHOT SAVES'}" Margin="0" VerticalAlignment="Center"/>
+          <TextBlock Classes="label" Text="{c:T 'YOUR HOOKSHOT SAVES'}" Margin="0" VerticalAlignment="Center"/>
           <TextBlock Grid.Column="1" Classes="faint" Text="{Binding SlotCount}" VerticalAlignment="Center"/>
         </Grid>
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ClipToBounds="True">
@@ -78,7 +78,7 @@
 
       <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" ClipToBounds="True">
         <StackPanel Spacing="8">
-          <TextBlock Classes="label" Text="{c:T 'BRING SAVES INTO LONGSHOT'}" Margin="0,0,0,2"/>
+          <TextBlock Classes="label" Text="{c:T 'BRING SAVES INTO HOOKSHOT'}" Margin="0,0,0,2"/>
           <Button Classes="transfer" Command="{Binding ImportCommand}">
             <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
               <c:Icon Kind="download" Width="18" Height="18" VerticalAlignment="Center" Foreground="{StaticResource Brand}"/>
@@ -88,12 +88,12 @@
               </StackPanel>
             </Grid>
           </Button>
-          <Button Classes="transfer" Command="{Binding HookshotCommand}">
+          <Button Classes="transfer" Command="{Binding LongshotCommand}">
             <Grid ColumnDefinitions="20,*" ColumnSpacing="10">
               <c:Icon Kind="download" Width="18" Height="18" VerticalAlignment="Center"/>
               <StackPanel Grid.Column="1" Spacing="3">
-                <TextBlock Classes="transferTitle" Text="{c:T 'From Hookshot…'}"/>
-                <TextBlock Classes="faint" FontSize="11.5" Text="{c:T 'Bring over your Hookshot progress'}"/>
+                <TextBlock Classes="transferTitle" Text="{c:T 'From Longshot…'}"/>
+                <TextBlock Classes="faint" FontSize="11.5" Text="{c:T 'Bring over your Longshot progress'}"/>
               </StackPanel>
             </Grid>
           </Button>

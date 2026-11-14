@@ -1,4 +1,4 @@
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// A dump of the game found on this PC: a .nup file, or a folder holding its romfs and exefs folders (Folders)
 /// (Romfs, Exefs: the two folders when they were picked one by one, not side by side in Path)
@@ -12,7 +12,7 @@ public sealed record FoundGameFile(string Path, string Where, long Size, DateTim
         : new BuildSource.Nup(Path);
 }
 
-/// The player's game files where people keep them (builder/LongshotBuilder/Finder.cs, FindDumps): .nup files in Downloads,
+/// The player's game files where people keep them (builder/HookshotBuilder/Finder.cs, FindDumps): .nup files in Downloads,
 /// Desktop, Documents, the home folder and the top of each drive, one folder level down too, newest first. Only names and sizes
 /// are read here; the version is checked one file at a time afterwards (make_game.py --check). A folder holding romfs and exefs
 /// folders counts too.

@@ -2,25 +2,25 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// A file a release has: where it is, and its SHA-256 (from the release's signed SHA256SUMS) and size, which the download is
 /// checked against
 public sealed record FileRef(string Url, string Sha256, long Size);
 
-/// What a release belongs to: Longshot (its builders, the releases of MagicBeanDev/Longshot) or the launcher itself (the releases
-/// of MagicBeanDev/LongshotLauncher). Each has its own versions and its own three channels (docs/releases.md)
+/// What a release belongs to: Hookshot (its builders, the releases of MagicBeanDev/Hookshot) or the launcher itself (the releases
+/// of MagicBeanDev/HookshotLauncher). Each has its own versions and its own three channels (docs/releases.md)
 public sealed record Product(string Name, string Display, string Repo, int FirstMajor)
 {
     public const string Server = "https://git.magicbean.dev";
-    public static readonly Product Longshot = new("longshot", "Longshot", "MagicBeanDev/Longshot", Versions.FirstMajor);
-    public static readonly Product Launcher = new("launcher", "Longshot Launcher", "MagicBeanDev/LongshotLauncher", Versions.LauncherFirstMajor);
+    public static readonly Product Hookshot = new("hookshot", "Hookshot", "MagicBeanDev/Hookshot", Versions.FirstMajor);
+    public static readonly Product Launcher = new("launcher", "Hookshot Launcher", "MagicBeanDev/HookshotLauncher", Versions.LauncherFirstMajor);
 
     public string Api => Server + "/api/v1/repos/" + Repo;
 }
 
 /// One version's release, its files checked against its signed SHA256SUMS: for each system ("windows-x64", "linux-x64"),
-/// Longshot's builder (Builder: LongshotBuilder-&lt;v&gt;-windows-x64.zip, Longshot-&lt;v&gt;-x86_64.AppImage) and the Windows builder's
+/// Hookshot's builder (Builder: HookshotBuilder-&lt;v&gt;-windows-x64.zip, Hookshot-&lt;v&gt;-x86_64.AppImage) and the Windows builder's
 /// tools.lock (Tools), or the launcher's own program (Launcher: also "windows-x64-portable", the portable zip). Notes: the release's page
 public sealed record ReleaseInfo(string Product, string Version, string Commit, DateTimeOffset? Published, string? Notes,
                                  IReadOnlyDictionary<string, FileRef> Launcher, IReadOnlyDictionary<string, FileRef> Tools,
@@ -50,16 +50,16 @@ public static class ReleaseManifest
     public const string WindowsPortable = "windows-x64-portable";
     public static readonly IReadOnlyList<string> LauncherKeys = new[] { "windows-x64", WindowsPortable, "linux-x64" };
 
-    /// The file names a release of product has, per system (scripts/package.sh, Longshot's release workflow)
+    /// The file names a release of product has, per system (scripts/package.sh, Hookshot's release workflow)
     public static string LauncherFile(string version, string key) => key switch
     {
-        "windows-x64" => $"LongshotLauncher-{version}-windows-x64-setup.exe",
-        WindowsPortable => $"LongshotLauncher-{version}-windows-x64-portable.zip",
-        _ => $"LongshotLauncher-{version}-x86_64.AppImage",
+        "windows-x64" => $"HookshotLauncher-{version}-windows-x64-setup.exe",
+        WindowsPortable => $"HookshotLauncher-{version}-windows-x64-portable.zip",
+        _ => $"HookshotLauncher-{version}-x86_64.AppImage",
     };
 
     public static string BuilderFile(string version, string platform) =>
-        platform == "windows-x64" ? $"LongshotBuilder-{version}-windows-x64.zip" : $"Longshot-{version}-x86_64.AppImage";
+        platform == "windows-x64" ? $"HookshotBuilder-{version}-windows-x64.zip" : $"Hookshot-{version}-x86_64.AppImage";
 
     public static IReadOnlyList<ListedRelease> ParseList(string json)
     {

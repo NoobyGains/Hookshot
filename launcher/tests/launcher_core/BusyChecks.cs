@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
 /// The buttons whose work takes time (Core/BusyCommand.cs): off from the click until the work ends, a second click starting
 /// nothing, on again after a success and after a failure, with the failure kept; and the home's buttons built on it (the launcher's

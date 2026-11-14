@@ -1,11 +1,11 @@
 #!/bin/bash
-# The Longshot Launcher as a release ships it (docs/releases.md), both from Linux with the .NET 10 SDK:
-#   LongshotLauncher-<tag>-windows-x64-setup.exe     a self-contained single-file program (no .NET to install), which offers to
+# The Hookshot Launcher as a release ships it (docs/releases.md), both from Linux with the .NET 10 SDK:
+#   HookshotLauncher-<tag>-windows-x64-setup.exe     a self-contained single-file program (no .NET to install), which offers to
 #                                                    install itself (or run portable) when it is first started
-#   LongshotLauncher-<tag>-windows-x64-portable.zip  the same program as LongshotLauncher.exe, with its "portable" file
-#   LongshotLauncher-<tag>-x86_64.AppImage           the same for Linux and the Steam Deck, in an AppImage
+#   HookshotLauncher-<tag>-windows-x64-portable.zip  the same program as HookshotLauncher.exe, with its "portable" file
+#   HookshotLauncher-<tag>-x86_64.AppImage           the same for Linux and the Steam Deck, in an AppImage
 # Each launcher is one file, so the launcher's own update replaces one file (Core/SelfUpdate.cs; a portable one takes it out of
-# the zip). The tag is stamped into the program (-p:LongshotTag), which compares it with its channel's newest.
+# the zip). The tag is stamped into the program (-p:HookshotTag), which compares it with its channel's newest.
 #
 #     scripts/package.sh <tag> <out folder>
 #
@@ -19,7 +19,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 TAG=${1:?usage: package.sh <tag> <out folder>}
 OUT=${2:?usage: package.sh <tag> <out folder>}
-# (the same pins as Longshot's scripts/linux/deps.sh)
+# (the same pins as Hookshot's scripts/linux/deps.sh)
 APPIMAGETOOL_VERSION=1.9.1
 APPIMAGETOOL_SHA256=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
 APPIMAGE_RUNTIME_VERSION=20251108
@@ -47,31 +47,31 @@ if [[ $TAG =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?)$ ]]; then version=(-p:Ver
 publish() {
     local rid=$1 dir=$2
     shift 2
-    "$DOTNET" publish "$ROOT/App/LongshotLauncher.csproj" -c Release -r "$rid" --self-contained "$@" \
+    "$DOTNET" publish "$ROOT/App/HookshotLauncher.csproj" -c Release -r "$rid" --self-contained "$@" \
         -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none \
-        -p:LongshotTag="$TAG" "${version[@]}" -o "$dir" -nologo
+        -p:HookshotTag="$TAG" "${version[@]}" -o "$dir" -nologo
 }
 
 # (not compressed inside: a compressed single file unpacks its code into memory when it starts, which antivirus programs'
 # machine-learning checks take for a packed dropper: Windows flagged the launcher as a virus. The setup is about twice the size,
 # 106 MB rather than 51; the portable zip is the same, 45 MB. The AppImage is compressed by its own format)
 publish win-x64 "$WORK/win-x64"
-cp "$WORK/win-x64/LongshotLauncher.exe" "$OUT/LongshotLauncher-$TAG-windows-x64-setup.exe"
+cp "$WORK/win-x64/HookshotLauncher.exe" "$OUT/HookshotLauncher-$TAG-windows-x64-setup.exe"
 if [ -n "${WINE_CHECK_EXE:-}" ]; then
     publish win-x64 "$WORK/win-x64-wine" -p:IncludeAllContentForSelfExtract=true
     mkdir -p "$(dirname "$WINE_CHECK_EXE")"
-    cp "$WORK/win-x64-wine/LongshotLauncher.exe" "$WINE_CHECK_EXE"
+    cp "$WORK/win-x64-wine/HookshotLauncher.exe" "$WINE_CHECK_EXE"
 fi
 # (the portable zip: the program under its own name and the "portable" file beside it; the same dates in every build)
 mkdir -p "$WORK/portable"
-cp "$WORK/win-x64/LongshotLauncher.exe" "$WORK/portable/LongshotLauncher.exe"
-printf 'This file makes the Longshot Launcher beside it portable: its data stays in the LongshotLauncher-data folder here.\r\n' \
+cp "$WORK/win-x64/HookshotLauncher.exe" "$WORK/portable/HookshotLauncher.exe"
+printf 'This file makes the Hookshot Launcher beside it portable: its data stays in the HookshotLauncher-data folder here.\r\n' \
     > "$WORK/portable/portable"
-python3 -I - "$WORK/portable" "$OUT/LongshotLauncher-$TAG-windows-x64-portable.zip" <<'PY'
+python3 -I - "$WORK/portable" "$OUT/HookshotLauncher-$TAG-windows-x64-portable.zip" <<'PY'
 import sys, zipfile
 src, out = sys.argv[1], sys.argv[2]
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-    for name in ("LongshotLauncher.exe", "portable"):
+    for name in ("HookshotLauncher.exe", "portable"):
         info = zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0))
         info.compress_type = zipfile.ZIP_DEFLATED
         info.external_attr = 0o100644 << 16
@@ -82,26 +82,26 @@ PY
 publish linux-x64 "$WORK/linux-x64"
 app="$WORK/AppDir"
 mkdir -p "$app/usr/bin"
-cp "$WORK/linux-x64/LongshotLauncher" "$app/usr/bin/LongshotLauncher"
-cp "$ROOT/App/Assets/longshot.png" "$app/longshot-launcher.png"
-cat > "$app/longshot-launcher.desktop" <<'EOF'
+cp "$WORK/linux-x64/HookshotLauncher" "$app/usr/bin/HookshotLauncher"
+cp "$ROOT/App/Assets/hookshot.png" "$app/hookshot-launcher.png"
+cat > "$app/hookshot-launcher.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
-Name=Longshot
-Comment=Install Longshot's builder, build the game from your own copy, and play
-Exec=LongshotLauncher
-Icon=longshot-launcher
+Name=Hookshot
+Comment=Install Hookshot's builder, build the game from your own copy, and play
+Exec=HookshotLauncher
+Icon=hookshot-launcher
 Categories=Game;
 Terminal=false
-StartupWMClass=longshot-launcher
+StartupWMClass=hookshot-launcher
 EOF
 cat > "$app/AppRun" <<'EOF'
 #!/bin/sh
 here=$(dirname "$(readlink -f "$0")")
-exec "$here/usr/bin/LongshotLauncher" "$@"
+exec "$here/usr/bin/HookshotLauncher" "$@"
 EOF
-chmod 755 "$app/AppRun" "$app/usr/bin/LongshotLauncher"
-"$app/usr/bin/LongshotLauncher" --self-check | grep -qxF "LongshotLauncher $TAG" ||
+chmod 755 "$app/AppRun" "$app/usr/bin/HookshotLauncher"
+"$app/usr/bin/HookshotLauncher" --self-check | grep -qxF "HookshotLauncher $TAG" ||
     { echo "the Linux launcher does not answer --self-check with $TAG" >&2; exit 1; }
 
 tool=${APPIMAGETOOL:-}
@@ -120,6 +120,6 @@ if [ -z "$tool" ] || [ -z "$runtime" ]; then
 fi
 # (no update information: the launcher updates itself from the signed release files, not with AppImageUpdate)
 ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$tool" --no-appstream --runtime-file "$runtime" "$app" \
-    "$OUT/LongshotLauncher-$TAG-x86_64.AppImage" >&2
-chmod 755 "$OUT/LongshotLauncher-$TAG-x86_64.AppImage"
+    "$OUT/HookshotLauncher-$TAG-x86_64.AppImage" >&2
+chmod 755 "$OUT/HookshotLauncher-$TAG-x86_64.AppImage"
 ls -l "$OUT"

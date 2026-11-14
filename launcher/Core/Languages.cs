@@ -1,4 +1,4 @@
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// The game's languages, make_game.py's LANGUAGES (--language takes the code); tests/test_launcher_core.py keeps the two the same
 public static class Languages

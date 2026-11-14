@@ -1,11 +1,11 @@
 using System.Text.RegularExpressions;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// How much a build log line matters, least detailed first: the details show a level and the ones before it
 public enum LogLevel { Error, Warning, Info, Debug, Trace }
 
-/// A build log line's level, as the game writes it (Longshot's docs/development.md, Log levels): no tag is info; "[trace] ",
+/// A build log line's level, as the game writes it (Hookshot's docs/development.md, Log levels): no tag is info; "[trace] ",
 /// "[debug] ", "[warn] " or "[error] " after the game's thread tag ("[hos host] [trace] vk: ...") is that level. A build's own
 /// "error: " line (@@error, as the details write it) is an error. A game from before the levels has no tags: every line is info.
 public static class LogLevels

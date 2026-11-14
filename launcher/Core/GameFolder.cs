@@ -1,10 +1,10 @@
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
-/// What a game folder says about itself: the stamp make_game.py writes (longshot_version.txt: version=, builder=, builder_local=),
-/// the game's language (language.txt) and whether it is built (bin/longshot[.exe])
+/// What a game folder says about itself: the stamp make_game.py writes (hookshot_version.txt: version=, builder=, builder_local=),
+/// the game's language (language.txt) and whether it is built (bin/hookshot[.exe])
 public static class GameFolder
 {
-    public const string StampName = "longshot_version.txt";
+    public const string StampName = "hookshot_version.txt";
     public const string LanguageName = "language.txt";
 
     /// The stamp's key=value lines, in order (the first of a key wins, as linux_update.game_version reads version=); null: none
@@ -44,7 +44,7 @@ public static class GameFolder
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
     }
 
-    /// Built with NVIDIA DLSS: its runtime in ngx/ (longshot_builder.folder_has_dlss: libnvidia-ngx-dlss.so*; on Windows nvngx_dlss.dll)
+    /// Built with NVIDIA DLSS: its runtime in ngx/ (hookshot_builder.folder_has_dlss: libnvidia-ngx-dlss.so*; on Windows nvngx_dlss.dll)
     public static bool HasDlss(string folder)
     {
         try

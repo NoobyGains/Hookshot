@@ -1,6 +1,6 @@
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher.ViewModels;
+namespace HookshotLauncher.ViewModels;
 
 /// The launcher's settings: the channel new builds start on, where builds go, the build files, the update check. Each version
 /// keeps its own build settings (step 2)
@@ -91,7 +91,7 @@ public sealed class SettingsViewModel : ViewModelBase
     // ---- the launcher itself: how it is kept, and on Linux its entry in the applications menu ----
 
     /// Where this launcher is and how (installed, portable), under the launcher's channels
-    public string LauncherHint => Tr.Sentences(Tr.T("The channel the launcher updates itself from. Its releases are its own, apart from Longshot's."), Program.Layout.Kind switch
+    public string LauncherHint => Tr.Sentences(Tr.T("The channel the launcher updates itself from. Its releases are its own, apart from Hookshot's."), Program.Layout.Kind switch
     {
         LauncherKind.Installed => Tr.F("Installed for you in {0}; uninstall it from Apps & features.", ShownPath.Of(Path.GetDirectoryName(Program.Layout.File))),
         LauncherKind.Portable => Tr.F("Portable: everything it keeps is in {0}.", ShownPath.Of(Main.Service.Home.Root)),
@@ -105,9 +105,9 @@ public sealed class SettingsViewModel : ViewModelBase
     public string AddToMenuText => MenuTarget == null ? Tr.T("Add to applications menu")
         : MenuTarget != Program.Layout.File ? Tr.T("Point the menu entry here") : Tr.T("Write the menu entry again");
     public string MenuHint => Program.Layout.File == null ? Tr.T("Only the AppImage can be added to the menu.")
-        : MenuTarget == null ? Tr.T("Adds Longshot Launcher to your desktop's applications menu, starting this AppImage where it is now.")
+        : MenuTarget == null ? Tr.T("Adds Hookshot Launcher to your desktop's applications menu, starting this AppImage where it is now.")
         : MenuTarget != Program.Layout.File ? Tr.F("The menu entry starts {0}, not this AppImage.", ShownPath.Of(MenuTarget))
-        : Tr.T("Longshot Launcher is in the applications menu. Moved the AppImage? Add it again from its new place.");
+        : Tr.T("Hookshot Launcher is in the applications menu. Moved the AppImage? Add it again from its new place.");
     public Command AddToMenuCommand { get; }
     public Command RemoveFromMenuCommand { get; }
 
@@ -116,11 +116,11 @@ public sealed class SettingsViewModel : ViewModelBase
         if (Program.Layout.File is not { } appImage) return;
         try
         {
-            using var icon = Avalonia.Platform.AssetLoader.Open(new Uri("avares://LongshotLauncher/Assets/longshot.png"));
+            using var icon = Avalonia.Platform.AssetLoader.Open(new Uri("avares://HookshotLauncher/Assets/hookshot.png"));
             using var bytes = new MemoryStream();
             icon.CopyTo(bytes);
             Shortcuts.AddLauncherToMenu(appImage, bytes.ToArray());
-            Main.ShowToast(Tr.T("Longshot Launcher is in the applications menu."));
+            Main.ShowToast(Tr.T("Hookshot Launcher is in the applications menu."));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Main.ShowToast(Tr.F("The menu entry could not be written: {0}", e.Message)); }
         RaiseAll(nameof(InMenu), nameof(AddToMenuText), nameof(MenuHint));
@@ -131,7 +131,7 @@ public sealed class SettingsViewModel : ViewModelBase
         try
         {
             Shortcuts.RemoveLauncherFromMenu();
-            Main.ShowToast(Tr.T("Longshot Launcher is out of the applications menu."));
+            Main.ShowToast(Tr.T("Hookshot Launcher is out of the applications menu."));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Main.ShowToast(Tr.F("The menu entry could not be removed: {0}", e.Message)); }
         RaiseAll(nameof(InMenu), nameof(AddToMenuText), nameof(MenuHint));
@@ -222,7 +222,7 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    public string Version => "Longshot Launcher " + (typeof(SettingsViewModel).Assembly.GetName().Version?.ToString(3) ?? "3.0.0");
+    public string Version => "Hookshot Launcher " + (typeof(SettingsViewModel).Assembly.GetName().Version?.ToString(3) ?? "3.0.0");
 
     public Command DoneCommand { get; }
     public Command ChangeBuildsCommand { get; }

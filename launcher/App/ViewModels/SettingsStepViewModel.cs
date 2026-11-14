@@ -1,6 +1,6 @@
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher.ViewModels;
+namespace HookshotLauncher.ViewModels;
 
 public sealed record Choice(int? Value, string Label);
 
@@ -324,34 +324,34 @@ public sealed class LicenceViewModel : ViewModelBase
     public string AcceptText => !Nvidia && Linux ? Tr.T("Turn on") : Tr.T("Accept");
     public string Title => Nvidia ? Tr.T("NVIDIA's licence for DLSS") : Linux ? Tr.T("AMD FSR 4 on Linux") : Tr.T("AMD's licence for FSR 4");
     public string Sub => !Nvidia && Linux
-        ? Tr.T("Nothing is downloaded: AMD publishes no FSR 4 runtime for Linux. Nothing of AMD's comes with Longshot.")
-        : Nvidia ? Tr.T("The build downloads NVIDIA's DLSS SDK under this licence. Nothing of NVIDIA's comes with Longshot.")
-        : Tr.T("The build downloads AMD's FSR 4 runtime under this licence. Nothing of AMD's comes with Longshot.");
+        ? Tr.T("Nothing is downloaded: AMD publishes no FSR 4 runtime for Linux. Nothing of AMD's comes with Hookshot.")
+        : Nvidia ? Tr.T("The build downloads NVIDIA's DLSS SDK under this licence. Nothing of NVIDIA's comes with Hookshot.")
+        : Tr.T("The build downloads AMD's FSR 4 runtime under this licence. Nothing of AMD's comes with Hookshot.");
     public string Text { get; }
     public Command AcceptCommand { get; }
     public Command DeclineCommand { get; }
 
-    // (the 2.x Builders' texts: builder/LongshotBuilder/MainWindow.xaml.cs DlssLicense and FsrLicense, builder/linux DLSS_LICENSE)
+    // (the 2.x Builders' texts: builder/HookshotBuilder/MainWindow.xaml.cs DlssLicense and FsrLicense, builder/linux DLSS_LICENSE)
     // (the licences' addresses and the files' names stay as they are in every language)
     static string DlssText(bool linux) =>
-        Tr.F("NVIDIA DLSS is NVIDIA's, not Longshot's. With it on, the build downloads NVIDIA's DLSS SDK (release {0}) from " +
+        Tr.F("NVIDIA DLSS is NVIDIA's, not Hookshot's. With it on, the build downloads NVIDIA's DLSS SDK (release {0}) from " +
              "{1}, under NVIDIA's own license, the NVIDIA RTX SDKs license:", "v310.9.16", "github.com/NVIDIA/DLSS") + "\n\n" +
         "https://github.com/NVIDIA/DLSS/blob/9981c6350dc58c0ce21f024fd65e31e851c31689/LICENSE.txt\n\n" +
         Tr.F("Its files stay on this PC (in the launcher's {0} folder, and {1} in the game folder's {2} folder). " +
-             "Longshot never includes or shares them: never share a game folder built with them.", "ngx-sdk",
+             "Hookshot never includes or shares them: never share a game folder built with them.", "ngx-sdk",
              linux ? "libnvidia-ngx-dlss.so, libnvidia-ngx-dlssg.so" : "nvngx_dlss.dll, nvngx_dlssg.dll", "ngx");
 
     static string FsrText =>
-        Tr.F("AMD FSR 4 is AMD's, not Longshot's. With it on, the build downloads AMD's FSR runtime for Vulkan ({0}: {1}, signed by AMD) " +
+        Tr.F("AMD FSR 4 is AMD's, not Hookshot's. With it on, the build downloads AMD's FSR runtime for Vulkan ({0}: {1}, signed by AMD) " +
              "from {2}, each file checked against its SHA-256, under AMD's FSR SDK license:", "FidelityFX SDK v2.4.0",
              "amd_fidelityfx_loader_vk.dll, amd_fidelityfx_upscaler_vk.dll", "github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK") + "\n\n" +
         "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/blob/7539ae8b6568ad29ed78a753404351daf3b5cca7/Kits/FidelityFX/docs/license.md\n\n" +
         Tr.F("Its files stay on this PC (in the launcher's {0} folder, and the two DLLs with {1} in the game folder).", "ffx-sdk", "LICENSE-AMD-FSR-SDK.md");
 
-    // (Linux: Longshot's README, AMD FSR 4. The build compiles the Vulkan back end with AMD's MIT FSR API headers; the library
+    // (Linux: Hookshot's README, AMD FSR 4. The build compiles the Vulkan back end with AMD's MIT FSR API headers; the library
     // is the player's, loaded by the game at its start)
     static string FsrLinuxText =>
-        Tr.F("AMD FSR 4 is AMD's, not Longshot's. AMD publishes its FSR 4 runtime for Windows only, so on Linux the build downloads " +
+        Tr.F("AMD FSR 4 is AMD's, not Hookshot's. AMD publishes its FSR 4 runtime for Windows only, so on Linux the build downloads " +
              "nothing: it compiles the game's Vulkan renderer with FSR 4 in it (a few minutes longer), and FSR 4 runs once you put a " +
              "Vulkan FSR 4 library, {0}, beside the game (in its folder or its bin folder). Where you get " +
              "it and under which terms is yours to check.", "amd_fidelityfx_upscaler_vk.so") + "\n\n" +

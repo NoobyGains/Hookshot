@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
-/// The channels and the version order (docs/releases.md), the same for Longshot's releases and the launcher's own: a stable is
-/// vX.Y.Z, a release candidate vX.Y.Z-rc.N, a nightly nightly-&lt;commit count&gt;-&lt;commit&gt;. Longshot's numbers start at v3.0.0, the
+/// The channels and the version order (docs/releases.md), the same for Hookshot's releases and the launcher's own: a stable is
+/// vX.Y.Z, a release candidate vX.Y.Z-rc.N, a nightly nightly-&lt;commit count&gt;-&lt;commit&gt;. Hookshot's numbers start at v3.0.0, the
 /// launcher's at v1.0.0 (FirstMajor). Nothing else is a version: it is on no track and never ordered.
 /// tests/test_launcher_core.py holds the vectors it is checked against.
 public static class Versions
@@ -17,8 +17,8 @@ public static class Versions
     static readonly Regex ReleaseName = new(@"^v(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$", RegexOptions.CultureInvariant);
     static readonly Regex TagName = new(@"^[0-9A-Za-z._+-]{1,128}$", RegexOptions.CultureInvariant);
 
-    /// The first major version of each product: Longshot (the game and its builder) starts at v3.0.0, the launcher at v1.0.0.
-    /// A number below it is no version of that product (not the 2.x numbers Longshot was forked from)
+    /// The first major version of each product: Hookshot (the game and its builder) starts at v3.0.0, the launcher at v1.0.0.
+    /// A number below it is no version of that product (not the 2.x numbers Hookshot was forked from)
     public const int FirstMajor = 3, LauncherFirstMajor = 1;
 
     public static bool IsChannel(string? channel) => channel is Stable or Candidate or Nightly;

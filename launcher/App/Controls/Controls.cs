@@ -4,7 +4,7 @@ using Avalonia.Controls.Documents;
 using Avalonia.Media;
 using Avalonia.Threading;
 
-namespace LongshotLauncher.Controls;
+namespace HookshotLauncher.Controls;
 
 /// The mockup's icons (its app.js ICONS: 24x24, stroked or filled in the text's colour), drawn at the control's size
 public sealed class Icon : Control

@@ -1,4 +1,4 @@
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
 /// launcher/Core/Saves.cs over tests/test_oot_saves.py's vectors (the same folders, the same expectations), so the launcher and
 /// scripts/oot_saves.py agree. Fake saves made here only: HOME, XDG_DATA_HOME, APPDATA and LOCALAPPDATA all point into one folder.
@@ -61,7 +61,7 @@ static class SavesChecks
             Data = P(Home, ".local", "share");
             AppData = P(Home, "AppData", "Roaming");
             LocalAppData = P(Home, "AppData", "Local");
-            Hs = P(Data, "longshot", "save", Uid);
+            Hs = P(Data, "hookshot", "save", Uid);
             Li = EdenSave(P(Data, "eden"));
             Backups = P(Tmp, "backups");
             MakeSave(Hs, "HS");
@@ -77,11 +77,11 @@ static class SavesChecks
         public IReadOnlyList<string> BackupDirs() =>
             Directory.Exists(Backups) ? Directory.EnumerateDirectories(Backups).Order(StringComparer.Ordinal).ToList() : Array.Empty<string>();
 
-        /// oot_saves.main import|export with the name or folder: Longshot's side on Linux
+        /// oot_saves.main import|export with the name or folder: Hookshot's side on Linux
         public SaveCopy Run(bool import, string? name, string? folder = null, string? profile = null, bool keep = false, bool dry = false, bool force = false)
         {
             var other = name == null ? Saves.Folder : Saves.Named(name);
-            var hs = Saves.Pick(Saves.Locate(Saves.Longshot, null, Linux).Profiles, "Longshot");
+            var hs = Saves.Pick(Saves.Locate(Saves.Hookshot, null, Linux).Profiles, "Hookshot");
             var em = Saves.Pick(Saves.Locate(other, folder, Linux).Profiles, other.Display, profile);
             var (src, dst) = import ? (em.Path, hs.Path) : (hs.Path, em.Path);
             return Saves.Copy(src, dst, Backups, import ? "import" : "export", other.Name, keep, dry, force, () => Busy);
@@ -113,7 +113,7 @@ static class SavesChecks
         Require(expect.Keys.Order().SequenceEqual(Saves.Emulators.Select(p => p.Name).Order()), "Every emulator of the script.");
         foreach (var program in Saves.Emulators)
             Require(Saves.Locate(program, null, c.Linux).Profiles.Select(p => p.Path).SequenceEqual(new[] { expect[program.Name] }), program.Name + " on Linux");
-        Require(Saves.Locate(Saves.Longshot, null, c.Linux).Profiles.SequenceEqual(new[] { new SaveProfile(Uid, c.Hs) }), "Longshot on Linux");
+        Require(Saves.Locate(Saves.Hookshot, null, c.Linux).Profiles.SequenceEqual(new[] { new SaveProfile(Uid, c.Hs) }), "Hookshot on Linux");
 
         // (test_every_entry_on_windows)
         var w = new Case(root, "windows");
@@ -127,19 +127,19 @@ static class SavesChecks
         };
         foreach (var program in Saves.Emulators)
             Require(Saves.Locate(program, null, w.Windows).Profiles.Select(p => p.Path).SequenceEqual(new[] { wexpect[program.Name] }), program.Name + " on Windows");
-        Fails(() => Saves.Locate(Saves.Longshot, null, w.Windows), "No Longshot save found", "Windows: no shared save yet");
+        Fails(() => Saves.Locate(Saves.Hookshot, null, w.Windows), "No Hookshot save found", "Windows: no shared save yet");
         Require(!Saves.Shared(w.Windows).Found && Saves.Shared(w.Windows).Problem != null, "Windows: no shared save yet, and why.");
-        var game = P(w.Tmp, "Longshot");
+        var game = P(w.Tmp, "Hookshot");
         MakeSave(P(game, "user", "save", Uid), "W");
-        Require(Saves.Locate(Saves.Longshot, game, w.Windows).Profiles.SequenceEqual(new[] { new SaveProfile(Uid, P(game, "user", "save", Uid)) }),
+        Require(Saves.Locate(Saves.Hookshot, game, w.Windows).Profiles.SequenceEqual(new[] { new SaveProfile(Uid, P(game, "user", "save", Uid)) }),
                 "A Windows game folder of before, chosen.");
-        var winShared = P(w.AppData, "Longshot", "save", Uid);
+        var winShared = P(w.AppData, "Hookshot", "save", Uid);
         MakeSave(winShared, "S");
-        Require(w.Windows.LongshotUser == P(w.AppData, "Longshot") && Saves.Locate(Saves.Longshot, null, w.Windows).Profiles.Single().Path == winShared
+        Require(w.Windows.HookshotUser == P(w.AppData, "Hookshot") && Saves.Locate(Saves.Hookshot, null, w.Windows).Profiles.Single().Path == winShared
                 && Saves.Shared(w.Windows).Profiles.Single().Path == winShared && Saves.SharedSavePath(w.Windows, Uid) == winShared,
-                "Windows: the save every build shares, in %APPDATA%\\Longshot.");
-        Require((w.Windows with { UserFolder = P(w.Tmp, "usb", "user") }).LongshotUser == P(w.Tmp, "usb", "user")
-                && w.Linux.LongshotUser == P(w.Data, "longshot") && (w.Linux with { UserFolder = P(w.Tmp, "usb", "user") }).LongshotUser == P(w.Data, "longshot")
+                "Windows: the save every build shares, in %APPDATA%\\Hookshot.");
+        Require((w.Windows with { UserFolder = P(w.Tmp, "usb", "user") }).HookshotUser == P(w.Tmp, "usb", "user")
+                && w.Linux.HookshotUser == P(w.Data, "hookshot") && (w.Linux with { UserFolder = P(w.Tmp, "usb", "user") }).HookshotUser == P(w.Data, "hookshot")
                 && Saves.Shared(w.Linux).Profiles.Single().Path == w.Hs, "A portable launcher's own user folder (Windows); on Linux the game's own.");
 
         // (test_lichii_s_own_folder_first)
@@ -178,7 +178,7 @@ static class SavesChecks
         var eden = P(c.Data, "eden");
         foreach (var r in new[] { eden, P(eden, "nand"), P(eden, "nand", "user", "save"), Path.GetDirectoryName(Path.GetDirectoryName(c.Li))!, Path.GetDirectoryName(c.Li)!, c.Li })
             Require(Saves.Find(r).SequenceEqual(new[] { new SaveProfile(Profile, c.Li) }), "Found from " + r);
-        foreach (var r in new[] { P(c.Data, "longshot"), Path.GetDirectoryName(c.Hs)!, c.Hs })
+        foreach (var r in new[] { P(c.Data, "hookshot"), Path.GetDirectoryName(c.Hs)!, c.Hs })
             Require(Saves.Find(r).SequenceEqual(new[] { new SaveProfile(Uid, c.Hs) }), "Found from " + r);
 
         // (test_empty_title_folder_is_a_target)
@@ -369,9 +369,9 @@ static class SavesChecks
     {
         // (test_refuses_while_running, test_force)
         var c = new Case(root, "guard");
-        c.Busy = new[] { "Longshot" };
+        c.Busy = new[] { "Hookshot" };
         var before = Tree(c.Hs) + Tree(c.Li);
-        Fails(() => c.Run(false, "lichii"), "Longshot", "A running game.");
+        Fails(() => c.Run(false, "lichii"), "Hookshot", "A running game.");
         Require(Tree(c.Hs) + Tree(c.Li) == before && c.BackupDirs().Count == 0, "Nothing copied while a game runs.");
         c.Busy = new[] { "Lichii" };
         c.Run(false, "lichii", force: true);
@@ -379,14 +379,14 @@ static class SavesChecks
 
         // (test_every_process_name_on_windows)
         var names = Saves.ProcessNames();
-        foreach (var program in Saves.Emulators.Prepend(Saves.Longshot))
+        foreach (var program in Saves.Emulators.Prepend(Saves.Hookshot))
             foreach (var p in program.Processes) Require(names[p].Contains(program.Display), "The process names of " + program.Name);
         var images = names.Keys.Select((p, i) => i % 2 == 1 ? p.ToUpperInvariant() + ".exe" : p + ".exe").Append("notepad.exe");
         Require(Saves.RunningFrom(Platform.Windows, images).SequenceEqual(names.Values.Distinct().Order(StringComparer.Ordinal)), "Every program's process on Windows.");
         // (test_linux_processes_and_appimages: each process's comm, and its argv[0]'s file name)
         var linux = new[] { "orchid", "orchid", "AppRun", "eglantine-linux-x86_64.AppImage", "ocarina", "ocarina", "bash", "bash" };
         Require(Saves.RunningFrom(Platform.Linux, linux).SequenceEqual(new[] { "NX2navi", "Orchid", "PokeDinner or Eglantine" }), "Linux processes and AppImages.");
-        Require(Saves.RunningFrom(Platform.Linux, new[] { "Longshot.AppImage", "LongshotLauncher" }).Count == 0, "The launcher itself is not the game.");
+        Require(Saves.RunningFrom(Platform.Linux, new[] { "Hookshot.AppImage", "HookshotLauncher" }).Count == 0, "The launcher itself is not the game.");
     }
 
     static void FirstImports(string root)
@@ -408,8 +408,8 @@ static class SavesChecks
             File.WriteAllBytes(progress, bytes);
             var sourceBefore = Tree(game);
             var target = Saves.ImportTarget(env);
-            Require(target == P(env.LongshotUser, "save", "5a3c9e1f0b7d24680000000000000001")
-                    && !Directory.Exists(target), "First import: the fixed user Longshot reads, without writing a folder.");
+            Require(target == P(env.HookshotUser, "save", "5a3c9e1f0b7d24680000000000000001")
+                    && !Directory.Exists(target), "First import: the fixed user Hookshot reads, without writing a folder.");
             Require(Saves.Locate(Saves.Named("nx2navi"), folder, env).Profiles.Single().Path == source,
                     "First import: NX2navi's default or custom game folder on either platform.");
 
@@ -424,7 +424,7 @@ static class SavesChecks
                     "A first import's preview names the target without making it or a backup.");
             c.Busy = Array.Empty<string>();
             Fails(() => Saves.ImportExport(false, Saves.Named("nx2navi"), folder, env, backupRoot: c.Backups, running: () => c.Busy),
-                  "Start Longshot once", "Export still requires a Longshot save.");
+                  "Start Hookshot once", "Export still requires a Hookshot save.");
             foreach (var pending in new[] { P(game, "profile", "save-tx", "ready-1"), P(game, "profile", "save-import") })
             {
                 MakeSave(pending, "WAITING", "slot_02");
@@ -468,15 +468,15 @@ static class SavesChecks
                                backupRoot: c.Backups, running: () => c.Busy);
             Require(Tree(target) == Tree(secondSource), "The NX2navi profile the player chose is imported.");
 
-            // (a second Longshot profile folder, one the game never opens: the import still goes into the fixed user, and leaves it)
-            var stray = P(env.LongshotUser, "save", Uid);
+            // (a second Hookshot profile folder, one the game never opens: the import still goes into the fixed user, and leaves it)
+            var stray = P(env.HookshotUser, "save", Uid);
             MakeSave(stray, "STRAY");
             var strayBefore = Tree(stray);
-            Require(Saves.ImportTarget(env) == target, "Another Longshot profile moved the import away from the user the game opens.");
+            Require(Saves.ImportTarget(env) == target, "Another Hookshot profile moved the import away from the user the game opens.");
             var beside = Saves.ImportExport(true, Saves.Named("nx2navi"), folder, env, profile: Account,
                                             backupRoot: c.Backups, running: () => c.Busy);
             Require(beside.Target == target && Tree(target) == Tree(secondSource) && Tree(stray) == strayBefore,
-                    "An import beside a stray Longshot profile goes into the fixed user and leaves the stray one alone.");
+                    "An import beside a stray Hookshot profile goes into the fixed user and leaves the stray one alone.");
         }
     }
 
@@ -486,7 +486,7 @@ static class SavesChecks
         var c = new Case(root, "builds");
         MakeSave(EdenSave(P(c.AppData, "eden")), "WE", "slot_07");
         Fails(() => Saves.ImportExport(false, Saves.Named("lichii"), null, c.Windows, backupRoot: c.Backups, running: () => c.Busy),
-              "Start Longshot once", "Windows: Longshot never saved yet.");
+              "Start Hookshot once", "Windows: Hookshot never saved yet.");
         var shared = Saves.SharedSavePath(c.Windows, Saves.UserId);
         MakeSave(shared, "S");
         Saves.ImportExport(true, Saves.Named("lichii"), null, c.Windows, backupRoot: c.Backups, running: () => c.Busy);
@@ -506,7 +506,7 @@ static class SavesChecks
     {
         // (Windows: the saves each build kept in its own folder, and the 2.x Builder's, into the one every build shares)
         var c = new Case(root, "gather");
-        var builds = P(c.Home, "Games", "Longshot");   // (the 2.x Builder's game folder, the launcher's builds folder in it)
+        var builds = P(c.Home, "Games", "Hookshot");   // (the 2.x Builder's game folder, the launcher's builds folder in it)
         var a = P(builds, "v3.0.0-rc.1");
         var b = P(builds, "v3.0.0-rc.2");
         var old = Saves.OldUserFolders(c.Windows, new[] { a, b, a + Path.DirectorySeparatorChar }, builds);
@@ -517,7 +517,7 @@ static class SavesChecks
         Require(Saves.Gather(c.Windows, old, () => c.Busy) == null && Saves.Gather(c.Linux, old, () => c.Busy) == null, "Nothing to gather.");
 
         var when = new DateTime(2026, 11, 13, 9, 0, 0);
-        var sharedSave = P(c.Windows.LongshotUser, "save");
+        var sharedSave = P(c.Windows.HookshotUser, "save");
         MakeSave(P(builds, "user", "save", Uid), "OLD");
         MakeSave(P(a, "user", "save", Uid), "A");
         MakeSave(P(b, "user", "save", Uid), "B");
@@ -526,15 +526,15 @@ static class SavesChecks
         Age(P(a, "user", "save"), when.AddDays(-1));
         Age(P(b, "user", "save"), when.AddDays(-2));
         var treeA = Tree(P(a, "user", "save"));
-        Require(Saves.Gather(c.Windows, old, () => new[] { "Longshot" }) == null && Directory.Exists(P(a, "user", "save")) && !Directory.Exists(sharedSave),
-                "Not while Longshot runs: the next start tries again.");
+        Require(Saves.Gather(c.Windows, old, () => new[] { "Hookshot" }) == null && Directory.Exists(P(a, "user", "save")) && !Directory.Exists(sharedSave),
+                "Not while Hookshot runs: the next start tries again.");
         var g = Saves.Gather(c.Windows, old, () => new[] { "Lichii" }, () => when)!;
         Require(g.From == P(a, "user") && !g.WasShared && Tree(sharedSave) == treeA, "The newest save becomes the shared one (an emulator may run).");
-        Require(File.ReadAllText(P(c.Windows.LongshotUser, "mouse_sens.txt")) == "2.5", "The kept save's own settings come along (mouse_sens.txt).");
+        Require(File.ReadAllText(P(c.Windows.HookshotUser, "mouse_sens.txt")) == "2.5", "The kept save's own settings come along (mouse_sens.txt).");
         Require(g.Moved.SequenceEqual(old) && old.All(u => !Directory.Exists(P(u, "save")) && Directory.Exists(P(u, "save.moved-20261113-090000"))),
                 "Each old save renamed aside: the game no longer finds it, nothing is deleted.");
         Require(Path.GetFileName(g.Backup) == "gather-20261113-090000" && Path.GetDirectoryName(g.Backup) == c.Windows.BackupRoot
-                && Tree(P(g.Backup, "v3.0.0-rc.1")) == treeA && Tree(P(g.Backup, "Longshot")) != "" && Tree(P(g.Backup, "v3.0.0-rc.2")) != "",
+                && Tree(P(g.Backup, "v3.0.0-rc.1")) == treeA && Tree(P(g.Backup, "Hookshot")) != "" && Tree(P(g.Backup, "v3.0.0-rc.2")) != "",
                 "Every one backed up first, each named for its game folder.");
         Require(SaveText.Gathered(g).Contains(a) && SaveText.Gathered(g).Contains(g.Backup), "What the home says: where the save came from, and the backup.");
         Require(Saves.Gather(c.Windows, old, () => c.Busy) == null, "Done once: nothing left to gather.");
@@ -553,7 +553,7 @@ static class SavesChecks
         Age(P(a, "user", "save"), when.AddDays(-5));
         Age(sharedSave, when);
         var g3 = Saves.Gather(c.Windows, old, () => c.Busy, () => when.AddHours(2))!;
-        Require(g3.WasShared && g3.From == c.Windows.LongshotUser && Tree(sharedSave) == kept && !Directory.Exists(P(a, "user", "save"))
+        Require(g3.WasShared && g3.From == c.Windows.HookshotUser && Tree(sharedSave) == kept && !Directory.Exists(P(a, "user", "save"))
                 && SaveText.Gathered(g3).Contains("shared"), "An older save: the shared one kept, the old one moved aside.");
 
         // (a swap that fails: the shared save and the old one as they were, the backup kept)
@@ -562,11 +562,11 @@ static class SavesChecks
         Saves.Fault = s => { if (s == "swap") throw new IOException("disk full"); };
         try { Fails(() => Saves.Gather(c.Windows, old, () => c.Busy, () => when.AddHours(3)), "Nothing was changed", "A gather that fails half way."); }
         finally { Saves.Fault = null; }
-        Require(Tree(sharedSave) == kept && Directory.Exists(P(a, "user", "save")) && !Directory.Exists(P(c.Windows.LongshotUser, ".save.longshot-old")),
+        Require(Tree(sharedSave) == kept && Directory.Exists(P(a, "user", "save")) && !Directory.Exists(P(c.Windows.HookshotUser, ".save.hookshot-old")),
                 "After a failed gather: the shared save and the old one as they were.");
 
         // (a shared save a gather cut short left aside, while a new one was made since: backed up before it goes)
-        var aside = P(c.Windows.LongshotUser, ".save.longshot-old");
+        var aside = P(c.Windows.HookshotUser, ".save.hookshot-old");
         MakeSave(P(aside, Uid), "ASIDE");
         var asideTree = Tree(aside);
         var g4 = Saves.Gather(c.Windows, old, () => c.Busy, () => when.AddHours(4))!;

@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher.ViewModels;
+namespace HookshotLauncher.ViewModels;
 
 /// One version in the home's list
 public sealed class BuildItemViewModel : ViewModelBase
@@ -120,12 +120,12 @@ public sealed class HomeViewModel : ViewModelBase
             asked = true;
             _ = CheckReleasesAsync();
         }, () => CanStartBuild);
-        ImportHookshotCommand = new Command(() => Main.Modal = new HookshotImportViewModel(Main));
-        NotNowHookshotCommand = new Command(() =>
+        ImportLongshotCommand = new Command(() => Main.Modal = new LongshotImportViewModel(Main));
+        NotNowLongshotCommand = new Command(() =>
         {
-            Service.Settings.HookshotSavesAsked = true;
+            Service.Settings.LongshotSavesAsked = true;
             try { Service.SaveSettings(); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
-            HookshotOffer = null;
+            LongshotOffer = null;
         });
         ImportNx2naviCommand = new Command(() =>
         {
@@ -193,7 +193,7 @@ public sealed class HomeViewModel : ViewModelBase
     public bool HeroHasUpdate => Default?.HasUpdate == true;
     public string HeroUpdate => Default is { Update: { } u } d ? Tr.F("{0} is out on the {1} channel.", u, ChannelPickerViewModel.NameOf(d.Channel)) : "";
 
-    /// "3 versions use 116.7 GB in D:\Games\Longshot."
+    /// "3 versions use 116.7 GB in D:\Games\Hookshot."
     public string Footer
     {
         get
@@ -233,7 +233,7 @@ public sealed class HomeViewModel : ViewModelBase
     public Command DismissProblemCommand { get; }
     /// The update check: at start, from Try again, and after the launcher's channel changed in Settings
     public BusyCommand CheckCommand { get; }
-    /// Check for updates, under the versions: the same check, for Longshot's channels and the launcher's own, which says so when
+    /// Check for updates, under the versions: the same check, for Hookshot's channels and the launcher's own, which says so when
     /// it found nothing new
     public Command CheckForUpdatesCommand { get; }
     /// Try again, on the empty home when the check got no answer: the check itself
@@ -263,8 +263,8 @@ public sealed class HomeViewModel : ViewModelBase
         foreach (var b in Builds) b.RaiseCommands();
         RaiseAll(nameof(CanStartBuild), nameof(ShowCheckLine), nameof(ShowStatus));
     }
-    public Command ImportHookshotCommand { get; }
-    public Command NotNowHookshotCommand { get; }
+    public Command ImportLongshotCommand { get; }
+    public Command NotNowLongshotCommand { get; }
     public Command ImportNx2naviCommand { get; }
     public Command NotNowNx2naviCommand { get; }
 
@@ -289,34 +289,34 @@ public sealed class HomeViewModel : ViewModelBase
             {
                 var folder = ShownPath.Of(found.Folder);
                 Nx2naviOffer = profiles.Count > 1
-                    ? Tr.P(profiles.Count, "Found saves in 1 profile in {1}. Copy them into Longshot? The originals stay where they are.",
-                           "Found saves in {0} profiles in {1}. Copy them into Longshot? The originals stay where they are.", folder)
-                    : Tr.F("Found {0} in {1}. Copy them into Longshot? The originals stay where they are.",
+                    ? Tr.P(profiles.Count, "Found saves in 1 profile in {1}. Copy them into Hookshot? The originals stay where they are.",
+                           "Found saves in {0} profiles in {1}. Copy them into Hookshot? The originals stay where they are.", folder)
+                    : Tr.F("Found {0} in {1}. Copy them into Hookshot? The originals stay where they are.",
                            SaveText.Long(profiles[0], DateTime.Now), folder);
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or SaveFailure) { }
     }
 
-    // ---- the offer to import Hookshot's saves (once: until it is answered) ----
+    // ---- the offer to import Longshot's saves (once: until it is answered) ----
 
-    string? hookshotOffer;
-    public string? HookshotOffer
+    string? longshotOffer;
+    public string? LongshotOffer
     {
-        get => hookshotOffer;
-        set { if (Set(ref hookshotOffer, value)) Raise(nameof(HasHookshotOffer)); }
+        get => longshotOffer;
+        set { if (Set(ref longshotOffer, value)) Raise(nameof(HasLongshotOffer)); }
     }
-    public bool HasHookshotOffer => hookshotOffer != null;
+    public bool HasLongshotOffer => longshotOffer != null;
 
-    /// Hookshot saves on this PC, not offered yet: the home offers to import them
-    void OfferHookshot()
+    /// Longshot saves on this PC, not offered yet: the home offers to import them
+    void OfferLongshot()
     {
-        if (Service.Settings.HookshotSavesAsked) return;
+        if (Service.Settings.LongshotSavesAsked) return;
         try
         {
-            var found = HookshotSaves.Find(Service.SaveEnv).Where(s => s.Valid).ToList();
+            var found = LongshotSaves.Find(Service.SaveEnv).Where(s => s.Valid).ToList();
             if (found.Count > 0)
-                HookshotOffer = Tr.F("Found {0} in Hookshot. Copy them into Longshot? Hookshot keeps its own.",
+                LongshotOffer = Tr.F("Found {0} in Longshot. Copy them into Hookshot? Longshot keeps its own.",
                                      SaveText.Long(found[0].Slots, DateTime.Now));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or SaveFailure) { }
@@ -337,10 +337,10 @@ public sealed class HomeViewModel : ViewModelBase
     public string LauncherUpdateText => Service.LauncherUpdate is { } r
         ? LauncherUpdateOrder switch
         {
-            > 0 => Tr.F("Longshot Launcher {0} is out (you have {1}).", Versions.Shown(r.Version), Versions.Shown(Service.OwnTag)),
-            < 0 => Tr.F("Longshot Launcher {0} is available on {1}. It is older than yours ({2}).", Versions.Shown(r.Version),
+            > 0 => Tr.F("Hookshot Launcher {0} is out (you have {1}).", Versions.Shown(r.Version), Versions.Shown(Service.OwnTag)),
+            < 0 => Tr.F("Hookshot Launcher {0} is available on {1}. It is older than yours ({2}).", Versions.Shown(r.Version),
                         ChannelPickerViewModel.NameOf(Service.LauncherChannel), Versions.Shown(Service.OwnTag)),
-            _ => Tr.F("Longshot Launcher {0} is available on {1} (you have {2}).", Versions.Shown(r.Version),
+            _ => Tr.F("Hookshot Launcher {0} is available on {1} (you have {2}).", Versions.Shown(r.Version),
                       ChannelPickerViewModel.NameOf(Service.LauncherChannel), Versions.Shown(Service.OwnTag)),
         }
         : "";
@@ -369,7 +369,7 @@ public sealed class HomeViewModel : ViewModelBase
             Service.Ensure(start.Folder);
         }
         Notice = notes.Count > 0 ? string.Join("\n", notes) : null;
-        OfferHookshot();
+        OfferLongshot();
         OfferNx2navi();
         Refresh();
     }
@@ -456,7 +456,7 @@ public sealed class HomeViewModel : ViewModelBase
                 Notice = said;
                 Refresh();
             }
-            Main.ShowToast(Tr.F("Starting Longshot, {0}…", b.Version));
+            Main.ShowToast(Tr.F("Starting Hookshot, {0}…", b.Version));
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
         {
@@ -597,7 +597,7 @@ public sealed class DeleteViewModel : ViewModelBase
 
     public string Sub => GameFolderHere
         ? build.Entry.Bytes is long b ? Tr.F("This deletes its folder and frees {0}:", Durations.Size(b)) : Tr.T("This deletes its folder:")
-        : Tr.T("This takes it off your versions. Its folder is not a Longshot game folder, so it stays on the disk:");
+        : Tr.T("This takes it off your versions. Its folder is not a Hookshot game folder, so it stays on the disk:");
     public string Folder => ShownPath.Of(build.Entry.Folder);
     public string FolderFull => build.Entry.Folder;
 
@@ -615,9 +615,9 @@ public sealed class DeleteViewModel : ViewModelBase
         var entry = build.Entry;
         var files = GameFolderHere;
         // (a running game holds its files: on Windows the delete would stop half-way through the folder)
-        if (files && Saves.Running(service.Platform).Contains(Saves.Longshot.Display))
+        if (files && Saves.Running(service.Platform).Contains(Saves.Hookshot.Display))
         {
-            Main.Home.Notice = Tr.F("Close Longshot first: {0} is not deleted while a game runs.", build.Version);
+            Main.Home.Notice = Tr.F("Close Hookshot first: {0} is not deleted while a game runs.", build.Version);
             return;
         }
         try

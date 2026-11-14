@@ -1,7 +1,7 @@
 # /// script
 # dependencies = ["pillow==13.0.0"]
 # ///
-"""App/Assets/longshot.ico, the Windows icon, made from the logo App/Assets/longshot.png: each size scaled down with Lanczos
+"""App/Assets/hookshot.ico, the Windows icon, made from the logo App/Assets/hookshot.png: each size scaled down with Lanczos
 (premultiplied alpha), under 256 as 32-bit bitmaps with their mask, 256 as a PNG. Run it after changing the logo:
 
     uv run scripts/make_icon.py
@@ -36,14 +36,14 @@ def image(logo, size):
 
 
 def main():
-    logo = Image.open(ROOT / "App" / "Assets" / "longshot.png").convert("RGBA")
+    logo = Image.open(ROOT / "App" / "Assets" / "hookshot.png").convert("RGBA")
     blobs = [image(logo, size) for size in SIZES]
     out = struct.pack("<HHH", 0, 1, len(SIZES))
     offset = 6 + 16 * len(SIZES)
     for size, blob in zip(SIZES, blobs):
         out += struct.pack("<BBBBHHII", size % 256, size % 256, 0, 0, 1, 32, len(blob), offset)
         offset += len(blob)
-    (ROOT / "App" / "Assets" / "longshot.ico").write_bytes(out + b"".join(blobs))
+    (ROOT / "App" / "Assets" / "hookshot.ico").write_bytes(out + b"".join(blobs))
 
 
 if __name__ == "__main__":

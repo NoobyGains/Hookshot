@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 using Microsoft.Win32;
 
-namespace LongshotLauncher;
+namespace HookshotLauncher;
 
 /// Core's IUserRegistry over the real HKEY_CURRENT_USER (Windows only; the tests use a dictionary)
 [SupportedOSPlatform("windows")]
@@ -80,7 +80,7 @@ public static class WindowsInstall
     public static void Tell(string text)
     {
         if (OperatingSystem.IsWindows()) MessageBoxW(IntPtr.Zero, text, Installer.DisplayName, 0x40 /* MB_ICONINFORMATION */);
-        else Console.Error.WriteLine("Longshot: " + text);
+        else Console.Error.WriteLine("Hookshot: " + text);
     }
 
     /// Lets the launcher that is already open take the foreground when this start pokes it (Windows keeps it from otherwise)

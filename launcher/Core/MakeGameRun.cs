@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 public enum GameCheckStatus { Supported, OtherVersion, Unreadable }
 
@@ -93,7 +93,7 @@ public static class MakeGameRun
 }
 
 /// What a build should take on this PC before it starts, by stage. Measured on one PC (two player builds of nightly-56 on a
-/// Ryzen 9 7900X, 24 threads, and an RTX 3090: Longshot's docs/development.md, "Build times"; measure again when the build
+/// Ryzen 9 7900X, 24 threads, and an RTX 3090: Hookshot's docs/development.md, "Build times"; measure again when the build
 /// changes) and scaled by this PC's threads for the stages that use every thread (the lift, the compile, the shaders). The
 /// others read and write files and keep the measured time. A thread past the cores is worth less than a core, so the scale
 /// goes as (24 / threads)^0.85 rather than in step: 8 threads about 2.5 times as long, 32 about 0.8

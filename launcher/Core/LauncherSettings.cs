@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// What the build wizard remembers (&lt;home&gt;/settings.json): the game files last picked, the build's options and the channel new
 /// builds start on. A license flag is true only once its license was accepted on its tick.
@@ -23,18 +23,18 @@ public sealed class LauncherSettings
     /// as it was (a launcher home shared with Windows must not take this for AMD's licence)
     public bool FsrLinuxNotice { get; set; }
     public bool PrepareShaders { get; set; } = true;
-    /// Build memory in GB (LONGSHOT_MEM_LIMIT_GB); null: Automatic
+    /// Build memory in GB (HOOKSHOT_MEM_LIMIT_GB); null: Automatic
     public int? MemoryGb { get; set; }
-    /// Build workers (LONGSHOT_JOBS / --jobs); null: Automatic
+    /// Build workers (HOOKSHOT_JOBS / --jobs); null: Automatic
     public int? BuildWorkers { get; set; }
     /// make_game.py's --work; null: the launcher's own (LauncherHome.Work)
     public string? Work { get; set; }
     /// The channel new builds start on, as the player picked it in Settings; null: not picked, so it follows the launcher (BuildChannel)
     public string? DefaultChannel { get; set; }
-    /// The channel the launcher updates itself from (its own releases, apart from Longshot's); null: its own version's track
+    /// The channel the launcher updates itself from (its own releases, apart from Hookshot's); null: its own version's track
     public string? LauncherChannel { get; set; }
-    /// The player answered the offer to import Hookshot's saves (imported, or Not now): it is not offered again at start
-    public bool HookshotSavesAsked { get; set; }
+    /// The player answered the offer to import Longshot's saves (imported, or Not now): it is not offered again at start
+    public bool LongshotSavesAsked { get; set; }
     /// The player answered the offer to import NX2navi's saves (imported, or Not now)
     public bool Nx2naviSavesAsked { get; set; }
     /// Where new builds go, each version in its own folder; null: DefaultBuildsFolder
@@ -51,10 +51,10 @@ public sealed class LauncherSettings
     /// launcher release candidates; LauncherChannel when set, else its own version's track)
     public string BuildChannel(string ownTag) => DefaultChannel ?? SelfUpdate.ChannelOf(ownTag, LauncherChannel);
 
-    /// The folder builds go in when none was chosen: make_game.py's own default game folder's parent, ~/Games/Longshot
-    /// (%USERPROFILE%\Games\Longshot on Windows)
+    /// The folder builds go in when none was chosen: make_game.py's own default game folder's parent, ~/Games/Hookshot
+    /// (%USERPROFILE%\Games\Hookshot on Windows)
     public static string DefaultBuildsFolder(Func<string, string?>? getenv = null) =>
-        Path.Combine(LauncherHome.Home(getenv ?? Environment.GetEnvironmentVariable), "Games", "Longshot");
+        Path.Combine(LauncherHome.Home(getenv ?? Environment.GetEnvironmentVariable), "Games", "Hookshot");
 
     public string BuildsFolderOrDefault(Func<string, string?>? getenv = null) =>
         string.IsNullOrWhiteSpace(BuildsFolder) ? DefaultBuildsFolder(getenv) : BuildsFolder;
@@ -64,7 +64,7 @@ public sealed class LauncherSettings
     public static string FolderFor(string buildsFolder, string version, Func<string, bool>? taken = null)
     {
         taken ??= p => Directory.Exists(p) || File.Exists(p);
-        var name = Versions.IsTagName(version) ? version : "Longshot";
+        var name = Versions.IsTagName(version) ? version : "Hookshot";
         var path = Path.Combine(buildsFolder, name);
         for (var n = 2; taken(path); n++) path = Path.Combine(buildsFolder, $"{name} ({n})");
         return path;

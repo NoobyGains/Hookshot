@@ -1,4 +1,4 @@
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// Whether a build has an update: the newest version of the build's channel, when it is newer than the build's version
 /// (Versions.Newer: releases and release candidates in semver order, nightlies by their count). Never a downgrade: a build

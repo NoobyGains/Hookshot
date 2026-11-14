@@ -1,12 +1,12 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:c="using:LongshotLauncher.Controls"
-             x:Class="LongshotLauncher.App"
+             xmlns:c="using:HookshotLauncher.Controls"
+             x:Class="HookshotLauncher.App"
              RequestedThemeVariant="Dark">
   <!-- The launcher in the 2.x Builder's "Slate, frosted" look: the mockup's tokens.css (launcher/mockup), under App.xaml's names -->
   <Application.Resources>
     <ResourceDictionary>
-      <!-- the palette (builder/LongshotBuilder/App.xaml) -->
+      <!-- the palette (builder/HookshotBuilder/App.xaml) -->
       <SolidColorBrush x:Key="Page" Color="#14161A"/>
       <SolidColorBrush x:Key="Raised" Color="#1C1F24"/>
       <SolidColorBrush x:Key="RaisedHover" Color="#23272D"/>
@@ -66,7 +66,7 @@
       <FontFeatureCollection x:Key="Tabular">
         <FontFeature>+tnum</FontFeature>
       </FontFeatureCollection>
-      <FontFamily x:Key="Ui">avares://LongshotLauncher/Assets/Fonts#Inter</FontFamily>
+      <FontFamily x:Key="Ui">avares://HookshotLauncher/Assets/Fonts#Inter</FontFamily>
       <FontFamily x:Key="Mono">Cascadia Mono, Consolas, JetBrains Mono, DejaVu Sans Mono, monospace</FontFamily>
     </ResourceDictionary>
   </Application.Resources>

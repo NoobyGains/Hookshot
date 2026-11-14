@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// A download that the server (or the network) failed. Status: the HTTP answer, null when the server was not reached
 public sealed class FetchException : Exception
@@ -38,7 +38,7 @@ public sealed class HttpFetcher : IFetcher, IDisposable
         {
             Timeout = timeout ?? Timeout.InfiniteTimeSpan,
         };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("LongshotLauncher");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("HookshotLauncher");
     }
 
     static Uri Https(string url) =>

@@ -1,20 +1,20 @@
 using System.Text;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
-/// What git.magicbean.dev says is released, for one product (Product.Longshot: the builders; Product.Launcher: this program),
+/// What git.magicbean.dev says is released, for one product (Product.Hookshot: the builders; Product.Launcher: this program),
 /// from the repository's Forgejo releases (docs/releases.md):
 ///   a channel's newest   from the list of published releases (ReleaseManifest.Newest): no file to sign, nothing to replay;
 ///                        an update is only ever to a newer version (UpdatePolicy, SelfUpdate), so a list that offers an older
 ///                        one changes nothing
 ///   a version's files    its release's SHA256SUMS, signed by the release key (SignedSums), which gives each file's SHA-256
-///   the builder's tools  the tools.lock a Longshot release has (Windows), checked by its SHA-256, which names each tool's
+///   the builder's tools  the tools.lock a Hookshot release has (Windows), checked by its SHA-256, which names each tool's
 /// A channel nobody answered for is null (the window says so quietly); a release whose SHA256SUMS fails its signature, or that
 /// lacks it, is refused, with the reason in Problem.
 public sealed class Releases
 {
-    public const string Repo = Product.Server + "/MagicBeanDev/Longshot";
-    public const string LauncherRepo = Product.Server + "/MagicBeanDev/LongshotLauncher";
+    public const string Repo = Product.Server + "/MagicBeanDev/Hookshot";
+    public const string LauncherRepo = Product.Server + "/MagicBeanDev/HookshotLauncher";
     const long MaxSmall = 4 << 20;
 
     readonly IReadOnlyList<ReleaseKey> keys;
@@ -33,7 +33,7 @@ public sealed class Releases
     {
         Fetcher = fetcher;
         Platform = platform;
-        Product = product ?? Product.Longshot;
+        Product = product ?? Product.Hookshot;
         this.keys = keys;
         this.delay = delay ?? Task.Delay;
     }
@@ -119,7 +119,7 @@ public sealed class Releases
         return release;
     }
 
-    /// A Longshot version's Windows builder and tools for Toolchains: the builder's zip unpacked as it is, then each tool of the
+    /// A Hookshot version's Windows builder and tools for Toolchains: the builder's zip unpacked as it is, then each tool of the
     /// release's tools.lock (checked by its SHA-256) as tools.lock says
     public async Task<PartsList> ToolsListAsync(string tag, CancellationToken cancel = default)
     {
@@ -133,7 +133,7 @@ public sealed class Releases
         return new PartsList(ListKind.Setup, tag, parts, ToolsLock.Run);
     }
 
-    /// A Longshot version's builder file for this system (the Linux AppImage)
+    /// A Hookshot version's builder file for this system (the Linux AppImage)
     public async Task<FileRef> BuilderAsync(string tag, CancellationToken cancel = default)
     {
         var release = await VersionAsync(tag, cancel).ConfigureAwait(false);

@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// One part of a version's tools: a zip checked by its SHA-256 and size, unpacked under Dest of the version's folder.
 /// From/To: only the zip's folder From is taken, renamed To (tools.lock's prefix, made the last name of its dest).
@@ -18,17 +18,17 @@ public enum ListKind { Setup, Linux }
 /// A version's parts. Run: the Windows builder, relative to the install
 public sealed record PartsList(ListKind Kind, string Tag, IReadOnlyList<Part> Parts, string? Run);
 
-/// Longshot's tools.lock (docs/releases.md, "tools.lock"; scripts/tools.py and builder/setup/setup.c read it the same way):
+/// Hookshot's tools.lock (docs/releases.md, "tools.lock"; scripts/tools.py and builder/setup/setup.c read it the same way):
 ///     tool &lt;name&gt; &lt;version&gt; &lt;system&gt; &lt;sha256&gt; &lt;size&gt; &lt;dest&gt; &lt;prefix&gt; &lt;url&gt; [&lt;url&gt; ...]
 /// Each tool is a part of a builder's install (windows-x64: the Windows builder's; linux-x64: beside the unpacked Linux AppImage,
 /// from the tools.lock inside it): its archive's &lt;prefix&gt; folder ("-": all of it) becomes &lt;dest&gt;.
-/// The first URL is tried first (Longshot's copy, a generic package of the MagicBeanDev organization), the others (where the
+/// The first URL is tried first (Hookshot's copy, a generic package of the MagicBeanDev organization), the others (where the
 /// archive came from) when it fails or gives other bytes. A tool another
 /// installed version has (the same SHA-256, unpacked the same way) is taken from it, not downloaded again (Toolchains).
 public static class ToolsLock
 {
     /// The builder in the release zip, beside its tools (the setup's run line)
-    public const string Run = "LongshotBuilder/LongshotBuilder.exe";
+    public const string Run = "HookshotBuilder/HookshotBuilder.exe";
     static readonly Regex Sha256 = new("^[0-9a-f]{64}$", RegexOptions.CultureInvariant);
     static readonly Regex Name = new("^[a-z0-9][a-z0-9._-]{0,63}$", RegexOptions.CultureInvariant);
 

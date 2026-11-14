@@ -1,4 +1,4 @@
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
 /// The build log's levels (Core/LogLevels.cs): a line's level read from the game's tag ("[hos host] [trace] ..."), no tag is
 /// info (a game from before the levels), a build's "error: " is an error; and the details' tail, by level and search

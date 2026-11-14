@@ -1,7 +1,7 @@
 using Avalonia;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher;
+namespace HookshotLauncher;
 
 static class Program
 {
@@ -55,12 +55,12 @@ static class Program
         // (one launcher per home: a second start brings the first one's window forward and ends)
         if (!TakeLock())
         {
-            if (Uninstalling) WindowsInstall.Tell("The Longshot Launcher is open. Close it, then uninstall it.");
+            if (Uninstalling) WindowsInstall.Tell("The Hookshot Launcher is open. Close it, then uninstall it.");
             else
             {
                 WindowsInstall.LetOthersForward();
                 InstanceLock.Poke(Home.Root);
-                Console.Error.WriteLine("Longshot: the launcher is already open; its window was brought forward.");
+                Console.Error.WriteLine("Hookshot: the launcher is already open; its window was brought forward.");
             }
             return 0;
         }
@@ -107,7 +107,7 @@ static class Program
     {
         var file = Layout.File ?? throw new InvalidOperationException("This launcher was not started from its own file.");
         File.WriteAllText(Path.Combine(Path.GetDirectoryName(file)!, LauncherLayout.PortableMarker),
-                          "This file makes the Longshot Launcher beside it portable: its data stays in the LongshotLauncher-data folder here.\r\n");
+                          "This file makes the Hookshot Launcher beside it portable: its data stays in the HookshotLauncher-data folder here.\r\n");
         ReleaseLock();
         Layout = LauncherLayout.Current(Layout.Platform);
         Home = LauncherHome.Resolve(Layout.Platform, null, Layout);
@@ -155,22 +155,22 @@ static class Program
         var platform = Platforms.Current;
         if (SelfUpdate.CurrentFile(platform) is not { } current)
         {
-            Console.Error.WriteLine("Longshot: --rollback works from the launcher's own file (its .exe, or the AppImage).");
+            Console.Error.WriteLine("Hookshot: --rollback works from the launcher's own file (its .exe, or the AppImage).");
             return 1;
         }
         try
         {
             if (!SelfUpdate.Rollback(current, platform))
             {
-                Console.Error.WriteLine("Longshot: no earlier launcher was kept beside " + current + ".");
+                Console.Error.WriteLine("Hookshot: no earlier launcher was kept beside " + current + ".");
                 return 1;
             }
-            Console.WriteLine("Longshot: the earlier launcher is back in place. Start it again.");
+            Console.WriteLine("Hookshot: the earlier launcher is back in place. Start it again.");
             return 0;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            Console.Error.WriteLine("Longshot: the earlier launcher could not be put back: " + e.Message);
+            Console.Error.WriteLine("Hookshot: the earlier launcher could not be put back: " + e.Message);
             return 1;
         }
     }
@@ -184,7 +184,7 @@ static class Program
             var folder = start.Folder ?? service.Registry.Default?.Folder;
             if (folder == null || !GameFolder.IsBuilt(folder, service.Platform))
             {
-                Console.Error.WriteLine("Longshot: no built game to start. Open the launcher and build one, or pass its folder.");
+                Console.Error.WriteLine("Hookshot: no built game to start. Open the launcher and build one, or pass its folder.");
                 return 1;
             }
             service.PlayFolder(Path.GetFullPath(folder));
@@ -192,7 +192,7 @@ static class Program
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {
-            Console.Error.WriteLine("Longshot: the game could not start: " + e.Message);
+            Console.Error.WriteLine("Hookshot: the game could not start: " + e.Message);
             return 1;
         }
     }

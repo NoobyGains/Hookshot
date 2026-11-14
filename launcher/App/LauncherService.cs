@@ -1,7 +1,7 @@
 using System.Diagnostics;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher;
+namespace HookshotLauncher;
 
 /// The launcher's state for the window and the command line: its home, its list of builds, its settings, and what git.magicbean.dev said
 /// is newest on each channel
@@ -13,9 +13,9 @@ public sealed class LauncherService
     public LauncherSettings Settings { get; private set; }
     public IReadOnlyDictionary<string, string?> Newest => newest;
     public IFetcher Fetcher { get; }
-    /// Longshot's signed releases on git.magicbean.dev (the builder of each version), checked against the keys this launcher trusts
+    /// Hookshot's signed releases on git.magicbean.dev (the builder of each version), checked against the keys this launcher trusts
     public Releases Releases { get; }
-    /// The launcher's own signed releases (MagicBeanDev/LongshotLauncher), checked the same way
+    /// The launcher's own signed releases (MagicBeanDev/HookshotLauncher), checked the same way
     public Releases LauncherReleases { get; }
     public Toolchains Tools { get; }
     /// This launcher's own version (SelfUpdate.OwnTag), and the one its channel (LauncherChannel) offers, if any
@@ -39,14 +39,14 @@ public sealed class LauncherService
         Home = home;
         Registry = BuildRegistry.Load(home.Builds);
         Settings = LauncherSettings.Load(home.Settings);
-        // (release files and packages through git-cdn.magicbean.dev first: CdnFetcher; LONGSHOT_LAUNCHER_NO_CDN=1 turns it off)
+        // (release files and packages through git-cdn.magicbean.dev first: CdnFetcher; HOOKSHOT_LAUNCHER_NO_CDN=1 turns it off)
         var cdn = CdnFetcher.EnabledByEnvironment();
         Fetcher = new CdnFetcher(Slow(new HttpFetcher(TimeSpan.FromSeconds(60))), cdn);
         Tools = new Toolchains(home.Toolchains, Fetcher);
         // (its own timeout, shorter: the check at start should not keep the window waiting on a server that does not answer)
         var check = new CdnFetcher(Slow(new HttpFetcher(TimeSpan.FromSeconds(20))), cdn);
         var keys = ReleaseKeys.Current();
-        Releases = new Releases(check, platform, keys, product: Product.Longshot);
+        Releases = new Releases(check, platform, keys, product: Product.Hookshot);
         // (the launcher's own releases: its own versions on its own three channels, chosen apart from the builds' in Settings)
         LauncherReleases = new Releases(check, platform, keys, product: Product.Launcher);
         SaveEnv = SaveEnvironment.Current() with
@@ -58,12 +58,12 @@ public sealed class LauncherService
         Gpus = SystemInfo.GpuVendors(platform);
     }
 
-    /// A Debug build only: LONGSHOT_LAUNCHER_DEBUG_SLOW=<ms> waits that long before each answer and after each MB of a download, to
+    /// A Debug build only: HOOKSHOT_LAUNCHER_DEBUG_SLOW=<ms> waits that long before each answer and after each MB of a download, to
     /// see the screens' busy states (a release build never reads it)
     static IFetcher Slow(IFetcher fetcher)
     {
 #if DEBUG
-        if (int.TryParse(Environment.GetEnvironmentVariable("LONGSHOT_LAUNCHER_DEBUG_SLOW"), out var ms) && ms > 0)
+        if (int.TryParse(Environment.GetEnvironmentVariable("HOOKSHOT_LAUNCHER_DEBUG_SLOW"), out var ms) && ms > 0)
             return new SlowFetcher(fetcher, TimeSpan.FromMilliseconds(ms));
 #endif
         return fetcher;
@@ -106,11 +106,11 @@ public sealed class LauncherService
 
     /// This launcher's path, for the game folders' stamp (builder=): the AppImage on Linux, else this program
     public static string LauncherPath =>
-        Environment.GetEnvironmentVariable("APPIMAGE") is { Length: > 0 } appImage ? appImage : Environment.ProcessPath ?? "LongshotLauncher";
+        Environment.GetEnvironmentVariable("APPIMAGE") is { Length: > 0 } appImage ? appImage : Environment.ProcessPath ?? "HookshotLauncher";
 
     public void SaveSettings() => Settings.Save(Home.Settings);
 
-    /// Where new builds go: the folder chosen, else ~/Games/Longshot, or a portable launcher's own builds folder
+    /// Where new builds go: the folder chosen, else ~/Games/Hookshot, or a portable launcher's own builds folder
     public string BuildsFolder => string.IsNullOrWhiteSpace(Settings.BuildsFolder) && Home.Portable ? Home.PortableBuilds : Settings.BuildsFolderOrDefault();
     public string Work => string.IsNullOrWhiteSpace(Settings.Work) ? Home.Work : Settings.Work;
 
@@ -133,7 +133,7 @@ public sealed class LauncherService
     public async Task<bool> CheckReleasesAsync(CancellationToken cancel = default)
     {
         var any = false;
-        // (each product's release list once per check: Longshot's three channels from one list, the launcher's from its own)
+        // (each product's release list once per check: Hookshot's three channels from one list, the launcher's from its own)
         foreach (var (channel, info) in await Releases.ChannelsAsync(Versions.Channels, cancel))
         {
             if (info == null) continue;
@@ -201,7 +201,7 @@ public sealed class LauncherService
         string? user = null;
         if (Platform == Platform.Windows)
         {
-            user = SaveEnv.LongshotUser;
+            user = SaveEnv.HookshotUser;
             // (the game makes it too; one it cannot make is the game's to report)
             try { Directory.CreateDirectory(user); }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException) { }
@@ -216,10 +216,10 @@ public sealed class LauncherService
         g.Done != null ? SaveText.Gathered(g.Done) : g.Problem != null ? Tr.F("Your saves were not brought together: {0}", g.Problem) : null;
 
     /// (Windows) The saves the builds kept in their own folders brought into the shared one (Saves.Gather): when the window opens
-    /// and before a game starts. The folders: every build's, every Longshot game folder in the builds folder (a version an update
-    /// replaced before it took its saves along is no longer listed, its saves still there; only Longshot's, never another game's
-    /// such as Hookshot's), and the 2.x Builder's (not for a portable launcher). Done: what it did (null: nothing to bring, or
-    /// Longshot runs); Problem: why it could not, with nothing changed
+    /// and before a game starts. The folders: every build's, every Hookshot game folder in the builds folder (a version an update
+    /// replaced before it took its saves along is no longer listed, its saves still there; only Hookshot's, never another game's
+    /// such as Longshot's), and the 2.x Builder's (not for a portable launcher). Done: what it did (null: nothing to bring, or
+    /// Hookshot runs); Problem: why it could not, with nothing changed
     public (SaveGathered? Done, string? Problem) GatherSaves()
     {
         if (Platform != Platform.Windows) return (null, null);
@@ -283,7 +283,7 @@ public sealed class LauncherService
         });
     }
 
-    /// Longshot's save slots, the same for every build (Saves.Shared)
+    /// Hookshot's save slots, the same for every build (Saves.Shared)
     public IReadOnlyList<SaveSlot> SaveSlots()
     {
         var set = Saves.Shared(SaveEnv);

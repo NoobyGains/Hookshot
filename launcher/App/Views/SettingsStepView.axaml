@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:LongshotLauncher.ViewModels"
-             xmlns:c="using:LongshotLauncher.Controls"
-             x:Class="LongshotLauncher.Views.SettingsStepView"
+             xmlns:vm="using:HookshotLauncher.ViewModels"
+             xmlns:c="using:HookshotLauncher.Controls"
+             x:Class="HookshotLauncher.Views.SettingsStepView"
              x:DataType="vm:SettingsStepViewModel">
   <!-- Step 2 (the mockup's wizard2): every row a title, a line saying what the choice means, and one control on the right -->
   <UserControl.Styles>

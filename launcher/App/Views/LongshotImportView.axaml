@@ -1,13 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:LongshotLauncher.ViewModels"
-             xmlns:c="using:LongshotLauncher.Controls"
-             x:Class="LongshotLauncher.Views.HookshotImportView"
-             x:DataType="vm:HookshotImportViewModel">
+             xmlns:vm="using:HookshotLauncher.ViewModels"
+             xmlns:c="using:HookshotLauncher.Controls"
+             x:Class="HookshotLauncher.Views.LongshotImportView"
+             x:DataType="vm:LongshotImportViewModel">
   <Border Classes="dialog wide" MaxHeight="560">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
       <StackPanel>
-        <TextBlock Classes="modaltitle" Text="{c:T 'Import saves from Hookshot'}"/>
+        <TextBlock Classes="modaltitle" Text="{c:T 'Import saves from Longshot'}"/>
         <TextBlock Classes="sub" Text="{Binding Sub}"/>
         <!-- the saves found: one row each, with its slots -->
         <StackPanel IsVisible="{Binding Listing}">
@@ -16,7 +16,7 @@
               <ItemsPanelTemplate><StackPanel Spacing="6"/></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:HookshotImportViewModel+Source">
+              <DataTemplate x:DataType="vm:LongshotImportViewModel+Source">
                 <Border Padding="12,9" CornerRadius="8" Background="#26000000" BorderBrush="{StaticResource GlassLine}" BorderThickness="1">
                   <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                     <c:Icon Kind="disk" Width="16" Height="16" Foreground="{StaticResource InkFaintText}" VerticalAlignment="Center"/>
@@ -33,7 +33,7 @@
           </ItemsControl>
           <TextBlock Classes="hint" Margin="0,14,0,0" IsVisible="{Binding NoSources}" Text="{Binding NoneText}" TextWrapping="Wrap"/>
         </StackPanel>
-        <!-- the question before a Longshot save is replaced -->
+        <!-- the question before a Hookshot save is replaced -->
         <Border Classes="warnbox" IsVisible="{Binding Asking}">
           <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
             <c:Icon Kind="alert" Width="18" Height="18" Foreground="{StaticResource Warn}" VerticalAlignment="Top"/>
@@ -49,7 +49,7 @@
           <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}"/>
         </StackPanel>
         <StackPanel Classes="buttons" Margin="0,16,0,0" IsVisible="{Binding Asking}">
-          <Button Content="{c:T 'Keep Longshot\'s save'}" Command="{Binding KeepCommand}"/>
+          <Button Content="{c:T 'Keep Hookshot\'s save'}" Command="{Binding KeepCommand}"/>
           <Button Classes="bad" Content="{c:T 'Back it up and replace it'}" Command="{Binding ReplaceCommand}"/>
         </StackPanel>
       </StackPanel>

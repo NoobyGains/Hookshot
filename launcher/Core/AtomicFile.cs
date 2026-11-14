@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// A file written whole or not at all: into a temporary file of its own beside it (&lt;name&gt;.&lt;random&gt;.tmp, so two writers never
 /// share one), flushed to the disk, then renamed over the old one. A failed write leaves the old file and no temporary one

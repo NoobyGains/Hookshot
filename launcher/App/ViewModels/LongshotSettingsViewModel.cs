@@ -1,30 +1,30 @@
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher.ViewModels;
+namespace HookshotLauncher.ViewModels;
 
-/// Hookshot's compatible settings copied into one installed Longshot version, separately from saves.
-public sealed class HookshotSettingsViewModel : ViewModelBase
+/// Longshot's compatible settings copied into one installed Hookshot version, separately from saves.
+public sealed class LongshotSettingsViewModel : ViewModelBase
 {
     string? sourceFolder;
     BuildEntry? target;
-    HookshotSettingsCopy? preview;
+    LongshotSettingsCopy? preview;
     IReadOnlyList<string> files = Array.Empty<string>();
     string? problem;
     bool busy;
     readonly bool severalSources;
 
-    public HookshotSettingsViewModel(MainViewModel main)
+    public LongshotSettingsViewModel(MainViewModel main)
     {
         Main = main;
-        BackCommand = new Command(() => Main.Modal = new HookshotImportViewModel(Main));
+        BackCommand = new Command(() => Main.Modal = new LongshotImportViewModel(Main));
         CloseCommand = new Command(() => Main.Modal = null);
         PickFolderCommand = new Command(() => _ = PickFolderAsync());
         ImportCommand = new Command(Import, () => CanImport);
         Targets = main.Service.Registry.Builds.Where(main.Service.IsBuilt).ToList();
         // (no version chosen for the player: the import changes the one they pick, and Import waits for that choice)
         target = null;
-        var roots = HookshotSaves.Roots(main.Service.SaveEnv)
-            .Where(r => File.Exists(Path.Combine(r, "hookshot_options.ini")) || File.Exists(Path.Combine(r, "language.txt")))
+        var roots = LongshotSaves.Roots(main.Service.SaveEnv)
+            .Where(r => File.Exists(Path.Combine(r, "longshot_options.ini")) || File.Exists(Path.Combine(r, "language.txt")))
             .ToList();
         severalSources = roots.Count > 1;
         sourceFolder = roots.Count == 1 ? roots[0] : null;
@@ -38,8 +38,8 @@ public sealed class HookshotSettingsViewModel : ViewModelBase
     public string SourcePath => ShownPath.Of(sourceFolder);
     public bool HasSource => sourceFolder != null;
     public string SourceHint => severalSources
-        ? Tr.T("Several Hookshot folders have settings. Choose the game folder you want to import from.")
-        : Tr.T("Choose your Hookshot game folder, which holds hookshot_options.ini or language.txt.");
+        ? Tr.T("Several Longshot folders have settings. Choose the game folder you want to import from.")
+        : Tr.T("Choose your Longshot game folder, which holds longshot_options.ini or language.txt.");
     public string TargetPath => ShownPath.Of(Target?.Folder);
     public bool HasTarget => Target != null;
     public bool NeedsTarget => HasTargets && !HasTarget;
@@ -47,11 +47,11 @@ public sealed class HookshotSettingsViewModel : ViewModelBase
     public bool HasFiles => files.Count > 0;
     public string BackupText => preview?.Backup is { } backup
         ? Tr.F("Existing files will be backed up in {0}.", ShownPath.Of(backup))
-        : Tr.T("There are no matching Longshot files to back up.");
+        : Tr.T("There are no matching Hookshot files to back up.");
     public bool HasPreview => preview != null;
     public string SkippedText => preview is { SkippedKeys.Count: > 0 } copy
-        ? Tr.P(copy.SkippedKeys.Count, "1 Hookshot option is unknown to Longshot or has a value it does not take, and will be skipped: {1}.",
-               "{0} Hookshot options are unknown to Longshot or have a value it does not take, and will be skipped: {1}.",
+        ? Tr.P(copy.SkippedKeys.Count, "1 Longshot option is unknown to Hookshot or has a value it does not take, and will be skipped: {1}.",
+               "{0} Longshot options are unknown to Hookshot or have a value it does not take, and will be skipped: {1}.",
                string.Join(", ", copy.SkippedKeys))
         : "";
     public bool HasSkipped => preview?.SkippedKeys.Count > 0;
@@ -85,7 +85,7 @@ public sealed class HookshotSettingsViewModel : ViewModelBase
     async Task PickFolderAsync()
     {
         if (Main.Host is not { } host) return;
-        var folder = await host.PickFolderAsync(Tr.T("Your Hookshot game folder"), sourceFolder);
+        var folder = await host.PickFolderAsync(Tr.T("Your Longshot game folder"), sourceFolder);
         if (folder == null) return;
         sourceFolder = folder;
         Refresh();
@@ -100,9 +100,9 @@ public sealed class HookshotSettingsViewModel : ViewModelBase
         {
             if (sourceFolder != null)
             {
-                files = HookshotSettings.FilesIn(sourceFolder);
+                files = LongshotSettings.FilesIn(sourceFolder);
                 if (Target != null)
-                    preview = HookshotSettings.Import(sourceFolder, Target.Folder, Main.Service.SaveEnv.BackupRoot, overwrite: false, dryRun: true);
+                    preview = LongshotSettings.Import(sourceFolder, Target.Folder, Main.Service.SaveEnv.BackupRoot, overwrite: false, dryRun: true);
             }
         }
         catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException) { problem = e.Message; }
@@ -117,9 +117,9 @@ public sealed class HookshotSettingsViewModel : ViewModelBase
         Changed();
         try
         {
-            if (!Main.Service.IsBuilt(Target)) throw new SaveFailure(Tr.T("This Longshot version is no longer built. Build it before importing settings."));
+            if (!Main.Service.IsBuilt(Target)) throw new SaveFailure(Tr.T("This Hookshot version is no longer built. Build it before importing settings."));
             var language = LanguageChange;
-            var done = HookshotSettings.Import(sourceFolder, Target.Folder, Main.Service.SaveEnv.BackupRoot, overwrite: true);
+            var done = LongshotSettings.Import(sourceFolder, Target.Folder, Main.Service.SaveEnv.BackupRoot, overwrite: true);
             if (language != null && done.Language == language)
             {
                 Main.Service.Settings.Language = language;
@@ -127,8 +127,8 @@ public sealed class HookshotSettingsViewModel : ViewModelBase
             }
             Main.Modal = null;
             Main.ShowToast(done.Backup != null
-                ? Tr.F("Imported Hookshot settings into {0}. The earlier files are in {1}.", Target.Name, ShownPath.Of(done.Backup))
-                : Tr.F("Imported Hookshot settings into {0}.", Target.Name));
+                ? Tr.F("Imported Longshot settings into {0}. The earlier files are in {1}.", Target.Name, ShownPath.Of(done.Backup))
+                : Tr.F("Imported Longshot settings into {0}.", Target.Name));
             Main.Home.Refresh();
         }
         catch (Exception e) when (e is SaveFailure or IOException or UnauthorizedAccessException)

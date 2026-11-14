@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Diagnostics;
 using System.Text.Json;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
 /// What the launcher's screens use from the core: the game files found and checked, the tools of step 1, the build's run and its
 /// times, the builds folder, an update taking its build's row, the space on the disk, the saves' refusals and summaries, the shortcuts
@@ -77,9 +77,9 @@ static partial class Program
 
     static void GameCheckChecks()
     {
-        var ok = GameCheck.Read(new[] { "reading", "@@check ok This is the version Longshot supports (build e0f3ccfa)." }, null, 0);
+        var ok = GameCheck.Read(new[] { "reading", "@@check ok This is the version Hookshot supports (build e0f3ccfa)." }, null, 0);
         Require(ok.Ok && ok.Text.StartsWith("This is the version"), "@@check ok is the supported version.");
-        var bad = GameCheck.Read(new[] { "@@check bad This is build 12345678. Longshot supports build e0f3ccfa." }, "warn", 0);
+        var bad = GameCheck.Read(new[] { "@@check bad This is build 12345678. Hookshot supports build e0f3ccfa." }, "warn", 0);
         Require(bad.Status == GameCheckStatus.OtherVersion && bad.Text.Contains("12345678"), "@@check bad is another version.");
         var err = GameCheck.Read(new[] { "@@error The .nup could not be read." }, null, 1);
         Require(err.Status == GameCheckStatus.Unreadable && err.Text == "The .nup could not be read.", "@@error: it could not be read.");
@@ -90,7 +90,7 @@ static partial class Program
         var lin = new Toolchain("v3.0.0", Path.Combine(home.Toolchains, "v3.0.0"), ListKind.Linux, null);
         var c = MakeGameCommand.ForCheck(lin, new BuildSource.Nup("/d/game.nup"), Platform.Linux, home, "/L");
         Require(c.Arguments.SequenceEqual(new[] { "-I", lin.MakeGame, "--check", "--nup", "/d/game.nup", "--work", home.Work })
-                && c.FileName == lin.Python && c.Environment["LONGSHOT_TOOLS"] == lin.ToolsRoot && c.Environment["LONGSHOT_NGX_SDK"] == null,
+                && c.FileName == lin.Python && c.Environment["HOOKSHOT_TOOLS"] == lin.ToolsRoot && c.Environment["HOOKSHOT_NGX_SDK"] == null,
                 "The check of a .nup: the tools' Python and environment, --work for its probe: " + string.Join(" ", c.Arguments));
         var f = MakeGameCommand.ForCheck(lin, new BuildSource.Folders("/d/romfs", "/d/exefs"), Platform.Linux, home, "/L", work: "/w");
         Require(f.Arguments.SequenceEqual(new[] { "-I", lin.MakeGame, "--check", "--exefs", "/d/exefs", "--work", "/w" }), "The check of folders: the exefs.");
@@ -253,7 +253,7 @@ static partial class Program
         var keys = new[] { trusted };
 
         // (Linux: the release's AppImage, checked, then unpacked by its own --appimage-extract: here an authored one)
-        var forge = new FakeForgejo(Product.Longshot);
+        var forge = new FakeForgejo(Product.Hookshot);
         var image = Encoding.UTF8.GetBytes("\x7fELF an authored AppImage");
         forge.Add("v3.0.0", key, files: new() { [ReleaseManifest.BuilderFile("v3.0.0", "linux-x64")] = image });
         var extracted = new List<string>();
@@ -261,9 +261,9 @@ static partial class Program
         {
             extracted.Add(File.ReadAllText(appImage));
             var tree = Path.Combine(folder, "squashfs-root");
-            Directory.CreateDirectory(Path.Combine(tree, "usr", "share", "longshot", "nx2"));
+            Directory.CreateDirectory(Path.Combine(tree, "usr", "share", "hookshot", "nx2"));
             File.WriteAllText(Path.Combine(tree, "AppRun"), "#!/bin/sh\n");
-            File.WriteAllText(Path.Combine(tree, "usr", "share", "longshot", "nx2", "make_game.py"), "print('authored')\n");
+            File.WriteAllText(Path.Combine(tree, "usr", "share", "hookshot", "nx2", "make_game.py"), "print('authored')\n");
             return Task.CompletedTask;
         }
         var releases = new Releases(forge.Server, Platform.Linux, keys, NoWait);
@@ -287,21 +287,21 @@ static partial class Program
         // at their dests as on Windows; the Windows lines are not taken. The next version keeps the ones it shares)
         var clang = Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n", null, 0x1ED), ("emsdk/upstream/bin/clang", null, "clang-23", 0x1FF));
         var sdl = Zip(("sdl2/libSDL2-2.0.so.0", "\x7fELF sdl", null, 0x1A4));
-        var lnx = new FakeForgejo(Product.Longshot);
+        var lnx = new FakeForgejo(Product.Hookshot);
         lnx.Server.Files["https://tools/clang.zip"] = clang;
         lnx.Server.Files["https://tools/sdl2.zip"] = sdl;
         string LinuxLock(byte[] c) =>
-            $"tool emsdk 23 linux-x64 {ShaOf(c)} {c.Length} usr/lib/longshot/emsdk emsdk https://tools-gone/c.zip https://tools/clang.zip\n" +
-            $"tool sdl2 2 linux-x64 {ShaOf(sdl)} {sdl.Length} usr/lib/longshot/sdl2 sdl2 https://tools/sdl2.zip\n" +
-            $"tool python 3 windows-x64 {new string('a', 64)} 10 LongshotBuilder/tools/python python https://tools/windows.zip\n";
+            $"tool emsdk 23 linux-x64 {ShaOf(c)} {c.Length} usr/lib/hookshot/emsdk emsdk https://tools-gone/c.zip https://tools/clang.zip\n" +
+            $"tool sdl2 2 linux-x64 {ShaOf(sdl)} {sdl.Length} usr/lib/hookshot/sdl2 sdl2 https://tools/sdl2.zip\n" +
+            $"tool python 3 windows-x64 {new string('a', 64)} 10 HookshotBuilder/tools/python python https://tools/windows.zip\n";
         var lockInside = LinuxLock(clang);
         Task ExtractWithLock(string appImage, string folder, CancellationToken cancel)
         {
             var tree = Path.Combine(folder, "squashfs-root");
-            Directory.CreateDirectory(Path.Combine(tree, "usr", "share", "longshot", "nx2"));
+            Directory.CreateDirectory(Path.Combine(tree, "usr", "share", "hookshot", "nx2"));
             File.WriteAllText(Path.Combine(tree, "AppRun"), "#!/bin/sh\n");
-            File.WriteAllText(Path.Combine(tree, "usr", "share", "longshot", "nx2", "make_game.py"), "print('authored')\n");
-            File.WriteAllText(Path.Combine(tree, "usr", "share", "longshot", "tools.lock"), lockInside);
+            File.WriteAllText(Path.Combine(tree, "usr", "share", "hookshot", "nx2", "make_game.py"), "print('authored')\n");
+            File.WriteAllText(Path.Combine(tree, "usr", "share", "hookshot", "tools.lock"), lockInside);
             return Task.CompletedTask;
         }
         lnx.Add("v3.4.0", key, files: new() { [ReleaseManifest.BuilderFile("v3.4.0", "linux-x64")] = image });
@@ -313,15 +313,15 @@ static partial class Program
         Require(File.ReadAllText(Path.Combine(lib, "emsdk", "upstream", "bin", "clang")) == "#!/bin/sh\n"
                 && new FileInfo(Path.Combine(lib, "emsdk", "upstream", "bin", "clang")).LinkTarget == "clang-23"
                 && File.ReadAllText(Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0")) == "\x7fELF sdl"
-                && !lnx.Server.Asked.Contains("https://tools/windows.zip") && !Directory.Exists(Path.Combine(lt4.Folder, "LongshotBuilder"))
+                && !lnx.Server.Asked.Contains("https://tools/windows.zip") && !Directory.Exists(Path.Combine(lt4.Folder, "HookshotBuilder"))
                 && Math.Abs(seen[^1].Fraction - 1) < 1e-9 && seen.Zip(seen.Skip(1)).All(p => p.Second.Fraction >= p.First.Fraction - 1e-9),
                 "Linux: the AppImage's tools.lock tools unpacked beside it, from the mirror when the first link is gone.");
         if (!OperatingSystem.IsWindows())
             Require((File.GetUnixFileMode(Path.Combine(lib, "emsdk", "upstream", "bin", "clang-23")) & UnixFileMode.UserExecute) != 0,
                     "A tool's executable keeps its mode.");
         var l4 = MakeGameCommand.For(lt4, new BuildRequest(new BuildSource.Nup("/g.nup"), "/o"), Platform.Linux,
-                                     new LauncherHome(Path.Combine(root, "home-linux")), "/L/Longshot.AppImage");
-        Require(l4.Environment["LONGSHOT_SDL2"] == Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0") && l4.Environment["EMSDK"] == Path.Combine(lib, "emsdk"),
+                                     new LauncherHome(Path.Combine(root, "home-linux")), "/L/Hookshot.AppImage");
+        Require(l4.Environment["HOOKSHOT_SDL2"] == Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0") && l4.Environment["EMSDK"] == Path.Combine(lib, "emsdk"),
                 "Linux: make_game.py is given tools.lock's tools.");
         // (the next version: SDL2 the same archive, kept; a new clang downloaded)
         var clang2 = Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n# 2\n", null, 0x1ED));
@@ -343,25 +343,25 @@ static partial class Program
                 "A failed install leaves nothing that looks installed.");
 
         // (Windows: the builder's zip as it is, then tools.lock's tools: a prefix becomes the dest, a mirror stands in for upstream)
-        // (the zip has LongshotBuilder/tools/third_party, the repository's sources: the third-party tool's prebuilt files go among them)
-        var zip = Zip(("LongshotBuilder.exe", "MZ setup", null, 0x1A4), ("LongshotBuilder/LongshotBuilder.exe", "MZ builder", null, 0x1A4),
-                      ("LongshotBuilder/tools/nx2/make_game.py", "print('authored')\n", null, 0x1A4),
-                      ("LongshotBuilder/tools/third_party/a64-kit/lift/a64emit.cpp", "// source\n", null, 0x1A4));
-        var py = Zip(("HookshotBuilder/tools/python/python.exe", "MZ python", null, 0x1A4), ("HookshotBuilder/HookshotBuilder.exe", "not taken", null, 0x1A4));
+        // (the zip has HookshotBuilder/tools/third_party, the repository's sources: the third-party tool's prebuilt files go among them)
+        var zip = Zip(("HookshotBuilder.exe", "MZ setup", null, 0x1A4), ("HookshotBuilder/HookshotBuilder.exe", "MZ builder", null, 0x1A4),
+                      ("HookshotBuilder/tools/nx2/make_game.py", "print('authored')\n", null, 0x1A4),
+                      ("HookshotBuilder/tools/third_party/a64-kit/lift/a64emit.cpp", "// source\n", null, 0x1A4));
+        var py = Zip(("LongshotBuilder/tools/python/python.exe", "MZ python", null, 0x1A4), ("LongshotBuilder/LongshotBuilder.exe", "not taken", null, 0x1A4));
         var tp = Zip(("third_party/a64-kit/lift/a64emit.dll", "MZ a64emit", null, 0x1A4), ("third_party/sdl2/SDL3.dll", "MZ SDL3", null, 0x1A4));
-        var win = new FakeForgejo(Product.Longshot);
+        var win = new FakeForgejo(Product.Hookshot);
         win.Server.Files["https://mirror/p.zip"] = py;
         win.Server.Files["https://packages/tp.zip"] = tp;
-        var lockText = $"tool python 3.14 windows-x64 {ShaOf(py)} {py.Length} LongshotBuilder/tools/python HookshotBuilder/tools/python " +
+        var lockText = $"tool python 3.14 windows-x64 {ShaOf(py)} {py.Length} HookshotBuilder/tools/python LongshotBuilder/tools/python " +
                        "https://upstream-gone/p.zip https://mirror/p.zip\n" +
-                       $"tool third-party hookshot-v2.1.0 windows-x64 {ShaOf(tp)} {tp.Length} LongshotBuilder/tools/third_party third_party " +
+                       $"tool third-party longshot-v2.1.0 windows-x64 {ShaOf(tp)} {tp.Length} HookshotBuilder/tools/third_party third_party " +
                        "https://packages/tp.zip\n";
         win.Add("v3.2.0", key, files: new() { [ReleaseManifest.BuilderFile("v3.2.0", "windows-x64")] = zip, ["tools.lock"] = Encoding.UTF8.GetBytes(lockText) });
         var winChains = new Toolchains(Path.Combine(root, "toolchains-win"), win.Server);
         var wt = await ToolsSource.EnsureAsync(winChains, new Releases(win.Server, Platform.Windows, keys, NoWait), "v3.2.0");
         Require(wt.Kind == ListKind.Setup && File.ReadAllText(wt.MakeGame) == "print('authored')\n"
                 && File.ReadAllText(Path.Combine(wt.ToolsRoot, "python", "python.exe")) == "MZ python"
-                && !File.Exists(Path.Combine(wt.Folder, "LongshotBuilder", "tools", "HookshotBuilder", "HookshotBuilder.exe")),
+                && !File.Exists(Path.Combine(wt.Folder, "HookshotBuilder", "tools", "LongshotBuilder", "LongshotBuilder.exe")),
                 "Windows: the builder's zip and its tools.lock's tools, from the mirror when upstream is gone.");
         var thirdParty = Path.Combine(wt.ToolsRoot, "third_party");
         Require(File.ReadAllText(Path.Combine(thirdParty, "a64-kit", "lift", "a64emit.cpp")) == "// source\n"
@@ -384,19 +384,19 @@ static partial class Program
     {
         var home = Path.Combine(scratch, "player");
         Func<string, string?> env = k => k == "HOME" ? home : null;
-        Require(LauncherSettings.DefaultBuildsFolder(env) == Path.Combine(home, "Games", "Longshot"), "Builds go to ~/Games/Longshot by default.");
+        Require(LauncherSettings.DefaultBuildsFolder(env) == Path.Combine(home, "Games", "Hookshot"), "Builds go to ~/Games/Hookshot by default.");
         var s = new LauncherSettings();
-        Require(s.CheckUpdates && s.BuildsFolder == null && s.BuildsFolderOrDefault(env) == Path.Combine(home, "Games", "Longshot"), "The defaults.");
+        Require(s.CheckUpdates && s.BuildsFolder == null && s.BuildsFolderOrDefault(env) == Path.Combine(home, "Games", "Hookshot"), "The defaults.");
         var path = Path.Combine(Folder("settings2"), "settings.json");
-        s.BuildsFolder = "/mnt/fast/longshot";
+        s.BuildsFolder = "/mnt/fast/hookshot";
         s.CheckUpdates = false;
         s.Save(path);
         var t = LauncherSettings.Load(path);
-        Require(t.BuildsFolder == "/mnt/fast/longshot" && !t.CheckUpdates && t.BuildsFolderOrDefault(env) == "/mnt/fast/longshot", "Saved and read back.");
+        Require(t.BuildsFolder == "/mnt/fast/hookshot" && !t.CheckUpdates && t.BuildsFolderOrDefault(env) == "/mnt/fast/hookshot", "Saved and read back.");
         var taken = new HashSet<string> { Path.Combine("/b", "v3.0.0"), Path.Combine("/b", "v3.0.0 (2)") };
         Require(LauncherSettings.FolderFor("/b", "v3.1.0", taken.Contains) == Path.Combine("/b", "v3.1.0")
                 && LauncherSettings.FolderFor("/b", "v3.0.0", taken.Contains) == Path.Combine("/b", "v3.0.0 (3)")
-                && LauncherSettings.FolderFor("/b", "../x", _ => false) == Path.Combine("/b", "Longshot"), "A new build's folder: its version's name, once.");
+                && LauncherSettings.FolderFor("/b", "../x", _ => false) == Path.Combine("/b", "Hookshot"), "A new build's folder: its version's name, once.");
     }
 
     static void ReplaceChecks()
@@ -431,7 +431,7 @@ static partial class Program
 
         // (Delete: never a folder that holds another build, the launcher's home or the home folder, nor a link)
         var games = Folder("delete-guard");
-        var outer = Path.Combine(games, "Longshot");
+        var outer = Path.Combine(games, "Hookshot");
         var inner = Path.Combine(outer, "v3.0.0");
         Touch(Path.Combine(outer, GameFolder.StampName), "version=v3.3.0\n");
         Touch(Path.Combine(inner, GameFolder.StampName), "version=v3.0.0\n");
@@ -507,10 +507,10 @@ static partial class Program
         Touch(Path.Combine(dst, "account.sav"));
         try
         {
-            Saves.Copy(src, dst, Path.Combine(root, "b"), "import", "x", running: () => new[] { "Longshot" });
+            Saves.Copy(src, dst, Path.Combine(root, "b"), "import", "x", running: () => new[] { "Hookshot" });
             Require(false, "A copy went ahead while a game ran.");
         }
-        catch (SaveFailure f) { Require(f.Reason == SaveRefusal.Running && f.Who.SequenceEqual(new[] { "Longshot" }), "Refused: a game runs."); }
+        catch (SaveFailure f) { Require(f.Reason == SaveRefusal.Running && f.Who.SequenceEqual(new[] { "Hookshot" }), "Refused: a game runs."); }
         Touch(Path.Combine(root, "game", "profile", "save-tx", "work", "account.sav"));
         Require(Saves.Copy(src, dst, Path.Combine(root, "b"), "import", "x", dryRun: true).Dry,
                 "NX2navi's working copy, which a quit leaves in save-tx, is no save waiting.");
@@ -545,16 +545,16 @@ static partial class Program
         Func<string, string?> env = k => k switch { "HOME" => home, "XDG_DATA_HOME" => Path.Combine(root, "data"), _ => null };
         var game = Path.Combine(root, "Games", "ゲーム v3.0.0");
         Directory.CreateDirectory(game);
-        Shortcuts.WriteLinux("/apps/Longshot.AppImage", game, desktop: true, menu: true, getenv: env);
+        Shortcuts.WriteLinux("/apps/Hookshot.AppImage", game, desktop: true, menu: true, getenv: env);
         var (d, m) = Shortcuts.LinuxPaths(env);
-        Require(m == Path.Combine(root, "data", "applications", "longshot.desktop") && File.Exists(d) && File.Exists(m), "Both shortcuts made.");
+        Require(m == Path.Combine(root, "data", "applications", "hookshot.desktop") && File.Exists(d) && File.Exists(m), "Both shortcuts made.");
         var text = File.ReadAllText(m);
         // (the folder quoted as Exec quotes it: a Windows scratch folder's backslashes are doubled there)
-        Require(text.Contains("Exec=" + Shortcuts.Quote("/apps/Longshot.AppImage") + " --play " + Shortcuts.Quote(game)) && text.StartsWith("[Desktop Entry]\n"),
+        Require(text.Contains("Exec=" + Shortcuts.Quote("/apps/Hookshot.AppImage") + " --play " + Shortcuts.Quote(game)) && text.StartsWith("[Desktop Entry]\n"),
                 "The entry starts the launcher's Play of that folder: " + text);
-        Shortcuts.WriteLinux("/apps/Longshot.AppImage", null, desktop: false, menu: true, icon: "/i.png", getenv: env);
+        Shortcuts.WriteLinux("/apps/Hookshot.AppImage", null, desktop: false, menu: true, icon: "/i.png", getenv: env);
         Require(!File.Exists(d) && File.Exists(m), "Unticked: removed.");
-        Require(File.ReadAllText(m).Contains("Exec=\"/apps/Longshot.AppImage\" --play\n") && File.ReadAllText(m).Contains("Icon=/i.png\n")
+        Require(File.ReadAllText(m).Contains("Exec=\"/apps/Hookshot.AppImage\" --play\n") && File.ReadAllText(m).Contains("Icon=/i.png\n")
                 && !File.ReadAllText(m).Contains("Path="), "With no folder: Play of the default build.");
 
         // (SystemInfo: the GPU makers from /sys/class/drm)

@@ -1,9 +1,9 @@
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// How this launcher is kept on the PC (README, "Installing"):
-///   Installed  Windows: %LOCALAPPDATA%\Programs\LongshotLauncher\LongshotLauncher.exe, with a Start menu shortcut and an entry in
+///   Installed  Windows: %LOCALAPPDATA%\Programs\HookshotLauncher\HookshotLauncher.exe, with a Start menu shortcut and an entry in
 ///              Apps &amp; features (Installer); its data in the launcher's home (LauncherHome)
-///   Portable   Windows: a file named "portable" beside the program, its data in LongshotLauncher-data beside it; Linux: an
+///   Portable   Windows: a file named "portable" beside the program, its data in HookshotLauncher-data beside it; Linux: an
 ///              &lt;AppImage&gt;.home folder beside the AppImage (the AppImage convention), its data there. Nothing written elsewhere
 ///   Plain      anything else: the Windows download not installed yet (it offers Install or Run portable when it starts), the
 ///              AppImage, or a build from a checkout
@@ -12,10 +12,10 @@ public enum LauncherKind { Plain, Installed, Portable }
 /// The launcher's own file and its kind
 public sealed record LauncherLayout(Platform Platform, string? File, LauncherKind Kind)
 {
-    public const string PortableMarker = "portable", PortableData = "LongshotLauncher-data", ProgramName = "LongshotLauncher.exe";
+    public const string PortableMarker = "portable", PortableData = "HookshotLauncher-data", ProgramName = "HookshotLauncher.exe";
 
-    /// Where the launcher installs itself on Windows (per user, no administrator rights): %LOCALAPPDATA%\Programs\LongshotLauncher
-    public static string InstallFolder(Func<string, string?> getenv) => Path.Combine(LocalAppData(getenv), "Programs", "LongshotLauncher");
+    /// Where the launcher installs itself on Windows (per user, no administrator rights): %LOCALAPPDATA%\Programs\HookshotLauncher
+    public static string InstallFolder(Func<string, string?> getenv) => Path.Combine(LocalAppData(getenv), "Programs", "HookshotLauncher");
 
     public static string InstalledExe(Func<string, string?> getenv) => Path.Combine(InstallFolder(getenv), ProgramName);
 
@@ -40,13 +40,13 @@ public sealed record LauncherLayout(Platform Platform, string? File, LauncherKin
                                                       ? LauncherKind.Installed : LauncherKind.Plain);
     }
 
-    /// A portable launcher's data folder: LongshotLauncher-data beside the Windows program, the &lt;AppImage&gt;.home folder on Linux;
+    /// A portable launcher's data folder: HookshotLauncher-data beside the Windows program, the &lt;AppImage&gt;.home folder on Linux;
     /// null when it is not portable
     public string? PortableHome => Kind != LauncherKind.Portable || File == null ? null
         : Platform == Platform.Linux ? File + ".home" : Path.Combine(Path.GetDirectoryName(File)!, PortableData);
 
     /// Whether the first start asks Install or Run portable: the Windows download, neither installed nor portable, a release's
-    /// (a build from a checkout does not ask; --install installs it anyway), with no LONGSHOT_LAUNCHER_HOME set
+    /// (a build from a checkout does not ask; --install installs it anyway), with no HOOKSHOT_LAUNCHER_HOME set
     public bool OffersInstall(string ownTag, Func<string, string?> getenv) =>
         Platform == Platform.Windows && Kind == LauncherKind.Plain && File != null && ownTag != "dev"
         && getenv(LauncherHome.Variable) is not { Length: > 0 };

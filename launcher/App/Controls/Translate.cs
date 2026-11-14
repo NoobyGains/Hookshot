@@ -1,8 +1,8 @@
 using System.ComponentModel;
 using Avalonia.Data;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher.Controls;
+namespace HookshotLauncher.Controls;
 
 /// A text of the window's in the player's language: Text="{c:T 'Release notes'}", the English as in Lang/&lt;code&gt;.json. It
 /// follows a change of language at once

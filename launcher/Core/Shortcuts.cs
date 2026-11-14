@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// The shortcuts a build's Ready screen makes: on the desktop and in the Start menu (Windows) or the applications menu (Linux).
 /// They start the launcher with --play (the default build's game, so they follow "Play starts this version" and an update's
@@ -8,14 +8,14 @@ namespace LongshotLauncher.Core;
 /// written by the window (the shell makes them)
 public static class Shortcuts
 {
-    public const string Name = "Longshot";
+    public const string Name = "Hookshot";
 
     /// A .desktop entry that starts launcher --play [folder]
     public static string DesktopEntry(string launcher, string? folder, string? icon)
     {
         var sb = new StringBuilder();
         sb.Append("[Desktop Entry]\nType=Application\nName=").Append(Name).Append('\n');
-        sb.Append("Comment=Longshot\n");
+        sb.Append("Comment=Hookshot\n");
         sb.Append("Exec=").Append(Quote(launcher)).Append(" --play");
         if (folder != null) sb.Append(' ').Append(Quote(folder));
         sb.Append('\n');
@@ -41,13 +41,13 @@ public static class Shortcuts
         return sb.Append('"').ToString();
     }
 
-    /// Where the two Linux shortcuts go: ~/Desktop/longshot.desktop and $XDG_DATA_HOME/applications/longshot.desktop
+    /// Where the two Linux shortcuts go: ~/Desktop/hookshot.desktop and $XDG_DATA_HOME/applications/hookshot.desktop
     public static (string Desktop, string Menu) LinuxPaths(Func<string, string?>? getenv = null)
     {
         getenv ??= Environment.GetEnvironmentVariable;
         var home = LauncherHome.Home(getenv);
         var data = getenv("XDG_DATA_HOME") is { Length: > 0 } x ? x : Path.Combine(home, ".local", "share");
-        return (Path.Combine(home, "Desktop", "longshot.desktop"), Path.Combine(data, "applications", "longshot.desktop"));
+        return (Path.Combine(home, "Desktop", "hookshot.desktop"), Path.Combine(data, "applications", "hookshot.desktop"));
     }
 
     /// The Linux shortcuts made (or removed) as the two ticks say; the desktop one only when there is a Desktop folder
@@ -73,10 +73,10 @@ public static class Shortcuts
     // ---- the launcher itself in the Linux applications menu (Settings, "Add to applications menu") ----
 
     /// (also the window's Wayland app_id and X11 WM_CLASS, Program, and the entries' StartupWMClass: a taskbar finds the entry's icon)
-    public const string LauncherEntryName = "longshot-launcher";
+    public const string LauncherEntryName = "hookshot-launcher";
 
-    /// Where the launcher's own menu entry and its icon go: $XDG_DATA_HOME/applications/longshot-launcher.desktop and
-    /// $XDG_DATA_HOME/icons/hicolor/512x512/apps/longshot-launcher.png
+    /// Where the launcher's own menu entry and its icon go: $XDG_DATA_HOME/applications/hookshot-launcher.desktop and
+    /// $XDG_DATA_HOME/icons/hicolor/512x512/apps/hookshot-launcher.png
     public static (string Entry, string Icon) LauncherMenuPaths(Func<string, string?>? getenv = null)
     {
         getenv ??= Environment.GetEnvironmentVariable;
@@ -87,8 +87,8 @@ public static class Shortcuts
 
     /// The launcher's own .desktop entry: the AppImage where it is now, with no arguments (the window)
     public static string LauncherEntry(string appImage, string icon) =>
-        "[Desktop Entry]\nType=Application\nName=Longshot Launcher\n" +
-        "Comment=Install Longshot's builder, build the game from your own copy, and play\n" +
+        "[Desktop Entry]\nType=Application\nName=Hookshot Launcher\n" +
+        "Comment=Install Hookshot's builder, build the game from your own copy, and play\n" +
         "Exec=" + Quote(appImage) + "\n" +
         "TryExec=" + appImage + "\n" +
         "Icon=" + icon + "\nTerminal=false\nCategories=Game;\nStartupWMClass=" + LauncherEntryName + "\n";

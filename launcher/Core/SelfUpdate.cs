@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Security.Cryptography;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// The launcher updating itself (docs/releases.md, "The launcher's own update"). It is one file on both systems, a
 /// self-contained single-file program on Windows and an AppImage on Linux, so an update is one file, whatever that file is named:
@@ -11,22 +11,22 @@ namespace LongshotLauncher.Core;
 ///   2. start it with --self-check, which must answer with the version the release names, so a file that does not run on this
 ///      PC is never put in place;
 ///   3. swap: this file becomes &lt;name&gt;.old (kept for --rollback), the new one takes its name, so the file keeps the name it was
-///      installed or started as (an installed launcher stays LongshotLauncher.exe, a portable one stays beside its "portable" file);
+///      installed or started as (an installed launcher stays HookshotLauncher.exe, a portable one stays beside its "portable" file);
 ///   4. start the new one, and close.
 /// A crash between the two renames of step 3 on Windows is put right at the next start (Recover).
 /// Only a newer version on the launcher's own track is offered; a build from a checkout ("dev") never updates itself.
 public static class SelfUpdate
 {
-    public const string TagKey = "LongshotTag";
+    public const string TagKey = "HookshotTag";
     public const string CheckArgument = "--self-check", RollbackArgument = "--rollback";
 
-    /// This launcher's version: the tag the release build stamped (-p:LongshotTag=, an AssemblyMetadata), else "dev"
+    /// This launcher's version: the tag the release build stamped (-p:HookshotTag=, an AssemblyMetadata), else "dev"
     public static string OwnTag(Assembly? assembly = null) =>
         (assembly ?? Assembly.GetEntryAssembly())?.GetCustomAttributes<AssemblyMetadataAttribute>()
         .FirstOrDefault(a => a.Key == TagKey)?.Value is { Length: > 0 } tag && Versions.IsTagName(tag) ? tag : "dev";
 
     /// What --self-check prints
-    public static string CheckLine(string tag) => "LongshotLauncher " + tag;
+    public static string CheckLine(string tag) => "HookshotLauncher " + tag;
 
     /// The launcher's channel: the one the player chose, else its own version's track (a build from a checkout follows stable)
     public static string ChannelOf(string own, string? chosen) =>
@@ -50,7 +50,7 @@ public static class SelfUpdate
         Versions.Newer(offered, own, Versions.LauncherFirstMajor) ? 1 : Versions.Newer(own, offered, Versions.LauncherFirstMajor) ? -1 : 0;
 
     /// The file this launcher runs from: the AppImage on Linux ($APPIMAGE), else the program itself, whatever it is named (the
-    /// download's LongshotLauncher-&lt;v&gt;-windows-x64-setup.exe, the installed LongshotLauncher.exe, a renamed copy); null when it is
+    /// download's HookshotLauncher-&lt;v&gt;-windows-x64-setup.exe, the installed HookshotLauncher.exe, a renamed copy); null when it is
     /// not one that can replace itself (dotnet run: dotnet.exe; a dll)
     public static string? CurrentFile(Platform platform, Func<string, string?>? getenv = null, string? processPath = null)
     {

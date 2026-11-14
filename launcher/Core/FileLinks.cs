@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// Hard links, which .NET has no call for: a part kept from another installed version takes no second copy on the same disk
 static class FileLinks

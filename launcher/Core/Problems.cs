@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// What went wrong, in the words a player needs, and what they can do about it: from a build that stopped (make_game.py's last
 /// message, ProblemViewModel) or a game that closed unexpectedly (its log, CrashCheck). Matched on the messages make_game.py and
@@ -57,14 +57,14 @@ public static partial class Problems
         bool Has(string s) => w.Contains(s, StringComparison.OrdinalIgnoreCase);
         // (make_game.py check_cpu: the compiler's files are gone; check_mingw: the compiler is not there or can't build)
         if (Has("antivirus most likely removed") || Has("a folder your antivirus allows"))
-            return new Problem(ProblemKind.Antivirus, Tr.N("Your antivirus removed some of Longshot's files"),
-                Tr.N("This is a false alarm: Longshot's build tools aren't signed, so some antivirus programs flag them. Restore the " +
-                "files from your antivirus's quarantine (Windows Security: Protection history) and allow Longshot's folder, then " +
+            return new Problem(ProblemKind.Antivirus, Tr.N("Your antivirus removed some of Hookshot's files"),
+                Tr.N("This is a false alarm: Hookshot's build tools aren't signed, so some antivirus programs flag them. Restore the " +
+                "files from your antivirus's quarantine (Windows Security: Protection history) and allow Hookshot's folder, then " +
                 "build again."), [BuildAgain]);
-        // (make_game.py check_supported_build and --check: "This is build 1a2b3c4d. Longshot supports build e0f3ccfa.")
-        if (Has("Longshot supports build"))
+        // (make_game.py check_supported_build and --check: "This is build 1a2b3c4d. Hookshot supports build e0f3ccfa.")
+        if (Has("Hookshot supports build"))
             return new Problem(ProblemKind.WrongGameVersion, Tr.N("These game files are a different version"),
-                Tr.N("Longshot needs Ocarina of Time with update 2.0.0 installed (program 0400486024DEC000, update v131072). Pick " +
+                Tr.N("Hookshot needs Ocarina of Time with update 2.0.0 installed (program 0400486024DEC000, update v131072). Pick " +
                 "the files of that version, or dump your game again with the update."), [new Fix(FixKind.PickOtherFiles, Tr.N("Pick other game files"))]);
         if (Has("dump is incomplete") || Has("still has") && Has("damaged file"))
             return new Problem(ProblemKind.IncompleteDump, Tr.N("Your game dump is incomplete"),
@@ -80,7 +80,7 @@ public static partial class Problems
                 Tr.N("Close other programs, or set Build memory lower in step 2's Advanced, then build again: what was built so far " +
                 "is kept."), [new Fix(FixKind.LowerBuildMemory, Tr.N("Use less memory")), BuildAgain]);
         return new Problem(ProblemKind.Unknown, Tr.N("The build stopped"),
-            Tr.N("Something went wrong that Longshot doesn't recognise yet."), [BuildAgain]);
+            Tr.N("Something went wrong that Hookshot doesn't recognise yet."), [BuildAgain]);
     }
 
     [GeneratedRegex(@"CRASH: exception (0x[0-9a-fA-F]+) \((read|write)[^)]*\) at (\S+)")]
@@ -137,20 +137,20 @@ public static partial class Problems
     }
 }
 
-/// Whether the last run of a build closed unexpectedly: its newest log (logs/longshot_log.txt, or longshot_log.txt beside the
-/// game from a build before Longshot's game folder layout) shows a crash the launcher has not shown yet. Only the newest: a run since then went well (the player has played since), and a log the game rotated is not
+/// Whether the last run of a build closed unexpectedly: its newest log (logs/hookshot_log.txt, or hookshot_log.txt beside the
+/// game from a build before Hookshot's game folder layout) shows a crash the launcher has not shown yet. Only the newest: a run since then went well (the player has played since), and a log the game rotated is not
 /// offered. The caller leaves it out while a game runs (that log is the live run's)
 public static class CrashCheck
 {
     public sealed record Found(Problem Problem, string Log, long WriteTicks);
 
     /// The game's log, in its build's folder
-    public const string LogName = "longshot_log.txt";
+    public const string LogName = "hookshot_log.txt";
 
-    /// Where the game's logs are: logs/ in its build's folder (Longshot's host/game_layout.c, from nightly-127 on)
+    /// Where the game's logs are: logs/ in its build's folder (Hookshot's host/game_layout.c, from nightly-127 on)
     public const string LogsFolder = "logs";
 
-    /// The game's log of its last run: logs/longshot_log.txt, or longshot_log.txt beside the game where a build from before
+    /// The game's log of its last run: logs/hookshot_log.txt, or hookshot_log.txt beside the game where a build from before
     /// the logs/ folder wrote it (the newer of the two, should both be there: the game moves the loose one into logs/ at
     /// its first start, and keeps it where it is when one of that name is there already); null when there is none
     public static string? LogPath(string buildFolder)

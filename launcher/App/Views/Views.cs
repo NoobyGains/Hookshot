@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace LongshotLauncher.Views;
+namespace HookshotLauncher.Views;
 
 // The pages and dialogs: each its .axaml, bound to its view model (compiled bindings); no logic here but where the view scrolls
 
@@ -83,5 +83,5 @@ public sealed partial class DeleteView : UserControl { public DeleteView() => In
 public sealed partial class LicenceView : UserControl { public LicenceView() => InitializeComponent(); }
 public sealed partial class StopBuildView : UserControl { public StopBuildView() => InitializeComponent(); }
 public sealed partial class SavePickView : UserControl { public SavePickView() => InitializeComponent(); }
-public sealed partial class HookshotImportView : UserControl { public HookshotImportView() => InitializeComponent(); }
-public sealed partial class HookshotSettingsView : UserControl { public HookshotSettingsView() => InitializeComponent(); }
+public sealed partial class LongshotImportView : UserControl { public LongshotImportView() => InitializeComponent(); }
+public sealed partial class LongshotSettingsView : UserControl { public LongshotSettingsView() => InitializeComponent(); }

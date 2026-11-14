@@ -1,4 +1,4 @@
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// What the build settings say about this PC: its memory, its CPU threads and the makers of its graphics cards
 public static class SystemInfo

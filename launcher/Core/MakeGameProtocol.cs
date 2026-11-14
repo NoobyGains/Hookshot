@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// A line of make_game.py's stdout (its docstring: the @@ lines a builder reads, and the plain "the shaders were not prepared
 /// now (why): ..." line)

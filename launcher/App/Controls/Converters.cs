@@ -1,8 +1,8 @@
 using Avalonia.Data.Converters;
 using Avalonia.Media;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher.Controls;
+namespace HookshotLauncher.Controls;
 
 public static class Converters
 {

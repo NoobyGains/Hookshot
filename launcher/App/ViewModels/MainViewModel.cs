@@ -1,6 +1,6 @@
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher.ViewModels;
+namespace HookshotLauncher.ViewModels;
 
 /// A page of the build wizard: its step in the title bar's pill (1 game files, 2 settings, 3 build), and whether step 3 is done
 public interface IWizardPage
@@ -59,7 +59,7 @@ public sealed class MainViewModel : ViewModelBase
         }
         try
         {
-            if (Saves.Running(Service.Platform).Contains(Saves.Longshot.Display)) return;
+            if (Saves.Running(Service.Platform).Contains(Saves.Hookshot.Display)) return;
         }
         catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or UnauthorizedAccessException) { return; }
         var notBefore = Math.Max(since, now - CrashNews.Ticks);

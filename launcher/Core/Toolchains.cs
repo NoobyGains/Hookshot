@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// How far an install is: Fraction 0..1 of the bytes of all its parts (a part kept from another version counts as done)
 public sealed record ToolchainProgress(double Fraction, int Part, int Parts, string Text);
@@ -11,14 +11,14 @@ public sealed record ToolchainProgress(double Fraction, int Part, int Parts, str
 /// One installed version's build tools: nx2/make_game.py under ToolsRoot, and the Python that runs it
 public sealed record Toolchain(string Tag, string Folder, ListKind Kind, string? Run)
 {
-    /// Windows: the setup's LongshotBuilder/tools beside its builder; Linux: the AppImage's usr/share/longshot
+    /// Windows: the setup's HookshotBuilder/tools beside its builder; Linux: the AppImage's usr/share/hookshot
     public string ToolsRoot => Kind == ListKind.Setup
-        ? Path.Combine(Folder, Path.GetDirectoryName(Run ?? "LongshotBuilder/x")!.Replace('/', Path.DirectorySeparatorChar), "tools")
-        : Path.Combine(Folder, "usr", "share", "longshot");
+        ? Path.Combine(Folder, Path.GetDirectoryName(Run ?? "HookshotBuilder/x")!.Replace('/', Path.DirectorySeparatorChar), "tools")
+        : Path.Combine(Folder, "usr", "share", "hookshot");
 
-    /// Linux: the AppImage's usr/lib/longshot (the prebuilt Vulkan back end, and beside it tools.lock's emsdk, sysroot, FFmpeg and
+    /// Linux: the AppImage's usr/lib/hookshot (the prebuilt Vulkan back end, and beside it tools.lock's emsdk, sysroot, FFmpeg and
     /// SDL2, unpacked there by InstallAppImageAsync; an older AppImage carries them itself. builder/linux/AppRun)
-    public string LibRoot => Path.Combine(Folder, "usr", "lib", "longshot");
+    public string LibRoot => Path.Combine(Folder, "usr", "lib", "hookshot");
 
     public string Python => Kind == ListKind.Setup
         ? Path.Combine(ToolsRoot, "python", "python.exe")
@@ -35,7 +35,7 @@ public sealed record Toolchain(string Tag, string Folder, ListKind Kind, string?
 public sealed class Toolchains
 {
     public const string RecordName = "toolchain.json";
-    public const string SysrootPart = "usr/lib/longshot/sysroot";   // (its rooted links are rebased inside it)
+    public const string SysrootPart = "usr/lib/hookshot/sysroot";   // (its rooted links are rebased inside it)
     const string Downloads = ".downloads";
 
     readonly string root;
@@ -289,7 +289,7 @@ public sealed class Toolchains
     }
 
     /// The tools.lock a Linux builder carries (builder/linux/AppRun, scripts/linux/appimage.sh)
-    public const string LinuxToolsLock = "usr/share/longshot/tools.lock";
+    public const string LinuxToolsLock = "usr/share/hookshot/tools.lock";
 
     /// Each part into tree (a Linux builder's), kept from another installed version when one has it, else downloaded and
     /// unpacked; recorded for the next version's reuse. The bar goes from start to 1 by the parts' bytes

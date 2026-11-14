@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// One build in the launcher's list: a game folder, the version it was built with, the channel its updates follow
 public sealed class BuildEntry
@@ -131,7 +131,7 @@ public sealed class BuildRegistry
         var trimmed = folder.TrimEnd('/', '\\');
         var cut = trimmed.LastIndexOfAny(new[] { '/', '\\' });
         var name = cut >= 0 ? trimmed[(cut + 1)..] : trimmed;
-        return name.Length > 0 ? name : "Longshot";
+        return name.Length > 0 ? name : "Hookshot";
     }
 
     /// The build out of the list (its folder stays on the disk: DeleteFolder is the other, explicit, step). When it was the
@@ -191,17 +191,17 @@ public sealed class BuildRegistry
         AtomicFile.Write(path, JsonSerializer.Serialize(new RegistryFile { Builds = builds }, CoreJson.Default.RegistryFile));
     }
 
-    /// A build's game folder deleted from the disk: only a folder make_game.py made (its stamp or bin/longshot), never another
+    /// A build's game folder deleted from the disk: only a folder make_game.py made (its stamp or bin/hookshot), never another
     /// folder a list entry might name. Not a link either (deleting it would free nothing), nor the home folder or one that holds
-    /// it, nor one that holds a folder of keep: the other builds and the launcher's home. (A 2.x install in ~/Games/Longshot holds
-    /// the launcher's own builds, ~/Games/Longshot/&lt;version&gt;, while that is the builds folder.) The entry itself is removed with
+    /// it, nor one that holds a folder of keep: the other builds and the launcher's home. (A 2.x install in ~/Games/Hookshot holds
+    /// the launcher's own builds, ~/Games/Hookshot/&lt;version&gt;, while that is the builds folder.) The entry itself is removed with
     /// Remove
     public static void DeleteFolder(string folder, Platform platform, IEnumerable<string>? keep = null, Func<string, string?>? getenv = null)
     {
         var full = Path.GetFullPath(folder);
         if (Path.GetPathRoot(full) == full) throw new IOException("Will not delete a drive's root: " + folder);
         if (!GameFolder.IsGameFolder(full, platform))
-            throw new IOException("This folder is not a Longshot game folder, so the launcher does not delete it: " + folder);
+            throw new IOException("This folder is not a Hookshot game folder, so the launcher does not delete it: " + folder);
         if (new DirectoryInfo(full).LinkTarget != null)
             throw new IOException("This folder is a link to another one, so the launcher does not delete it: " + folder);
         if (Holds(full, LauncherHome.Home(getenv ?? Environment.GetEnvironmentVariable)))

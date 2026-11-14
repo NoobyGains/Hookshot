@@ -2,9 +2,9 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Text;
 using Avalonia.Threading;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher.ViewModels;
+namespace HookshotLauncher.ViewModels;
 
 /// A stage's row in step 3: its state, what it is doing, and its time
 public sealed class StageRowViewModel : ViewModelBase
@@ -78,7 +78,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         Notches = progress.Stages.Skip(1).Select(st => st.Start).ToList();
         ToggleLogCommand = new Command(() => ShowLog = !ShowLog);
         CancelCommand = new Command(() => Job.Main.Modal = new StopBuildViewModel(this));
-        log.Add($"Longshot Launcher {typeof(BuildStepViewModel).Assembly.GetName().Version?.ToString(3)}: {job.Verb.Trim().ToLowerInvariant()} {job.Version} ({job.Channel})");
+        log.Add($"Hookshot Launcher {typeof(BuildStepViewModel).Assembly.GetName().Version?.ToString(3)}: {job.Verb.Trim().ToLowerInvariant()} {job.Version} ({job.Channel})");
         log.Add($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
                 $"{Languages.NameOf(s.Language)}{(s.Dlss ? ", DLSS" : "")}{(s.Fsr ? ", FSR 4" : "")}");
         if (start)
@@ -332,7 +332,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { problem = Tr.F("The list of builds could not be saved: {0}", e.Message); }
         service.PruneTools();
 
-        // (no saves to move: every build shares them, SaveEnvironment.LongshotUser)
+        // (no saves to move: every build shares them, SaveEnvironment.HookshotUser)
         job.Main.Navigate(new ReadyViewModel(job.Main, entry, job.Kind, job.From, clock.Elapsed + job.ToolsTime, problem));
     }
 
@@ -355,7 +355,7 @@ public sealed class BuildStepViewModel : ViewModelBase, IWizardPage
     {
         var s = Job.Service.Settings;
         var sb = new StringBuilder();
-        sb.AppendLine($"Longshot Launcher {typeof(BuildStepViewModel).Assembly.GetName().Version?.ToString(3)}: {Job.Verb.Trim()} {Job.Version} ({Job.Channel})");
+        sb.AppendLine($"Hookshot Launcher {typeof(BuildStepViewModel).Assembly.GetName().Version?.ToString(3)}: {Job.Verb.Trim()} {Job.Version} ({Job.Channel})");
         sb.AppendLine($"{System.Runtime.InteropServices.RuntimeInformation.OSDescription}, {SystemInfo.MemoryGb()} GB, {SystemInfo.Threads()} threads" +
                       (Job.Service.Gpus.Count > 0 ? ", " + string.Join(" and ", Job.Service.Gpus) + " GPU" : ""));
         sb.AppendLine($"settings: memory {(s.MemoryGb is int m ? m + " GB" : "automatic")}, workers {(s.BuildWorkers is int w ? w : "automatic")}, " +
@@ -395,7 +395,7 @@ public sealed class ReadyViewModel : ViewModelBase, IWizardPage
                 var said = Main.Service.Play(Entry);
                 Main.ShowHome();
                 if (said != null) Main.Home.Notice = said;
-                Main.ShowToast(Tr.F("Starting Longshot, {0}…", Version));
+                Main.ShowToast(Tr.F("Starting Hookshot, {0}…", Version));
             }
             catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
             {

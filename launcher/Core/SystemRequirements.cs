@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.X86;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 public enum RequirementStatus { Gray, Green, Yellow, Red }
 public sealed record RequirementResult(RequirementStatus Status, string Summary, string Detail);
@@ -9,7 +9,7 @@ public sealed record RequirementResult(RequirementStatus Status, string Summary,
 /// Local, advisory checks against the published requirements. Never blocks downloading or building.
 public static class SystemRequirements
 {
-    public const string Url = "https://longshot.magicbean.dev/requirements/";
+    public const string Url = "https://hookshot.magicbean.dev/requirements/";
     public static RequirementResult Evaluate(bool supportedOs, int memoryGb, int threads, bool avx2,
         bool linux, long? freeBytes, IReadOnlyList<GpuRequirement>? gpus)
     {
@@ -30,7 +30,7 @@ public static class SystemRequirements
         else if (!gpus.Any(g => g.Vulkan13)) failures.Add(Tr.T("No Vulkan 1.3 GPU found; check your graphics driver"));
         else
         {
-            // Check the GPU the game will use (Longshot's pick_device in gpu/vk/vk_main.cpp): a discrete GPU over an
+            // Check the GPU the game will use (Hookshot's pick_device in gpu/vk/vk_main.cpp): a discrete GPU over an
             // integrated one, then the newer driver. Never combine different cards' capabilities. An integrated GPU
             // reports a share of system RAM as its memory, so ranking by memory picks it over a laptop's own card.
             var gpu = gpus.Where(g => g.Vulkan13)

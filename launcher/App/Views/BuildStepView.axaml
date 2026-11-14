@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:LongshotLauncher.ViewModels"
-             xmlns:c="using:LongshotLauncher.Controls"
-             x:Class="LongshotLauncher.Views.BuildStepView"
+             xmlns:vm="using:HookshotLauncher.ViewModels"
+             xmlns:c="using:HookshotLauncher.Controls"
+             x:Class="HookshotLauncher.Views.BuildStepView"
              x:DataType="vm:BuildStepViewModel">
   <UserControl.Styles>
     <Style Selector="TextBlock.sname">

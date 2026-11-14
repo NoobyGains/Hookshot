@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// A public key the launcher takes releases from: ECDSA P-256, its SubjectPublicKeyInfo. Id: the first 8 bytes of the SHA-256
 /// of the SubjectPublicKeyInfo, in hex (scripts/release.py's key_id)
@@ -28,9 +28,9 @@ public sealed record ReleaseKey(string Id, byte[] Spki)
     public static string KeyId(byte[] spki) => Convert.ToHexStringLower(SHA256.HashData(spki).AsSpan(0, 8));
 }
 
-/// The key this launcher trusts (docs/releases.md, "Signing"): one release key, which signs every release of Longshot and of
+/// The key this launcher trusts (docs/releases.md, "Signing"): one release key, which signs every release of Hookshot and of
 /// the launcher, in CI. Rotating it is a launcher release that lists the new key beside the old one, then, once that launcher
-/// is out, releases signed with the new key (RELEASING.md, "Rotate the key"). Longshot's scripts/release_keys.json lists the same.
+/// is out, releases signed with the new key (RELEASING.md, "Rotate the key"). Hookshot's scripts/release_keys.json lists the same.
 public static class ReleaseKeys
 {
     /// The keys built in. None yet: a maintainer makes it (scripts/release.py keygen; RELEASING.md, One-time setup) and lists
@@ -43,7 +43,7 @@ public static class ReleaseKeys
 
     /// A PEM public key file trusted too, for trying out a release signed with a test key (scripts/release.py keygen); never
     /// set for players
-    public const string TrustVariable = "LONGSHOT_LAUNCHER_TRUST";
+    public const string TrustVariable = "HOOKSHOT_LAUNCHER_TRUST";
 
     public static IReadOnlyList<ReleaseKey> Current(Func<string, string?>? getenv = null)
     {

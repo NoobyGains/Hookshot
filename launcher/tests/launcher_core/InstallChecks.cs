@@ -1,5 +1,5 @@
 using System.Text;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
 /// The launcher kept on the PC: installed or portable (LauncherLayout, Installer), its update keeping its kind and name, a start
 /// putting right an update cut short (SelfUpdate.Recover), one launcher per home (InstanceLock), a stalled download, a save copy that
@@ -77,16 +77,16 @@ static partial class Program
         Func<string, string?> env = k => k switch { "LOCALAPPDATA" => local, "APPDATA" => appData, "HOME" => Path.Combine(root, "home"), _ => null };
 
         // (where it installs, and what it is from where it runs)
-        var installed = Path.Combine(local, "Programs", "LongshotLauncher", "LongshotLauncher.exe");
-        Require(LauncherLayout.InstalledExe(env) == installed, "The installed program: %LOCALAPPDATA%\\Programs\\LongshotLauncher\\LongshotLauncher.exe.");
+        var installed = Path.Combine(local, "Programs", "HookshotLauncher", "HookshotLauncher.exe");
+        Require(LauncherLayout.InstalledExe(env) == installed, "The installed program: %LOCALAPPDATA%\\Programs\\HookshotLauncher\\HookshotLauncher.exe.");
         var downloads = Path.Combine(root, "Downloads");
         Directory.CreateDirectory(downloads);
-        var setup = Path.Combine(downloads, "LongshotLauncher-v1.0.0-windows-x64-setup.exe");
+        var setup = Path.Combine(downloads, "HookshotLauncher-v1.0.0-windows-x64-setup.exe");
         File.WriteAllText(setup, "MZ launcher v1.0.0");
         var plain = LauncherLayout.Of(Platform.Windows, setup, env);
         Require(plain.Kind == LauncherKind.Plain && plain.OffersInstall("v1.0.0", env) && !plain.OffersInstall("dev", env)
                 && !plain.OffersInstall("v1.0.0", k => k == LauncherHome.Variable ? root : env(k)) && plain.UpdateKey == "windows-x64"
-                && LauncherHome.Resolve(Platform.Windows, env, plain).Root == Path.GetFullPath(Path.Combine(local, "LongshotLauncher")),
+                && LauncherHome.Resolve(Platform.Windows, env, plain).Root == Path.GetFullPath(Path.Combine(local, "HookshotLauncher")),
                 "The download, neither installed nor portable: it offers Install or Run portable (not a build from a checkout), its home the usual one.");
         Require(!LauncherLayout.Of(Platform.Linux, "/apps/x.AppImage", env).OffersInstall("v1.0.0", env), "Linux never offers to install.");
 
@@ -94,8 +94,8 @@ static partial class Program
         var registry = new FakeRegistry();
         var links = new FakeShortcuts();
         var at = InstallPlaces.Of(env);
-        Require(at.Program == installed && at.StartMenuLink == Path.Combine(appData, "Microsoft", "Windows", "Start Menu", "Programs", "Longshot Launcher.lnk")
-                && at.Home == Path.GetFullPath(Path.Combine(local, "LongshotLauncher")), "What the installer touches.");
+        Require(at.Program == installed && at.StartMenuLink == Path.Combine(appData, "Microsoft", "Windows", "Start Menu", "Programs", "Hookshot Launcher.lnk")
+                && at.Home == Path.GetFullPath(Path.Combine(local, "HookshotLauncher")), "What the installer touches.");
         Directory.CreateDirectory(at.Folder);
         File.WriteAllText(SelfUpdate.Backup(installed), "a leftover");
         Require(Installer.Install(setup, "v1.0.0", at, registry, links) == installed && File.ReadAllText(installed) == "MZ launcher v1.0.0"
@@ -103,8 +103,8 @@ static partial class Program
                 && !Directory.EnumerateFiles(at.Folder).Any(f => f.EndsWith(".part", StringComparison.Ordinal)),
                 "Install: the program copied whole into place (the download stays), the leftovers of earlier updates gone.");
         var entry = registry.Read(Installer.UninstallKey)!;
-        Require(Installer.UninstallKey == @"Software\Microsoft\Windows\CurrentVersion\Uninstall\LongshotLauncher"
-                && (string)entry["DisplayName"] == "Longshot Launcher" && (string)entry["DisplayVersion"] == "1.0.0" && (string)entry["Publisher"] == "Magic Bean"
+        Require(Installer.UninstallKey == @"Software\Microsoft\Windows\CurrentVersion\Uninstall\HookshotLauncher"
+                && (string)entry["DisplayName"] == "Hookshot Launcher" && (string)entry["DisplayVersion"] == "1.0.0" && (string)entry["Publisher"] == "Magic Bean"
                 && (string)entry["DisplayIcon"] == installed + ",0" && (string)entry["UninstallString"] == $"\"{installed}\" --uninstall"
                 && entry["NoModify"] is 1 && entry["EstimatedSize"] is int, "The Apps & features entry.");
         Require(links.Links.TryGetValue(at.StartMenuLink, out var target) && target == installed, "The Start menu shortcut starts the installed program.");
@@ -115,7 +115,7 @@ static partial class Program
         Installer.Register(at, "v1.1.0-rc.1", registry);
         Require((string)registry.Read(Installer.UninstallKey)!["DisplayVersion"] == "1.1.0-rc.1", "The entry follows the launcher's own updates.");
         // (the Start menu shortcut made again at the first start of another version; else left alone, deleted or not)
-        File.WriteAllText(at.StartMenuLink, @"C:\a moved-aside LongshotLauncher.exe.old");
+        File.WriteAllText(at.StartMenuLink, @"C:\a moved-aside HookshotLauncher.exe.old");
         links.Links[at.StartMenuLink] = "stale";
         Require(Installer.Refresh(at, "v1.1.0-rc.2", registry, links) && links.Links[at.StartMenuLink] == installed
                 && (string)registry.Read(Installer.UninstallKey)!["DisplayVersion"] == "1.1.0-rc.2", "After an update: the shortcut made again, to the installed program.");
@@ -131,7 +131,7 @@ static partial class Program
         Installer.Install(setup, "v1.1.0", at, registry, links);
         Require(File.ReadAllText(installed) == "MZ launcher v1.1.0" && links.Links.Count == 1, "Installing again replaces the installed program.");
 
-        // (update keeps the kind and the name: the installed program stays LongshotLauncher.exe)
+        // (update keeps the kind and the name: the installed program stays HookshotLauncher.exe)
         File.WriteAllBytes(SelfUpdate.Staged(installed), Encoding.UTF8.GetBytes("MZ launcher v1.2.0"));
         SelfUpdate.Swap(installed, SelfUpdate.Staged(installed), Platform.Windows);
         Require(File.ReadAllText(installed) == "MZ launcher v1.2.0" && LauncherLayout.Of(Platform.Windows, installed, env).Kind == LauncherKind.Installed
@@ -173,17 +173,17 @@ static partial class Program
         // (portable: the "portable" file beside the program; its data beside it, its update from the portable zip, in place)
         var usb = Path.Combine(root, "USB stick");
         Directory.CreateDirectory(usb);
-        var portableExe = Path.Combine(usb, "LongshotLauncher.exe");
+        var portableExe = Path.Combine(usb, "HookshotLauncher.exe");
         File.WriteAllText(portableExe, "MZ launcher v1.0.0");
         File.WriteAllText(Path.Combine(usb, LauncherLayout.PortableMarker), "");
         var portable = LauncherLayout.Of(Platform.Windows, portableExe, env);
         var portableHome = LauncherHome.Resolve(Platform.Windows, env, portable);
         Require(portable.Kind == LauncherKind.Portable && !portable.OffersInstall("v1.0.0", env) && portable.UpdateKey == ReleaseManifest.WindowsPortable
-                && portableHome.Root == Path.Combine(usb, "LongshotLauncher-data") && portableHome.Portable
+                && portableHome.Root == Path.Combine(usb, "HookshotLauncher-data") && portableHome.Portable
                 && portableHome.PortableBuilds.StartsWith(portableHome.Root, StringComparison.Ordinal)
                 && portableHome.PortableSaveBackups.StartsWith(portableHome.Root, StringComparison.Ordinal)
                 && LauncherHome.Resolve(Platform.Windows, k => k == LauncherHome.Variable ? root : env(k), portable).Root == Path.GetFullPath(root),
-                "Portable: its data, builds and save backups in LongshotLauncher-data beside it (LONGSHOT_LAUNCHER_HOME still first).");
+                "Portable: its data, builds and save backups in HookshotLauncher-data beside it (HOOKSHOT_LAUNCHER_HOME still first).");
         var zip = LauncherFiles("v1.1.0")[ReleaseManifest.LauncherFile("v1.1.0", ReleaseManifest.WindowsPortable)];
         var server = new FakeFetcher();
         server.Files["https://x/portable.zip"] = zip;
@@ -201,7 +201,7 @@ static partial class Program
         Require(!File.Exists(SelfUpdate.Staged(portableExe)) && File.ReadAllText(portableExe) == "MZ launcher v1.1.0", "A refused zip left nothing.");
 
         // (Linux: the AppImage; portable with an <AppImage>.home folder beside it, the AppImage convention)
-        var image = Path.Combine(root, "apps", "LongshotLauncher-v1.0.0-x86_64.AppImage");
+        var image = Path.Combine(root, "apps", "HookshotLauncher-v1.0.0-x86_64.AppImage");
         Directory.CreateDirectory(Path.GetDirectoryName(image)!);
         File.WriteAllText(image, "ELF");
         var lin = LauncherLayout.Of(Platform.Linux, image, env);
@@ -218,10 +218,10 @@ static partial class Program
         Shortcuts.AddLauncherToMenu(image, new byte[] { 0x89, (byte)'P', (byte)'N', (byte)'G' }, xdg);
         var (menuEntry, menuIcon) = Shortcuts.LauncherMenuPaths(xdg);
         var desktopText = File.ReadAllText(menuEntry);
-        Require(menuEntry == Path.Combine(data, "applications", "longshot-launcher.desktop") && File.Exists(menuIcon)
+        Require(menuEntry == Path.Combine(data, "applications", "hookshot-launcher.desktop") && File.Exists(menuIcon)
                 && desktopText.Contains("Exec=" + Shortcuts.Quote(image) + "\n") && desktopText.Contains("Icon=" + menuIcon + "\n")
                 && Shortcuts.LauncherInMenu(xdg) == image, "Add to applications menu: the entry starts the AppImage where it is, with its icon.");
-        Require(desktopText.Contains("\nStartupWMClass=longshot-launcher\n"), "The menu entry names the window's class (its app_id and WM_CLASS).");
+        Require(desktopText.Contains("\nStartupWMClass=hookshot-launcher\n"), "The menu entry names the window's class (its app_id and WM_CLASS).");
         Shortcuts.RemoveLauncherFromMenu(xdg);
         Require(!File.Exists(menuEntry) && !File.Exists(menuIcon) && Shortcuts.LauncherInMenu(xdg) == null, "Removed from the menu.");
 
@@ -245,7 +245,7 @@ static partial class Program
 
         // (the named mutex, Windows': taken on one thread, refused on another, as two processes would see it)
         Require(InstanceLock.MutexName(home) == InstanceLock.MutexName(home + Path.DirectorySeparatorChar)
-                && InstanceLock.MutexName(home).StartsWith(@"Local\LongshotLauncher-", StringComparison.Ordinal)
+                && InstanceLock.MutexName(home).StartsWith(@"Local\HookshotLauncher-", StringComparison.Ordinal)
                 && InstanceLock.MutexName(home) != InstanceLock.MutexName(root), "One mutex name per home.");
         if (OperatingSystem.IsWindows())
         {
@@ -352,9 +352,9 @@ static partial class Program
                 && done.Backup != null && Tree(done.Backup) == before && !Directory.EnumerateDirectories(folder).Any(d => Path.GetFileName(d).StartsWith('.')),
                 "The copy, once nothing fails: the source's slots in place of the target's, its other files kept, the backup whole.");
         // (a copy cut short between its two renames, the PC off: the next copy finds the target aside and puts it back first)
-        var aside = Path.Combine(folder, ".dst.longshot-old");
+        var aside = Path.Combine(folder, ".dst.hookshot-old");
         Directory.Move(dst, aside);
-        Directory.CreateDirectory(Path.Combine(folder, ".dst.longshot-staging"));
+        Directory.CreateDirectory(Path.Combine(folder, ".dst.hookshot-staging"));
         Saves.Copy(src, Path.Combine(folder, "dst"), backups, "import", "x", running: () => Array.Empty<string>(), now: () => when);
         Require(Directory.Exists(dst) && !Directory.Exists(aside) && File.Exists(Path.Combine(dst, "keep.txt")), "A copy cut short is put right by the next.");
     }

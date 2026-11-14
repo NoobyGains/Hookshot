@@ -1,4 +1,4 @@
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// Release files through Cloudflare's edge: a download from git.magicbean.dev of a release file (/&lt;owner&gt;/&lt;repo&gt;/releases/download/...)
 /// or a package (/api/packages/...) is tried first at git-cdn.magicbean.dev, the same path (served from the same files, cached), then
@@ -6,15 +6,15 @@ namespace LongshotLauncher.Core;
 /// goes as it is: the API (release lists, GetTextAsync), other hosts, a link already on git-cdn. A file that is not the one its release
 /// names (size, SHA-256) is not a failure of the CDN: it fails as before, the callers' checks unchanged. A download the CDN cut short
 /// starts again from the stream's start, so no half of the CDN's file stays in front of the server's; a stream that cannot go back
-/// (not seekable) keeps the CDN's failure. LONGSHOT_LAUNCHER_NO_CDN=1: no CDN, every file from git.magicbean.dev
+/// (not seekable) keeps the CDN's failure. HOOKSHOT_LAUNCHER_NO_CDN=1: no CDN, every file from git.magicbean.dev
 public sealed class CdnFetcher(IFetcher inner, bool enabled = true) : IFetcher
 {
     public const string Origin = "https://git.magicbean.dev", Cdn = "https://git-cdn.magicbean.dev";
-    public const string DisableVariable = "LONGSHOT_LAUNCHER_NO_CDN";
+    public const string DisableVariable = "HOOKSHOT_LAUNCHER_NO_CDN";
 
     public bool Enabled { get; } = enabled;
 
-    /// Whether the CDN is on: LONGSHOT_LAUNCHER_NO_CDN=1 turns it off
+    /// Whether the CDN is on: HOOKSHOT_LAUNCHER_NO_CDN=1 turns it off
     public static bool EnabledByEnvironment(Func<string, string?>? getenv = null) =>
         (getenv ?? Environment.GetEnvironmentVariable)(DisableVariable) != "1";
 

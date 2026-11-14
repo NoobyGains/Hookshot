@@ -1,4 +1,4 @@
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
 /// Core/Tr.cs: the launcher's languages, the system's language as it names it, the catalogs' fallbacks and plural forms, and the
 /// catalogs embedded (scripts/translations.py checks their texts against the sources)

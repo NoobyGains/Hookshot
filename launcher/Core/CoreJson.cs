@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// The launcher's own files (builds.json, settings.json, a toolchain's record), camelCase and indented, compiled ahead so they
 /// need no reflection

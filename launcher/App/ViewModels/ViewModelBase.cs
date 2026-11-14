@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher.ViewModels;
+namespace HookshotLauncher.ViewModels;
 
 public abstract class ViewModelBase : INotifyPropertyChanged
 {
@@ -80,7 +80,7 @@ public interface IWindowHost
     void Close();
 }
 
-/// A path as the screens show it: on Linux, the home folder as ~ (~/Games/Longshot). Only for reading: a path a player can edit,
+/// A path as the screens show it: on Linux, the home folder as ~ (~/Games/Hookshot). Only for reading: a path a player can edit,
 /// or one handed to a program, stays whole
 public static class ShownPath
 {

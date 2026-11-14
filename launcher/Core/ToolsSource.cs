@@ -1,4 +1,4 @@
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// How far the step 1 download is: Fraction 0..1 of Total bytes (all of the version's parts)
 public sealed record ToolsDownloadProgress(double Fraction, long Total);

@@ -1,12 +1,12 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:LongshotLauncher.ViewModels"
-        xmlns:views="using:LongshotLauncher.Views"
-        xmlns:c="using:LongshotLauncher.Controls"
-        x:Class="LongshotLauncher.MainWindow"
+        xmlns:vm="using:HookshotLauncher.ViewModels"
+        xmlns:views="using:HookshotLauncher.Views"
+        xmlns:c="using:HookshotLauncher.Controls"
+        x:Class="HookshotLauncher.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="Longshot"
-        Icon="avares://LongshotLauncher/Assets/longshot.png"
+        Title="Hookshot"
+        Icon="avares://HookshotLauncher/Assets/hookshot.png"
         Width="960" Height="600" CanResize="False"
         WindowDecorations="None" Background="Transparent" TransparencyLevelHint="Transparent"
         DragDrop.AllowDrop="True"
@@ -97,8 +97,8 @@
         <!-- the title bar: drag it to move the window -->
         <Grid Name="TitleBar" ColumnDefinitions="*,Auto,*" Background="Transparent">
           <StackPanel Orientation="Horizontal" Spacing="10" Margin="28,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False">
-            <Image Source="avares://LongshotLauncher/Assets/longshot.png" Width="28" Height="28" RenderOptions.BitmapInterpolationMode="HighQuality"/>
-            <TextBlock Text="Longshot" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
+            <Image Source="avares://HookshotLauncher/Assets/hookshot.png" Width="28" Height="28" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+            <TextBlock Text="Hookshot" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
           </StackPanel>
           <Border Grid.Column="1" IsVisible="{Binding InWizard}" Height="40" CornerRadius="20" Padding="4" Background="#0BFFFFFF"
                   BorderBrush="{StaticResource GlassLine}" BorderThickness="1" VerticalAlignment="Center">
@@ -162,8 +162,8 @@
             <DataTemplate DataType="vm:LicenceViewModel"><views:LicenceView/></DataTemplate>
             <DataTemplate DataType="vm:StopBuildViewModel"><views:StopBuildView/></DataTemplate>
             <DataTemplate DataType="vm:SavePickViewModel"><views:SavePickView/></DataTemplate>
-            <DataTemplate DataType="vm:HookshotImportViewModel"><views:HookshotImportView/></DataTemplate>
-            <DataTemplate DataType="vm:HookshotSettingsViewModel"><views:HookshotSettingsView/></DataTemplate>
+            <DataTemplate DataType="vm:LongshotImportViewModel"><views:LongshotImportView/></DataTemplate>
+            <DataTemplate DataType="vm:LongshotSettingsViewModel"><views:LongshotSettingsView/></DataTemplate>
           </ContentControl.DataTemplates>
         </ContentControl>
       </Border>

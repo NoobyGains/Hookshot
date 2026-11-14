@@ -1,6 +1,6 @@
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher.ViewModels;
+namespace HookshotLauncher.ViewModels;
 
 public enum SaveMode { Import, Export }
 
@@ -50,7 +50,7 @@ static class SaveViews
     public static IReadOnlyList<SaveSlot> Describe(SaveProfile? p) => p == null ? Array.Empty<SaveSlot>() : Saves.Describe(p.Path);
 }
 
-/// Saves: Longshot's slots, which every build shares, every other save found on this PC (the emulators'), and the copies: import
+/// Saves: Hookshot's slots, which every build shares, every other save found on this PC (the emulators'), and the copies: import
 /// from and export to an emulator or another folder. Each copy is confirmed first and backs up what it replaces
 public sealed class SavesViewModel : ViewModelBase
 {
@@ -59,13 +59,13 @@ public sealed class SavesViewModel : ViewModelBase
         Main = main;
         ImportCommand = new Command(() => Main.Modal = new SavePickViewModel(this, SaveMode.Import));
         ExportCommand = new Command(() => Main.Modal = new SavePickViewModel(this, SaveMode.Export), () => Slots.Count > 0);
-        HookshotCommand = new Command(() => Main.Modal = new HookshotImportViewModel(Main));
+        LongshotCommand = new Command(() => Main.Modal = new LongshotImportViewModel(Main));
         DoneCommand = new Command(Main.ShowHome);
         Reload();
     }
 
     public MainViewModel Main { get; }
-    public Command HookshotCommand { get; }
+    public Command LongshotCommand { get; }
     LauncherService Service => Main.Service;
     public SaveEnvironment Env => Service.SaveEnv;
     public IReadOnlyList<SaveRowViewModel> Rows { get; private set; } = Array.Empty<SaveRowViewModel>();
@@ -74,8 +74,8 @@ public sealed class SavesViewModel : ViewModelBase
     public bool HasSlots => Slots.Count > 0;
     public bool NoSlots => Slots.Count == 0;
 
-    public string Sub => Tr.T("All your Longshot versions share these saves.");
-    public string EmptyHint => Tr.T("Import saves from an emulator or Hookshot. They will be available to every Longshot version.");
+    public string Sub => Tr.T("All your Hookshot versions share these saves.");
+    public string EmptyHint => Tr.T("Import saves from an emulator or Longshot. They will be available to every Hookshot version.");
     public string SlotCount => Tr.P(Slots.Count, "1 save slot", "{0} save slots");
     public IReadOnlyList<SaveRowViewModel> OtherSaves => Rows.Where(r => r.IsRow && !r.IsThis && !r.Dim).ToList();
     public bool HasOtherSaves => OtherSaves.Count > 0;
@@ -88,13 +88,13 @@ public sealed class SavesViewModel : ViewModelBase
     public void Reload()
     {
         var now = DateTime.Now;
-        var rows = new List<SaveRowViewModel> { new() { IsGroup = true, Name = "Longshot", First = true } };
+        var rows = new List<SaveRowViewModel> { new() { IsGroup = true, Name = "Hookshot", First = true } };
         var set = Saves.Shared(Env);
         var slots = Service.SaveSlots();
         rows.Add(new SaveRowViewModel
         {
             Name = Tr.T("Every build"), Shared = true, IsThis = true,
-            Where = SaveViews.Short(set.Found ? set.Profiles[0].Path : Path.Combine(Env.LongshotUser, "save")),
+            Where = SaveViews.Short(set.Found ? set.Profiles[0].Path : Path.Combine(Env.HookshotUser, "save")),
             Summary = SaveText.Long(slots, now),
         });
         rows.Add(new SaveRowViewModel { IsGroup = true, Name = Tr.T("Emulators and ports") });
@@ -124,7 +124,7 @@ public sealed class SavesViewModel : ViewModelBase
     }
 }
 
-/// One side of a copy: Longshot's save, an emulator's profile, or a folder
+/// One side of a copy: Hookshot's save, an emulator's profile, or a folder
 public sealed record SaveSide(string Name, string Where, IReadOnlyList<SaveSlot> Slots, string? Path, bool Emulator);
 
 /// The copy being set up: which way, from or to what
@@ -327,7 +327,7 @@ public sealed class SavesConfirmViewModel : ViewModelBase
                                    To.Name, To.Slots.Count == 0 ? Tr.T("nothing saved yet") : SaveText.Long(To.Slots, DateTime.Now));
 
     public string KeepLabel => Op.Mode == SaveMode.Export ? Tr.F("Keep {0}'s game settings (option.sav)", To.Name)
-        : Tr.T("Keep Longshot's game settings (option.sav)");
+        : Tr.T("Keep Hookshot's game settings (option.sav)");
 
     public bool KeepSettings
     {
@@ -346,11 +346,11 @@ public sealed class SavesConfirmViewModel : ViewModelBase
     public Command BackCommand { get; }
     public Command RunCommand { get; }
 
-    /// Longshot's side: the save every build shares
-    SaveSide LongshotSide()
+    /// Hookshot's side: the save every build shares
+    SaveSide HookshotSide()
     {
-        var path = Op.Mode == SaveMode.Import ? Saves.ImportTarget(Page.Env) : Saves.Pick(Saves.Shared(Page.Env).Profiles, "Longshot").Path;
-        return new SaveSide("Longshot", path, Saves.Describe(path), path, false);
+        var path = Op.Mode == SaveMode.Import ? Saves.ImportTarget(Page.Env) : Saves.Pick(Saves.Shared(Page.Env).Profiles, "Hookshot").Path;
+        return new SaveSide("Hookshot", path, Saves.Describe(path), path, false);
     }
 
     void Refresh()
@@ -369,11 +369,11 @@ public sealed class SavesConfirmViewModel : ViewModelBase
             other = new SaveSide(Op.OtherName, Op.Folder ?? "", Array.Empty<SaveSlot>(), null, true);
         }
         SaveSide me;
-        try { me = LongshotSide(); }
+        try { me = HookshotSide(); }
         catch (SaveFailure e)
         {
             Problem = e.Message;
-            me = new SaveSide("Longshot", Path.Combine(Page.Env.LongshotUser, "save"), Array.Empty<SaveSlot>(), null, false);
+            me = new SaveSide("Hookshot", Path.Combine(Page.Env.HookshotUser, "save"), Array.Empty<SaveSlot>(), null, false);
         }
         (From, To) = Op.Mode == SaveMode.Import ? (other, me) : (me, other);
         // (where the backup goes: the dry run of the same copy)
@@ -394,7 +394,7 @@ public sealed class SavesConfirmViewModel : ViewModelBase
         try
         {
             if (Op.Mode == SaveMode.Import && Saves.ImportTarget(Page.Env) != To.Path)
-                throw new SaveFailure(Tr.T("Longshot's save location changed. Go back and review the import again."));
+                throw new SaveFailure(Tr.T("Hookshot's save location changed. Go back and review the import again."));
             var done = Saves.ImportExport(Op.Mode == SaveMode.Import, Op.Program, Op.Folder, Page.Env, Op.Profile, Op.KeepSettings);
             if (Op.Mode == SaveMode.Import && Op.Program.Name == "nx2navi")
             {

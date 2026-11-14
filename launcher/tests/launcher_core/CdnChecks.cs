@@ -1,9 +1,9 @@
 using System.Text;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
 /// Release files through git-cdn.magicbean.dev (CdnFetcher): which links go to the CDN, the fall back to git.magicbean.dev when
 /// the CDN fails (before its bytes, and half way), no fall back for a file that is not the one its release names, a tool's own
-/// links tried once each, and LONGSHOT_LAUNCHER_NO_CDN
+/// links tried once each, and HOOKSHOT_LAUNCHER_NO_CDN
 static partial class Program
 {
     /// A server whose files can fail: Status (null: no answer) once FailAt bytes have gone out (0: before any)
@@ -52,20 +52,20 @@ static partial class Program
 
     static async Task CdnChecks()
     {
-        const string release = "https://git.magicbean.dev/MagicBeanDev/Longshot/releases/download/v3.1.0/Longshot-v3.1.0-x86_64.AppImage";
-        const string cdnRelease = "https://git-cdn.magicbean.dev/MagicBeanDev/Longshot/releases/download/v3.1.0/Longshot-v3.1.0-x86_64.AppImage";
+        const string release = "https://git.magicbean.dev/MagicBeanDev/Hookshot/releases/download/v3.1.0/Hookshot-v3.1.0-x86_64.AppImage";
+        const string cdnRelease = "https://git-cdn.magicbean.dev/MagicBeanDev/Hookshot/releases/download/v3.1.0/Hookshot-v3.1.0-x86_64.AppImage";
         const string package = "https://git.magicbean.dev/api/packages/MagicBeanDev/generic/llvm-mingw-windows-x64/20261104/abc-llvm-mingw.zip";
         const string cdnPackage = "https://git-cdn.magicbean.dev/api/packages/MagicBeanDev/generic/llvm-mingw-windows-x64/20261104/abc-llvm-mingw.zip";
         const string upstream = "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/llvm-mingw-20261104-ucrt-x86_64.zip";
 
         // (the rewrite: release files and packages of git.magicbean.dev only)
         Require(CdnFetcher.CdnOf(release) == cdnRelease && CdnFetcher.CdnOf(package) == cdnPackage
-                && CdnFetcher.CdnOf("https://GIT.magicbean.dev/MagicBeanDev/LongshotLauncher/releases/download/v1.0.0-rc.1/SHA256SUMS")
-                   == "https://git-cdn.magicbean.dev/MagicBeanDev/LongshotLauncher/releases/download/v1.0.0-rc.1/SHA256SUMS",
+                && CdnFetcher.CdnOf("https://GIT.magicbean.dev/MagicBeanDev/HookshotLauncher/releases/download/v1.0.0-rc.1/SHA256SUMS")
+                   == "https://git-cdn.magicbean.dev/MagicBeanDev/HookshotLauncher/releases/download/v1.0.0-rc.1/SHA256SUMS",
                 "A release file and a package go to git-cdn, the same path.");
-        Require(CdnFetcher.CdnOf("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases?limit=50&page=1") == null
-                && CdnFetcher.CdnOf("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases/tags/v3.1.0") == null
-                && CdnFetcher.CdnOf("https://git.magicbean.dev/MagicBeanDev/Longshot/releases/tag/v3.1.0") == null
+        Require(CdnFetcher.CdnOf("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Hookshot/releases?limit=50&page=1") == null
+                && CdnFetcher.CdnOf("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Hookshot/releases/tags/v3.1.0") == null
+                && CdnFetcher.CdnOf("https://git.magicbean.dev/MagicBeanDev/Hookshot/releases/tag/v3.1.0") == null
                 && CdnFetcher.CdnOf(upstream) == null && CdnFetcher.CdnOf(cdnRelease) == null && CdnFetcher.CdnOf(cdnPackage) == null
                 && CdnFetcher.CdnOf("http://git.magicbean.dev/api/packages/x") == null
                 && CdnFetcher.CdnOf("https://git.magicbean.dev:8443/api/packages/x") == null
@@ -93,7 +93,7 @@ static partial class Program
         server.Files[release] = new Served(other);
         Require((await Get(release)).SequenceEqual(bytes) && server.Asked.SequenceEqual(new[] { cdnRelease }), "A release file from the CDN.");
         server.Asked.Clear();
-        var api = "https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases?limit=50&page=1";
+        var api = "https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Hookshot/releases?limit=50&page=1";
         Require(await cdn.GetTextAsync(api, null, CancellationToken.None) == "text of " + api && server.Asked.SequenceEqual(new[] { api }),
                 "The API stays on git.magicbean.dev.");
         server.Files[upstream] = new Served(bytes);
@@ -155,7 +155,7 @@ static partial class Program
 
         // (the launcher's update into its file, the CDN cut short: the server's file, checked)
         var root = Folder("cdn");
-        var current = Path.Combine(root, "LongshotLauncher.AppImage");
+        var current = Path.Combine(root, "HookshotLauncher.AppImage");
         File.WriteAllText(current, "old");
         server.Files[cdnRelease] = new Served(other, 35, null);
         var staged = await SelfUpdate.DownloadAsync(cdn, new FileRef(release, ShaOf(bytes), bytes.Length), current);
@@ -181,9 +181,9 @@ static partial class Program
                 && !File.Exists(SelfUpdate.Staged(current) + ".part"), "Another launcher from the CDN went on, or left a file.");
 
         // (a builder through Toolchains: the CDN cut short, the checked file starts again; another file is refused)
-        var app = Zip(("LongshotBuilder/LongshotBuilder.exe", "MZ", null, 0x1A4), ("LongshotBuilder/tools/nx2/make_game.py", "w", null, 0x1A4),
-                      ("LongshotBuilder/tools/python/python.exe", "MZ", null, 0x1A4));
-        const string appUrl = "https://git.magicbean.dev/MagicBeanDev/Longshot/releases/download/v3.6.0/LongshotBuilder-v3.6.0-windows-x64.zip";
+        var app = Zip(("HookshotBuilder/HookshotBuilder.exe", "MZ", null, 0x1A4), ("HookshotBuilder/tools/nx2/make_game.py", "w", null, 0x1A4),
+                      ("HookshotBuilder/tools/python/python.exe", "MZ", null, 0x1A4));
+        const string appUrl = "https://git.magicbean.dev/MagicBeanDev/Hookshot/releases/download/v3.6.0/HookshotBuilder-v3.6.0-windows-x64.zip";
         var appCdn = CdnFetcher.CdnOf(appUrl)!;
         var otherApp = (byte[])app.Clone();
         otherApp[^30] ^= 1;
@@ -197,7 +197,7 @@ static partial class Program
         server.Files[upstream] = new Served(llvm);
         PartsList Setup(string tag, string toolLinks) => new(ListKind.Setup, tag,
             new List<Part> { new(ShaOf(app), app.Length, ".", null, null, appUrl) }
-                .Concat(ToolsLock.Parse($"tool llvm-mingw 20261104 windows-x64 {ShaOf(llvm)} {llvm.Length} LongshotBuilder/tools/llvm-mingw "
+                .Concat(ToolsLock.Parse($"tool llvm-mingw 20261104 windows-x64 {ShaOf(llvm)} {llvm.Length} HookshotBuilder/tools/llvm-mingw "
                                         + $"llvm-mingw-20261104-ucrt-x86_64 {toolLinks}", "windows-x64")).ToList(), ToolsLock.Run);
         var chains = new Toolchains(Path.Combine(root, "toolchains"), cdn);
         server.Asked.Clear();
@@ -218,10 +218,10 @@ static partial class Program
                                                 "A builder that is another file from the CDN was installed.");
         Require(server.Asked.SequenceEqual(new[] { appCdn }) && !chains.IsInstalled("v3.6.3"), "Another builder from the CDN went on.");
 
-        // (LONGSHOT_LAUNCHER_NO_CDN=1: everything from git.magicbean.dev, a tool's git-cdn link too)
+        // (HOOKSHOT_LAUNCHER_NO_CDN=1: everything from git.magicbean.dev, a tool's git-cdn link too)
         Require(!CdnFetcher.EnabledByEnvironment(k => k == CdnFetcher.DisableVariable ? "1" : null)
                 && CdnFetcher.EnabledByEnvironment(_ => null) && CdnFetcher.EnabledByEnvironment(k => k == CdnFetcher.DisableVariable ? "0" : null)
-                && CdnFetcher.DisableVariable == "LONGSHOT_LAUNCHER_NO_CDN", "LONGSHOT_LAUNCHER_NO_CDN=1 turns the CDN off.");
+                && CdnFetcher.DisableVariable == "HOOKSHOT_LAUNCHER_NO_CDN", "HOOKSHOT_LAUNCHER_NO_CDN=1 turns the CDN off.");
         var off = new CdnFetcher(server, enabled: false);
         server.Files[cdnRelease] = new Served(other);
         server.Asked.Clear();

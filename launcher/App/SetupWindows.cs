@@ -3,9 +3,9 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Layout;
 using Avalonia.Media;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher;
+namespace HookshotLauncher;
 
 /// The two small windows of the Windows launcher's own installer (Installer): the first start's "Install or Run portable", and
 /// --uninstall's. Made in code, in the launcher's look (App.axaml's brushes and button classes)
@@ -59,10 +59,10 @@ public static class SetupWindows
             problem.Text = e.Message;
             problem.IsVisible = true;
         }
-        body.Children.Add(Text(Tr.T("Install the Longshot Launcher?"), 20, "Ink", FontWeight.SemiBold));
+        body.Children.Add(Text(Tr.T("Install the Hookshot Launcher?"), 20, "Ink", FontWeight.SemiBold));
         body.Children.Add(Text(Tr.F("Install puts it in {0}, with a Start menu shortcut and an entry in Apps & features to uninstall it. " +
                                     "It is for you alone: no administrator rights are needed.", folder)));
-        body.Children.Add(Text(Tr.T("Run portable keeps it where it is: everything it saves goes in a LongshotLauncher-data folder beside it, and " +
+        body.Children.Add(Text(Tr.T("Run portable keeps it where it is: everything it saves goes in a HookshotLauncher-data folder beside it, and " +
                                     "nothing is written anywhere else (no shortcut, no registry). A file named portable beside it remembers the choice."), 12, "InkFaintText"));
         body.Children.Add(problem);
         body.Children.Add(Buttons(
@@ -105,8 +105,8 @@ public static class SetupWindows
                                 "build files. Builds inside it are kept.", at.Home), 12),
         };
         data.Classes.Add("tick");
-        var heading = Text(Tr.T("Uninstall the Longshot Launcher?"), 20, "Ink", FontWeight.SemiBold);
-        var about = Text(Tr.T("This removes the launcher, its Start menu shortcut, the Longshot shortcuts it made, and its entry in Apps & features. " +
+        var heading = Text(Tr.T("Uninstall the Hookshot Launcher?"), 20, "Ink", FontWeight.SemiBold);
+        var about = Text(Tr.T("This removes the launcher, its Start menu shortcut, the Hookshot shortcuts it made, and its entry in Apps & features. " +
                               "Your builds (the game folders) and your saves stay where they are."));
         var problem = Text("", 12, "Bad");
         problem.IsVisible = false;
@@ -122,7 +122,7 @@ public static class SetupWindows
                 WindowsShortcuts.RemoveGame();
                 Program.ReleaseLock();
                 if (removed.Pending != null) WindowsInstall.DeleteAfterExit(removed.Pending);
-                heading.Text = Tr.T("The Longshot Launcher is uninstalled");
+                heading.Text = Tr.T("The Hookshot Launcher is uninstalled");
                 about.Text = removed.Kept.Count > 0
                     ? Tr.F("Kept, because they hold builds or saves: {0}.", string.Join(", ", removed.Kept))
                     : data.IsChecked == true ? Tr.T("Its data is deleted too. Your builds and saves are where they were.") : Tr.F("Its data is still in {0}.", at.Home);

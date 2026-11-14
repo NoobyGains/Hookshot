@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
 /// The launcher's core (launcher/Core) over authored inputs: no game, no network, no window.
 ///     LauncherCoreTests <vectors.json> <tests/fixtures> <scratch folder>
@@ -68,8 +68,8 @@ static partial class Program
         UpdatePolicyChecks();
         CommandLineChecks();
         SavesChecks.Run(Folder("saves"));
-        HookshotChecks(fixtures);
-        HookshotSettingsChecks();
+        LongshotChecks(fixtures);
+        LongshotSettingsChecks();
         Utf8Checks();
         await ScreenChecks();
         await BusyChecks(Path.GetFullPath(Path.Combine(fixtures, "..", "..")));
@@ -230,11 +230,11 @@ static partial class Program
         var keys = new[] { trusted };
 
         // (the channels, from the release list: drafts are not there yet, pre-releases are not stable)
-        var forge = new FakeForgejo(Product.Longshot);
-        var longshot = new Releases(forge.Server, Platform.Linux, keys, NoWait, Product.Longshot);
-        Require(longshot.ListUrl(1) == "https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases?limit=50&page=1"
-                && longshot.VersionUrl("v3.0.0") == "https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Longshot/releases/tags/v3.0.0",
-                "Where Longshot's releases are.");
+        var forge = new FakeForgejo(Product.Hookshot);
+        var hookshot = new Releases(forge.Server, Platform.Linux, keys, NoWait, Product.Hookshot);
+        Require(hookshot.ListUrl(1) == "https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Hookshot/releases?limit=50&page=1"
+                && hookshot.VersionUrl("v3.0.0") == "https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Hookshot/releases/tags/v3.0.0",
+                "Where Hookshot's releases are.");
         var image = Encoding.UTF8.GetBytes("\x7fELF the builder");
         Dictionary<string, byte[]> Builder(string v) => new()
         {
@@ -249,29 +249,29 @@ static partial class Program
         forge.Add("nightly-12-bbbbbbbb", key, files: Builder("nightly-12-bbbbbbbb"));
         forge.Add("tools", null);
         forge.Add("v2.9.0", key, prerelease: false, files: Builder("v2.9.0"));
-        Require(await longshot.NewestAsync("stable") == "v3.0.0" && await longshot.NewestAsync("rc") == "v3.1.0-rc.1"
-                && await longshot.NewestAsync("nightly") == "nightly-12-bbbbbbbb",
+        Require(await hookshot.NewestAsync("stable") == "v3.0.0" && await hookshot.NewestAsync("rc") == "v3.1.0-rc.1"
+                && await hookshot.NewestAsync("nightly") == "nightly-12-bbbbbbbb",
                 "Each channel's newest: stable, the newest release candidate (not a draft), the nightly by its count; never 2.x or tools.");
-        var rc = (await longshot.ChannelAsync("rc"))!;
+        var rc = (await hookshot.ChannelAsync("rc"))!;
         Require(rc.Builder["linux-x64"].Size == image.Length && rc.Builder["linux-x64"].Sha256 == ShaOf(image) && rc.Tools.ContainsKey("windows-x64")
-                && rc.Commit == Commit && rc.Notes == "https://git.magicbean.dev/MagicBeanDev/Longshot/releases/tag/v3.1.0-rc.1",
+                && rc.Commit == Commit && rc.Notes == "https://git.magicbean.dev/MagicBeanDev/Hookshot/releases/tag/v3.1.0-rc.1",
                 "A release's files, with the SHA-256 its signed SHA256SUMS gives.");
-        Require((await longshot.BuilderAsync("v3.1.0-rc.1")).Url.EndsWith("/Longshot-v3.1.0-rc.1-x86_64.AppImage", StringComparison.Ordinal),
+        Require((await hookshot.BuilderAsync("v3.1.0-rc.1")).Url.EndsWith("/Hookshot-v3.1.0-rc.1-x86_64.AppImage", StringComparison.Ordinal),
                 "The Linux builder of a version.");
         forge.Add("v3.1.0", key, files: Builder("v3.1.0"));
-        Require(await longshot.NewestAsync("rc") == "v3.1.0" && await longshot.NewestAsync("stable") == "v3.1.0", "rc offers a stable once it is out.");
+        Require(await hookshot.NewestAsync("rc") == "v3.1.0" && await hookshot.NewestAsync("stable") == "v3.1.0", "rc offers a stable once it is out.");
         // (pulling a bad version: deleted, or back to a draft, its channel falls back by itself)
         forge.Remove("v3.1.0");
-        Require(await longshot.NewestAsync("stable") == "v3.0.0", "A deleted stable is gone from its channel.");
+        Require(await hookshot.NewestAsync("stable") == "v3.0.0", "A deleted stable is gone from its channel.");
         forge.Add("v3.0.0", key, draft: true, files: Builder("v3.0.0"));
-        Require(await longshot.NewestAsync("stable") == null, "A stable set back to a draft is gone from its channel.");
+        Require(await hookshot.NewestAsync("stable") == null, "A stable set back to a draft is gone from its channel.");
         forge.Add("v3.0.0", key, files: Builder("v3.0.0"));
 
         // (refused: no signature, another key, a list changed after it was signed, a release of the other product's numbers)
         async Task Refused(string tag, ECDsa? signer, string why, Func<string, string>? sums = null)
         {
             forge.Add(tag, signer, files: Builder(tag), sums: sums);
-            var r = new Releases(forge.Server, Platform.Linux, keys, NoWait, Product.Longshot);
+            var r = new Releases(forge.Server, Platform.Linux, keys, NoWait, Product.Hookshot);
             await ThrowsAsync<InvalidDataException>(() => r.VersionAsync(tag), why);
             forge.Remove(tag);
         }
@@ -280,9 +280,9 @@ static partial class Program
         await Refused("v3.2.0", key, "A SHA256SUMS changed after it was signed was taken.", s => s.Replace("v3.2.0", "v3.9.9"));
         await ThrowsAsync<InvalidDataException>(() => new Releases(forge.Server, Platform.Linux, Array.Empty<ReleaseKey>(), NoWait).VersionAsync("v3.1.0-rc.1"),
                                                 "A launcher with no key took a release.");
-        await ThrowsAsync<FetchException>(() => longshot.VersionAsync("v3.5.0"), "A version with no release.");
+        await ThrowsAsync<FetchException>(() => hookshot.VersionAsync("v3.5.0"), "A version with no release.");
         forge.Add("v3.3.0", stranger, files: Builder("v3.3.0"));
-        var fresh = new Releases(forge.Server, Platform.Linux, keys, NoWait, Product.Longshot);
+        var fresh = new Releases(forge.Server, Platform.Linux, keys, NoWait, Product.Hookshot);
         Require(await fresh.ChannelAsync("stable") == null && fresh.Problem!.Contains("not signed by a key"),
                 "The newest stable, refused, offers nothing, and says why.");
         forge.Remove("v3.3.0");
@@ -294,7 +294,7 @@ static partial class Program
         // (the server: tried twice, then nothing; the window says the check failed, quietly)
         var tries = 0;
         var flaky = new FakeFetcher();
-        flaky.Texts[longshot.ListUrl(1)] = () => ++tries < 2 ? throw new FetchException("authored", 502) : "[]";
+        flaky.Texts[hookshot.ListUrl(1)] = () => ++tries < 2 ? throw new FetchException("authored", 502) : "[]";
         Require(await new Releases(flaky, Platform.Linux, keys, NoWait).NewestAsync("stable") == null && tries == 2, "A server error is tried again.");
         Require(await new Releases(new FakeFetcher(), Platform.Linux, keys, NoWait).ChannelAsync("stable") == null, "No answer, no channel.");
 
@@ -305,9 +305,9 @@ static partial class Program
         own.Add("v1.1.0-rc.1", key, files: LauncherFiles("v1.1.0-rc.1"));
         own.Add("nightly-30-cccccccc", key, files: LauncherFiles("nightly-30-cccccccc"));
         var stable = (await launcher.ChannelAsync("stable"))!;
-        Require(stable.Version == "v1.0.0" && stable.Launcher["linux-x64"].Url.EndsWith("/LongshotLauncher-v1.0.0-x86_64.AppImage", StringComparison.Ordinal)
-                && stable.Launcher["windows-x64"].Url.EndsWith("/LongshotLauncher-v1.0.0-windows-x64-setup.exe", StringComparison.Ordinal)
-                && stable.Launcher[ReleaseManifest.WindowsPortable].Url.EndsWith("/LongshotLauncher-v1.0.0-windows-x64-portable.zip", StringComparison.Ordinal)
+        Require(stable.Version == "v1.0.0" && stable.Launcher["linux-x64"].Url.EndsWith("/HookshotLauncher-v1.0.0-x86_64.AppImage", StringComparison.Ordinal)
+                && stable.Launcher["windows-x64"].Url.EndsWith("/HookshotLauncher-v1.0.0-windows-x64-setup.exe", StringComparison.Ordinal)
+                && stable.Launcher[ReleaseManifest.WindowsPortable].Url.EndsWith("/HookshotLauncher-v1.0.0-windows-x64-portable.zip", StringComparison.Ordinal)
                 && stable.Builder.Count == 0 && await launcher.NewestAsync("rc") == "v1.1.0-rc.1"
                 && await launcher.NewestAsync("nightly") == "nightly-30-cccccccc", "The launcher's own three channels, and its three files.");
         // (an update check reads each product's release list once, whatever the number of channels)
@@ -315,19 +315,19 @@ static partial class Program
         var three = await new Releases(own.Server, Platform.Linux, keys, NoWait, Product.Launcher).ChannelsAsync(Versions.Channels);
         Require(three["stable"]?.Version == "v1.0.0" && three["rc"]?.Version == "v1.1.0-rc.1" && three["nightly"]?.Version == "nightly-30-cccccccc"
                 && own.Server.Asked.Count(u => u.Contains("/releases?", StringComparison.Ordinal)) == 1, "Three channels from one fetch of the list.");
-        Require(launcher.ListUrl(1).StartsWith("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/LongshotLauncher/", StringComparison.Ordinal),
+        Require(launcher.ListUrl(1).StartsWith("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/HookshotLauncher/", StringComparison.Ordinal),
                 "The launcher's releases are its own repository's.");
 
         // (tools.lock: the Windows builder's tools; a prefix becomes the dest, mirrors are kept, other systems left out)
         var sha = new string('a', 64);
         var lockParts = ToolsLock.Parse(
             "# a comment\n" +
-            $"tool python 3.14 windows-x64 {sha} 10 LongshotBuilder/tools/python HookshotBuilder/tools/python https://up/p.zip https://mirror/p.zip\n" +
-            $"tool llvm-mingw 1 windows-x64 {sha} 11 LongshotBuilder/tools/llvm-mingw llvm-mingw-1-ucrt https://up/l.zip\n" +
-            $"tool whole 1 windows-x64 {sha} 12 LongshotBuilder/tools/whole - https://up/w.zip\n" +
+            $"tool python 3.14 windows-x64 {sha} 10 HookshotBuilder/tools/python LongshotBuilder/tools/python https://up/p.zip https://mirror/p.zip\n" +
+            $"tool llvm-mingw 1 windows-x64 {sha} 11 HookshotBuilder/tools/llvm-mingw llvm-mingw-1-ucrt https://up/l.zip\n" +
+            $"tool whole 1 windows-x64 {sha} 12 HookshotBuilder/tools/whole - https://up/w.zip\n" +
             $"tool other 1 linux-x64 {sha} 12 x - https://up/o.zip\n", "windows-x64");
-        Require(lockParts.Count == 3 && lockParts[0] is { Dest: "LongshotBuilder/tools", From: "HookshotBuilder/tools/python", To: "python" }
-                && lockParts[0].Mirrors!.SequenceEqual(new[] { "https://mirror/p.zip" }) && lockParts[2] is { Dest: "LongshotBuilder/tools/whole", From: null },
+        Require(lockParts.Count == 3 && lockParts[0] is { Dest: "HookshotBuilder/tools", From: "LongshotBuilder/tools/python", To: "python" }
+                && lockParts[0].Mirrors!.SequenceEqual(new[] { "https://mirror/p.zip" }) && lockParts[2] is { Dest: "HookshotBuilder/tools/whole", From: null },
                 "tools.lock's lines as parts.");
         foreach (var bad in new[] { $"tool p 1 windows-x64 {sha} 10 ../x - https://u", $"tool p 1 windows-x64 {sha} 10 a - http://u",
                                     $"tool p 1 windows-x64 {sha.ToUpperInvariant()} 10 a - https://u", $"tool P 1 windows-x64 {sha} 10 a - https://u",
@@ -338,14 +338,14 @@ static partial class Program
         var testKey = ReleaseKey.FromPem(File.ReadAllText(Path.Combine(releaseFixtures, "test-key.pub.pem")));
         var sums = SignedSums.Open(File.ReadAllBytes(Path.Combine(releaseFixtures, "SHA256SUMS")),
                                    File.ReadAllText(Path.Combine(releaseFixtures, "SHA256SUMS.sig")), new[] { testKey });
-        Require(sums["LongshotLauncher-v1.0.0-x86_64.AppImage"] == ShaOf(Encoding.UTF8.GetBytes("not a launcher\n")) && sums.Count == 2,
+        Require(sums["HookshotLauncher-v1.0.0-x86_64.AppImage"] == ShaOf(Encoding.UTF8.GetBytes("not a launcher\n")) && sums.Count == 2,
                 "scripts/release.py's SHA256SUMS, signed.");
         Throws<InvalidDataException>(() => SignedSums.Open(File.ReadAllBytes(Path.Combine(releaseFixtures, "SHA256SUMS")),
                                                            File.ReadAllText(Path.Combine(releaseFixtures, "SHA256SUMS.sig")), keys),
                                      "scripts/release.py's signature by the test key was taken without it.");
         Require(ReleaseKeys.Current(_ => null) == ReleaseKeys.BuiltIn
                 && ReleaseKeys.Current(k => k == ReleaseKeys.TrustVariable ? Path.Combine(releaseFixtures, "test-key.pub.pem") : null)
-                    .Any(k => k.Id == testKey.Id), "LONGSHOT_LAUNCHER_TRUST adds a test key.");
+                    .Any(k => k.Id == testKey.Id), "HOOKSHOT_LAUNCHER_TRUST adds a test key.");
         Require(!ReleaseKeys.BuiltIn.Any(k => k.Id == testKey.Id), "The test key is built in.");
     }
 
@@ -373,15 +373,15 @@ static partial class Program
         Require(SelfUpdate.ChannelOf("v1.2.0-rc.1", null) == "rc" && SelfUpdate.ChannelOf("dev", null) == "stable"
                 && SelfUpdate.ChannelOf("v1.0.0", "nightly") == "nightly" && SelfUpdate.ChannelOf("v1.0.0", "bogus") == "stable",
                 "The launcher's channel: the one chosen, else its own track.");
-        Require(SelfUpdate.OwnTag(typeof(Program).Assembly) == "dev", "A build with no LongshotTag is dev.");
-        Require(SelfUpdate.CurrentFile(Platform.Linux, k => k == "APPIMAGE" ? "/apps/Longshot.AppImage" : null, "/tmp/.mount/LongshotLauncher") == "/apps/Longshot.AppImage"
-                && SelfUpdate.CurrentFile(Platform.Linux, _ => null, "/x/LongshotLauncher") == null
-                && SelfUpdate.CurrentFile(Platform.Windows, _ => null, @"C:\L\LongshotLauncher.exe") == @"C:\L\LongshotLauncher.exe"
-                && SelfUpdate.CurrentFile(Platform.Windows, _ => null, @"C:\Users\a\Downloads\LongshotLauncher-v1.0.0-windows-x64-setup.exe")
-                    == @"C:\Users\a\Downloads\LongshotLauncher-v1.0.0-windows-x64-setup.exe"
+        Require(SelfUpdate.OwnTag(typeof(Program).Assembly) == "dev", "A build with no HookshotTag is dev.");
+        Require(SelfUpdate.CurrentFile(Platform.Linux, k => k == "APPIMAGE" ? "/apps/Hookshot.AppImage" : null, "/tmp/.mount/HookshotLauncher") == "/apps/Hookshot.AppImage"
+                && SelfUpdate.CurrentFile(Platform.Linux, _ => null, "/x/HookshotLauncher") == null
+                && SelfUpdate.CurrentFile(Platform.Windows, _ => null, @"C:\L\HookshotLauncher.exe") == @"C:\L\HookshotLauncher.exe"
+                && SelfUpdate.CurrentFile(Platform.Windows, _ => null, @"C:\Users\a\Downloads\HookshotLauncher-v1.0.0-windows-x64-setup.exe")
+                    == @"C:\Users\a\Downloads\HookshotLauncher-v1.0.0-windows-x64-setup.exe"
                 && SelfUpdate.CurrentFile(Platform.Windows, _ => null, @"D:\Games\my launcher (2).EXE") == @"D:\Games\my launcher (2).EXE"
                 && SelfUpdate.CurrentFile(Platform.Windows, _ => null, @"C:\dotnet\dotnet.exe") == null
-                && SelfUpdate.CurrentFile(Platform.Windows, _ => null, @"C:\L\LongshotLauncher.dll") == null,
+                && SelfUpdate.CurrentFile(Platform.Windows, _ => null, @"C:\L\HookshotLauncher.dll") == null,
                 "The launcher's own file: the AppImage, or its .exe whatever it is named (not dotnet.exe).");
         Require(SelfUpdate.Compare("v1.1.0", "v1.0.0") == 1 && SelfUpdate.Compare("v1.0.0", "v1.1.0-rc.1") == -1
                 && SelfUpdate.Compare("nightly-3-aaaaaaaa", "v1.0.0") == 0, "Newer, older, or no order (the banner's words).");
@@ -391,7 +391,7 @@ static partial class Program
                 "A portable launcher is offered an update only with a portable zip.");
 
         var root = Folder("self-update");
-        var current = Path.Combine(root, "Longshot Launcher ゲーム.AppImage");
+        var current = Path.Combine(root, "Hookshot Launcher ゲーム.AppImage");
         File.WriteAllText(current, "old");
         var server = new FakeFetcher();
         var newBytes = Encoding.UTF8.GetBytes("new launcher");
@@ -417,11 +417,11 @@ static partial class Program
         if (!OperatingSystem.IsWindows())
         {
             var script = Path.Combine(root, "launcher.sh");
-            File.WriteAllText(script, "#!/bin/sh\n[ \"$1\" = --self-check ] && echo 'LongshotLauncher v3.0.1' && exit 0\nexit 3\n");
+            File.WriteAllText(script, "#!/bin/sh\n[ \"$1\" = --self-check ] && echo 'HookshotLauncher v3.0.1' && exit 0\nexit 3\n");
             File.SetUnixFileMode(script, UnixFileMode.UserRead | UnixFileMode.UserExecute | UnixFileMode.UserWrite);
             Require(await SelfUpdate.SelfCheckAsync(script, "v3.0.1", TimeSpan.FromSeconds(30)), "A launcher that answers its version.");
             Require(!await SelfUpdate.SelfCheckAsync(script, "v3.0.2", TimeSpan.FromSeconds(30)), "A launcher that is another version.");
-            File.WriteAllText(script, "#!/bin/sh\necho 'LongshotLauncher v3.0.1'\nexit 1\n");
+            File.WriteAllText(script, "#!/bin/sh\necho 'HookshotLauncher v3.0.1'\nexit 1\n");
             Require(!await SelfUpdate.SelfCheckAsync(script, "v3.0.1", TimeSpan.FromSeconds(30)), "A launcher that fails.");
             File.WriteAllText(script, "#!/bin/sh\nsleep 30\n");
             Require(!await SelfUpdate.SelfCheckAsync(script, "v3.0.1", TimeSpan.FromSeconds(1)), "A launcher that hangs.");
@@ -465,7 +465,7 @@ static partial class Program
         var python = Zip(("bin/python3", "#!/bin/sh\n", null, 0x1ED));
         var python2 = Zip(("bin/python3", "#!/bin/sh\n# 2\n", null, 0x1ED));
         var sysroot = Zip(("lib/libc.so.6", "authored", null, 0x1A4), ("lib64/ld.so", null, "/lib/libc.so.6", 0));
-        var v1 = Linux("v3.3.0", PartAt(gh, "https://x/tools.zip", tools, "usr/share/longshot"),
+        var v1 = Linux("v3.3.0", PartAt(gh, "https://x/tools.zip", tools, "usr/share/hookshot"),
                        PartAt(gh, "https://x/python.zip", python, "usr/python"),
                        PartAt(gh, "https://x/sysroot.zip", sysroot, Toolchains.SysrootPart));
         var chains = new Toolchains(root, gh);
@@ -476,7 +476,7 @@ static partial class Program
         Require(seen.Count > 3 && seen.Zip(seen.Skip(1)).All(p => p.Second >= p.First) && Math.Abs(seen[^1] - 1) < 1e-9,
                 "The install's progress goes up to 1.");
         Require(new FileInfo(Path.Combine(t1.ToolsRoot, "nx2", "link.py")).LinkTarget == "make_game.py", "A part's relative link.");
-        var rebased = new FileInfo(Path.Combine(root, "v3.3.0", "usr", "lib", "longshot", "sysroot", "lib64", "ld.so"));
+        var rebased = new FileInfo(Path.Combine(root, "v3.3.0", "usr", "lib", "hookshot", "sysroot", "lib64", "ld.so"));
         Require(rebased.LinkTarget == "../lib/libc.so.6", "A sysroot's rooted link is rebased inside it: " + rebased.LinkTarget);
         if (!OperatingSystem.IsWindows())
             Require((File.GetUnixFileMode(t1.MakeGame) & UnixFileMode.UserExecute) != 0
@@ -486,20 +486,20 @@ static partial class Program
 
         // (the next version: the unchanged parts come from v3.3.0, only the changed one is downloaded)
         gh.Asked.Clear();
-        var v2 = Linux("v3.3.1", PartAt(gh, "https://x/tools.zip", tools, "usr/share/longshot"),
+        var v2 = Linux("v3.3.1", PartAt(gh, "https://x/tools.zip", tools, "usr/share/hookshot"),
                        PartAt(gh, "https://x/python2.zip", python2, "usr/python"),
                        PartAt(gh, "https://x/sysroot.zip", sysroot, Toolchains.SysrootPart));
         var t2 = await chains.InstallAsync(v2);
         Require(gh.Asked.SequenceEqual(new[] { "https://x/python2.zip" }), "Unchanged parts were downloaded again: " + string.Join(", ", gh.Asked));
         Require(File.ReadAllText(t2.MakeGame) == "print('authored')\n" && File.ReadAllText(t2.Python).Contains("# 2")
                 && new FileInfo(Path.Combine(t2.ToolsRoot, "nx2", "link.py")).LinkTarget == "make_game.py"
-                && new FileInfo(Path.Combine(root, "v3.3.1", "usr", "lib", "longshot", "sysroot", "lib64", "ld.so")).LinkTarget == "../lib/libc.so.6",
+                && new FileInfo(Path.Combine(root, "v3.3.1", "usr", "lib", "hookshot", "sysroot", "lib64", "ld.so")).LinkTarget == "../lib/libc.so.6",
                 "A kept part is the same files, links included.");
         Require(File.ReadAllText(t1.Python) == "#!/bin/sh\n", "The older version kept its own Python.");
 
         // (a part whose bytes differ from its list: nothing is left, the version is not installed)
         var python3 = Zip(("bin/python3", "#!/bin/sh\n# 3\n", null, 0x1ED));
-        var tampered = Linux("v3.4.0", PartAt(gh, "https://x/tools.zip", tools, "usr/share/longshot"),
+        var tampered = Linux("v3.4.0", PartAt(gh, "https://x/tools.zip", tools, "usr/share/hookshot"),
                              new Part(ShaOf(python3), python3.Length, "usr/python", null, null, "https://x/python3.zip"));
         gh.Files["https://x/python3.zip"] = Zip(("bin/python3", "#!/bin/sh\n# 4\n", null, 0x1ED));
         await ThrowsAsync<InvalidDataException>(() => chains.InstallAsync(tampered), "A part with another checksum was installed.");
@@ -511,14 +511,14 @@ static partial class Program
         Require(!Directory.Exists(Path.Combine(root, "v3.4.0.part")), "A part too large left its staging.");
         // (a zip with a name outside its folder)
         var evil = Zip(("../evil", "x", null, 0x1A4));
-        var slip = Linux("v3.4.0", PartAt(gh, "https://x/evil.zip", evil, "usr/share/longshot"));
+        var slip = Linux("v3.4.0", PartAt(gh, "https://x/evil.zip", evil, "usr/share/hookshot"));
         await ThrowsAsync<InvalidDataException>(() => chains.InstallAsync(slip), "A zip's ../ name was unpacked.");
         Require(!File.Exists(Path.Combine(root, "evil")) && !File.Exists(Path.Combine(root, "v3.4.0.part", "usr", "share", "evil")), "../evil was written.");
         var outward = Zip(("x", null, "../../../../outside", 0));
-        var outwardList = Linux("v3.4.0", PartAt(gh, "https://x/out.zip", outward, "usr/share/longshot"));
+        var outwardList = Linux("v3.4.0", PartAt(gh, "https://x/out.zip", outward, "usr/share/hookshot"));
         await ThrowsAsync<InvalidDataException>(() => chains.InstallAsync(outwardList), "A link out of the version's folder was made.");
         var absolute = Zip(("x", null, "/etc/passwd", 0));
-        var absoluteList = Linux("v3.4.0", PartAt(gh, "https://x/abs.zip", absolute, "usr/share/longshot"));
+        var absoluteList = Linux("v3.4.0", PartAt(gh, "https://x/abs.zip", absolute, "usr/share/hookshot"));
         await ThrowsAsync<InvalidDataException>(() => chains.InstallAsync(absoluteList), "An absolute link outside the sysroot was made.");
         Require(!Directory.Exists(Path.Combine(root, "v3.4.0")) && !Directory.Exists(Path.Combine(root, "v3.4.0.part")), "A refused part left files.");
 
@@ -526,7 +526,7 @@ static partial class Program
         using (var cancel = new CancellationTokenSource())
         {
             var big = Zip(("nx2/make_game.py", string.Concat(Enumerable.Range(0, 200).Select(_ => Guid.NewGuid().ToString())), null, 0x1A4));
-            var cancelled = Linux("v3.5.0", PartAt(gh, "https://x/big.zip", big, "usr/share/longshot"));
+            var cancelled = Linux("v3.5.0", PartAt(gh, "https://x/big.zip", big, "usr/share/hookshot"));
             gh.DuringDownload = n => { if (n > 100) cancel.Cancel(); };
             await ThrowsAsync<OperationCanceledException>(() => chains.InstallAsync(cancelled, null, cancel.Token), "The cancel was not heard.");
             gh.DuringDownload = null;
@@ -534,18 +534,18 @@ static partial class Program
                     && !Directory.EnumerateFiles(root, "*.zip.part", SearchOption.AllDirectories).Any(), "A cancelled install left files.");
         }
 
-        // (Windows: the builder's zip under ., with its LongshotBuilder/ folder, and a tool's prefix folder renamed as tools.lock says)
-        var app = Zip(("LongshotBuilder/LongshotBuilder.exe", "MZ", null, 0x1A4), ("LongshotBuilder/tools/nx2/make_game.py", "w", null, 0x1A4),
-                      ("LongshotBuilder/tools/python/python.exe", "MZ", null, 0x1A4));
+        // (Windows: the builder's zip under ., with its HookshotBuilder/ folder, and a tool's prefix folder renamed as tools.lock says)
+        var app = Zip(("HookshotBuilder/HookshotBuilder.exe", "MZ", null, 0x1A4), ("HookshotBuilder/tools/nx2/make_game.py", "w", null, 0x1A4),
+                      ("HookshotBuilder/tools/python/python.exe", "MZ", null, 0x1A4));
         var llvm = Zip(("llvm-mingw-20261104-ucrt-x86_64/bin/clang.exe", "MZ", null, 0x1A4));
         gh.Files["https://x/llvm.zip"] = llvm;
         var setup = new PartsList(ListKind.Setup, "v3.3.0-rc.2", new List<Part>
         {
             PartAt(gh, "https://x/app.zip", app, "."),
-            new(ShaOf(llvm), llvm.Length, "LongshotBuilder/tools", "llvm-mingw-20261104-ucrt-x86_64", "llvm-mingw", "https://x/llvm.zip"),
+            new(ShaOf(llvm), llvm.Length, "HookshotBuilder/tools", "llvm-mingw-20261104-ucrt-x86_64", "llvm-mingw", "https://x/llvm.zip"),
         }, ToolsLock.Run);
         var w = await chains.InstallAsync(setup);
-        Require(w.ToolsRoot == Path.Combine(root, "v3.3.0-rc.2", "LongshotBuilder", "tools") && File.Exists(w.MakeGame)
+        Require(w.ToolsRoot == Path.Combine(root, "v3.3.0-rc.2", "HookshotBuilder", "tools") && File.Exists(w.MakeGame)
                 && w.Python == Path.Combine(w.ToolsRoot, "python", "python.exe")
                 && File.Exists(Path.Combine(w.ToolsRoot, "llvm-mingw", "bin", "clang.exe")), "The Windows layout.");
         Require(chains.Find("v3.3.0-rc.2")?.Kind == ListKind.Setup, "The record says which list made it.");
@@ -555,7 +555,7 @@ static partial class Program
         var removed = chains.Prune(new[] { "v3.3.1" });
         Require(chains.Installed().SequenceEqual(new[] { "v3.3.1" }) && removed.Contains("v3.3.0") && removed.Contains("v9.part"),
                 "Prune keeps the versions builds use and removes the rest.");
-        Require(File.ReadAllText(Path.Combine(root, "v3.3.1", "usr", "share", "longshot", "nx2", "make_game.py")) == "print('authored')\n",
+        Require(File.ReadAllText(Path.Combine(root, "v3.3.1", "usr", "share", "hookshot", "nx2", "make_game.py")) == "print('authored')\n",
                 "A version that shared files with a removed one keeps them.");
     }
 
@@ -564,7 +564,7 @@ static partial class Program
     static void Game(string folder, string? version, bool built = true, string? language = null)
     {
         Directory.CreateDirectory(Path.Combine(folder, "bin"));
-        if (version != null) File.WriteAllText(Path.Combine(folder, "longshot_version.txt"), $"version={version}\nbuilder=/authored/builder\n");
+        if (version != null) File.WriteAllText(Path.Combine(folder, "hookshot_version.txt"), $"version={version}\nbuilder=/authored/builder\n");
         if (built) File.WriteAllText(GameFolder.ExePath(folder, Platforms.Current), "authored");
         if (language != null) File.WriteAllText(Path.Combine(folder, "language.txt"), language + "\n");
     }
@@ -635,7 +635,7 @@ static partial class Program
         var path = Path.Combine(Folder("settings"), "settings.json");
         var d = LauncherSettings.Load(path);
         Require(d.PrepareShaders && !d.Dlss && d.DefaultChannel == null && d.MemoryGb == null, "The defaults.");
-        Require(!d.Nx2naviSavesAsked && !d.HookshotSavesAsked, "Save import offers default to unanswered.");
+        Require(!d.Nx2naviSavesAsked && !d.LongshotSavesAsked, "Save import offers default to unanswered.");
         var s = new LauncherSettings
         {
             Nup = "/n.nup", Language = "de", Dlss = true, DlssLicense = true, Fsr = true, FsrLicense = true, PrepareShaders = false,
@@ -646,9 +646,9 @@ static partial class Program
         Require(t.Nup == "/n.nup" && t.Language == "de" && t.Dlss && t.DlssLicense && t.Fsr && t.FsrLicense && !t.PrepareShaders && t.MemoryGb == 16
                 && t.BuildWorkers == 6 && t.Work == "/w" && t.DefaultChannel == "nightly", "settings.json round trip.");
         new LauncherSettings { Nx2naviSavesAsked = true }.Save(path);
-        Require(LauncherSettings.Load(path) is { Nx2naviSavesAsked: true, HookshotSavesAsked: false }, "NX2navi's import answer is saved independently of Hookshot's.");
-        new LauncherSettings { HookshotSavesAsked = true }.Save(path);
-        Require(LauncherSettings.Load(path) is { Nx2naviSavesAsked: false, HookshotSavesAsked: true }, "Hookshot's import answer leaves NX2navi's offer unanswered.");
+        Require(LauncherSettings.Load(path) is { Nx2naviSavesAsked: true, LongshotSavesAsked: false }, "NX2navi's import answer is saved independently of Longshot's.");
+        new LauncherSettings { LongshotSavesAsked = true }.Save(path);
+        Require(LauncherSettings.Load(path) is { Nx2naviSavesAsked: false, LongshotSavesAsked: true }, "Longshot's import answer leaves NX2navi's offer unanswered.");
         // (AMD FSR 4: the Linux notice keeps the switch on without AMD's licence, and is not that licence)
         new LauncherSettings { Fsr = true, FsrLinuxNotice = true }.Save(path);
         var n = LauncherSettings.Load(path);
@@ -698,7 +698,7 @@ static partial class Program
         Require(MakeGameProtocol.Parse("@@eta 95") is MakeGameLine.Eta { Seconds: 95 }, "@@eta");
         Require(MakeGameProtocol.Parse("@@times 600 400 -1") is MakeGameLine.Times { Previous: -1 }, "@@times");
         Require(MakeGameProtocol.Parse("@@check bad Not the supported version") is MakeGameLine.Check { Ok: false, Text: "Not the supported version" }, "@@check");
-        Require(MakeGameProtocol.Parse("@@done /g/Longshot é") is MakeGameLine.Done { Folder: "/g/Longshot é" }, "@@done");
+        Require(MakeGameProtocol.Parse("@@done /g/Hookshot é") is MakeGameLine.Done { Folder: "/g/Hookshot é" }, "@@done");
         Require(MakeGameProtocol.Parse("@@error Out of space\r") is MakeGameLine.Error { Text: "Out of space" }, "@@error");
         Require(MakeGameProtocol.Parse("the shaders were not prepared now (no usable Vulkan here): the game prepares them at its first start")
                 is MakeGameLine.NotPrepared { Reason: "no usable Vulkan here" }, "make_game's not-prepared line");
@@ -776,41 +776,41 @@ static partial class Program
     static void CommandChecks()
     {
         var home = new LauncherHome(Path.Combine(scratch, "cmd-home"));
-        var win = new Toolchain("v3.3.0", Path.Combine(home.Toolchains, "v3.3.0"), ListKind.Setup, "LongshotBuilder/LongshotBuilder.exe");
-        var request = new BuildRequest(new BuildSource.Nup("C:/g/game.nup"), "C:/Games/Longshot", Language: "fr", Jobs: 6, MemoryGb: 16,
+        var win = new Toolchain("v3.3.0", Path.Combine(home.Toolchains, "v3.3.0"), ListKind.Setup, "HookshotBuilder/HookshotBuilder.exe");
+        var request = new BuildRequest(new BuildSource.Nup("C:/g/game.nup"), "C:/Games/Hookshot", Language: "fr", Jobs: 6, MemoryGb: 16,
                                        PrepareShaders: false, Dlss: true, DlssLicense: true, Fsr: true, FsrLicense: true);
-        var w = MakeGameCommand.For(win, request, Platform.Windows, home, "C:/L/LongshotLauncher.exe", d => d.EndsWith("cpm"));
+        var w = MakeGameCommand.For(win, request, Platform.Windows, home, "C:/L/HookshotLauncher.exe", d => d.EndsWith("cpm"));
         Require(w.FileName == Path.Combine(win.ToolsRoot, "python", "python.exe") && w.WorkingDirectory == win.ToolsRoot, "Windows: the tools' Python.");
         Require(w.Arguments.SequenceEqual(new[]
                 {
-                    "-I", win.MakeGame, "--nup", "C:/g/game.nup", "--out", "C:/Games/Longshot", "--language", "fr", "--work", home.Work,
+                    "-I", win.MakeGame, "--nup", "C:/g/game.nup", "--out", "C:/Games/Hookshot", "--language", "fr", "--work", home.Work,
                     "--no-prepare-shaders", "--fetch-ngx-sdk", "--accept-nvidia-license", "--fsr", "--fetch-fsr-runtime", "--accept-amd-license",
                 }), "Windows arguments: " + string.Join(" ", w.Arguments));
-        Require(w.Environment["LONGSHOT_JOBS"] == "6" && w.Environment["LONGSHOT_MEM_LIMIT_GB"] == "16" && w.Environment["LONGSHOT_NGX_SDK"] == home.NgxSdk
-                && w.Environment["LONGSHOT_FFX_SDK"] == home.FfxSdk && w.Environment["LONGSHOT_BUILDER_EXE"] == "C:/L/LongshotLauncher.exe"
+        Require(w.Environment["HOOKSHOT_JOBS"] == "6" && w.Environment["HOOKSHOT_MEM_LIMIT_GB"] == "16" && w.Environment["HOOKSHOT_NGX_SDK"] == home.NgxSdk
+                && w.Environment["HOOKSHOT_FFX_SDK"] == home.FfxSdk && w.Environment["HOOKSHOT_BUILDER_EXE"] == "C:/L/HookshotLauncher.exe"
                 && w.Environment["RX_CPM"] == Path.Combine(win.ToolsRoot, "cpm") && !w.Environment.ContainsKey("EMSDK")
-                && w.Environment["PYTHONIOENCODING"] == "utf-8" && w.Environment["LONGSHOT_SETUP_BASE"] == null, "Windows environment.");
+                && w.Environment["PYTHONIOENCODING"] == "utf-8" && w.Environment["HOOKSHOT_SETUP_BASE"] == null, "Windows environment.");
         var licenceless = MakeGameCommand.For(win, request with { DlssLicense = false, FsrLicense = false, Jobs = null, MemoryGb = null, PrepareShaders = true },
                                               Platform.Windows, home, "L", _ => false);
         Require(!licenceless.Arguments.Any(a => a.StartsWith("--fetch") || a.StartsWith("--accept") || a == "--fsr" || a == "--no-prepare-shaders")
-                && licenceless.Environment["LONGSHOT_NGX_SDK"] == null && licenceless.Environment["LONGSHOT_FFX_SDK"] == null
-                && !licenceless.Environment.ContainsKey("LONGSHOT_JOBS") && licenceless.Environment["LONGSHOT_MEM_LIMIT_GB"] == null,
+                && licenceless.Environment["HOOKSHOT_NGX_SDK"] == null && licenceless.Environment["HOOKSHOT_FFX_SDK"] == null
+                && !licenceless.Environment.ContainsKey("HOOKSHOT_JOBS") && licenceless.Environment["HOOKSHOT_MEM_LIMIT_GB"] == null,
                 "No license, no DLSS or FSR; Automatic sets nothing.");
 
         var lin = new Toolchain("v3.3.0", Path.Combine(home.Toolchains, "v3.3.0"), ListKind.Linux, null);
         var l = MakeGameCommand.For(lin, request with { Source = new BuildSource.Folders("/d/romfs", "/d/exefs"), Out = "/g", Work = "/w" },
-                                    Platform.Linux, home, "/L/Longshot.AppImage", _ => false);
-        Require(l.FileName == Path.Combine(lin.Folder, "usr", "python", "bin", "python3") && l.WorkingDirectory == Path.Combine(lin.Folder, "usr", "share", "longshot"),
+                                    Platform.Linux, home, "/L/Hookshot.AppImage", _ => false);
+        Require(l.FileName == Path.Combine(lin.Folder, "usr", "python", "bin", "python3") && l.WorkingDirectory == Path.Combine(lin.Folder, "usr", "share", "hookshot"),
                 "Linux: the AppImage layout's Python.");
         Require(l.Arguments.SequenceEqual(new[]
                 {
                     "-I", lin.MakeGame, "--romfs", "/d/romfs", "--exefs", "/d/exefs", "--out", "/g", "--language", "fr", "--work", "/w",
                     "--jobs", "6", "--no-prepare-shaders", "--fetch-ngx-sdk", "--accept-nvidia-license",
                 }), "Linux arguments (tools without AMD's FSR API headers: no FSR): " + string.Join(" ", l.Arguments));
-        Require(!l.Environment.ContainsKey("LONGSHOT_JOBS") && l.Environment["LONGSHOT_MEM_LIMIT_GB"] == "16"
-                && l.Environment["LONGSHOT_VK_PREBUILT"] == null && l.Environment["LONGSHOT_TOOLS"] == lin.ToolsRoot
-                && l.Environment["LONGSHOT_SYSROOT"] == Path.Combine(lin.LibRoot, "sysroot") && l.Environment["EMSDK"] == Path.Combine(lin.LibRoot, "emsdk")
-                && l.Environment["LONGSHOT_FFX_SDK"] == null, "Linux environment (DLSS builds its own Vulkan back end).");
+        Require(!l.Environment.ContainsKey("HOOKSHOT_JOBS") && l.Environment["HOOKSHOT_MEM_LIMIT_GB"] == "16"
+                && l.Environment["HOOKSHOT_VK_PREBUILT"] == null && l.Environment["HOOKSHOT_TOOLS"] == lin.ToolsRoot
+                && l.Environment["HOOKSHOT_SYSROOT"] == Path.Combine(lin.LibRoot, "sysroot") && l.Environment["EMSDK"] == Path.Combine(lin.LibRoot, "emsdk")
+                && l.Environment["HOOKSHOT_FFX_SDK"] == null, "Linux environment (DLSS builds its own Vulkan back end).");
         // (AMD FSR 4 on Linux: --fsr alone, nothing of AMD's fetched, and the Vulkan back end compiled here, not the prebuilt one)
         var fidelityfx = Path.Combine(lin.ToolsRoot, "third_party", "fidelityfx");
         var lf = MakeGameCommand.For(lin, request with { Dlss = false, Source = new BuildSource.Nup("/g/game.nup"), Out = "/g", Work = "/w" },
@@ -820,40 +820,40 @@ static partial class Program
                     "-I", lin.MakeGame, "--nup", "/g/game.nup", "--out", "/g", "--language", "fr", "--work", "/w", "--jobs", "6",
                     "--no-prepare-shaders", "--fsr",
                 }), "Linux arguments with FSR 4: " + string.Join(" ", lf.Arguments));
-        Require(lf.Environment["LONGSHOT_VK_PREBUILT"] == null && lf.Environment["LONGSHOT_FFX_SDK"] == null && lf.Environment["LONGSHOT_NGX_SDK"] == null,
+        Require(lf.Environment["HOOKSHOT_VK_PREBUILT"] == null && lf.Environment["HOOKSHOT_FFX_SDK"] == null && lf.Environment["HOOKSHOT_NGX_SDK"] == null,
                 "Linux environment with FSR 4: its own Vulkan back end, no AMD runtime folder.");
         Require(MakeGameCommand.FsrBuilds(lin, Platform.Linux, d => d == fidelityfx) && !MakeGameCommand.FsrBuilds(lin, Platform.Linux, _ => false)
                 && MakeGameCommand.FsrBuilds(win, Platform.Windows, _ => false), "FSR 4: Windows always, Linux with AMD's FSR API headers.");
         var both = MakeGameCommand.For(lin, request with { Source = new BuildSource.Nup("/g/game.nup"), Out = "/g", Work = "/w" },
                                        Platform.Linux, home, "/L", d => d == fidelityfx);
         Require(both.Arguments.Contains("--fsr") && both.Arguments.Contains("--fetch-ngx-sdk") && !both.Arguments.Contains("--fetch-fsr-runtime")
-                && both.Environment["LONGSHOT_VK_PREBUILT"] == null && both.Environment["LONGSHOT_NGX_SDK"] == home.NgxSdk
-                && both.Environment["LONGSHOT_FFX_SDK"] == null, "Linux with DLSS and FSR 4: both, one back end compiled here.");
+                && both.Environment["HOOKSHOT_VK_PREBUILT"] == null && both.Environment["HOOKSHOT_NGX_SDK"] == home.NgxSdk
+                && both.Environment["HOOKSHOT_FFX_SDK"] == null, "Linux with DLSS and FSR 4: both, one back end compiled here.");
         var lfu = MakeGameCommand.For(lin, request with { Dlss = false, FsrLicense = false }, Platform.Linux, home, "/L", d => d == fidelityfx);
-        Require(!lfu.Arguments.Contains("--fsr") && lfu.Environment["LONGSHOT_VK_PREBUILT"] == Path.Combine(lin.LibRoot, "longshot_vk.so"),
+        Require(!lfu.Arguments.Contains("--fsr") && lfu.Environment["HOOKSHOT_VK_PREBUILT"] == Path.Combine(lin.LibRoot, "hookshot_vk.so"),
                 "Linux, FSR 4 not acknowledged: the prebuilt back end.");
         var u = MakeGameCommand.For(lin, new BuildRequest(new BuildSource.Update("/g"), null), Platform.Linux, home, "/L");
         Require(u.Arguments.SequenceEqual(new[] { "-I", lin.MakeGame, "--update", "/g", "--work", home.Work })
-                && u.Environment["LONGSHOT_VK_PREBUILT"] == Path.Combine(lin.LibRoot, "longshot_vk.so"), "An update: the folder, no --out or --language.");
+                && u.Environment["HOOKSHOT_VK_PREBUILT"] == Path.Combine(lin.LibRoot, "hookshot_vk.so"), "An update: the folder, no --out or --language.");
         Throws<ArgumentOutOfRangeException>(() => MakeGameCommand.For(lin, request with { Jobs = 0 }, Platform.Linux, home, "/L"), "Zero workers.");
         var si = l.StartInfo();
-        Require(si.ArgumentList.SequenceEqual(l.Arguments) && !si.Environment.ContainsKey("LONGSHOT_VK_PREBUILT") && si.RedirectStandardOutput,
+        Require(si.ArgumentList.SequenceEqual(l.Arguments) && !si.Environment.ContainsKey("HOOKSHOT_VK_PREBUILT") && si.RedirectStandardOutput,
                 "The process start info.");
 
         var env = new Dictionary<string, string>
         {
-            ["PATH"] = "/usr/bin", ["LONGSHOT_TOOLS"] = "/t", ["PYTHONHOME"] = "/p", ["APPDIR"] = "/a", ["LD_LIBRARY_PATH"] = "/l", ["HOME"] = "/h",
+            ["PATH"] = "/usr/bin", ["HOOKSHOT_TOOLS"] = "/t", ["PYTHONHOME"] = "/p", ["APPDIR"] = "/a", ["LD_LIBRARY_PATH"] = "/l", ["HOME"] = "/h",
         };
         var game = GamePlay.Environment(Platform.Linux, env);
-        Require(game.Keys.OrderBy(k => k).SequenceEqual(new[] { "HOME", "LONGSHOT_NO_UPDATE_CHECK", "PATH" }) && game["LONGSHOT_NO_UPDATE_CHECK"] == "1",
+        Require(game.Keys.OrderBy(k => k).SequenceEqual(new[] { "HOME", "HOOKSHOT_NO_UPDATE_CHECK", "PATH" }) && game["HOOKSHOT_NO_UPDATE_CHECK"] == "1",
                 "Linux Play drops the AppImage's and the tools' environment.");
-        Require(GamePlay.Environment(Platform.Windows, env).ContainsKey("LONGSHOT_TOOLS"), "Windows Play keeps the environment, as the Builder's.");
+        Require(GamePlay.Environment(Platform.Windows, env).ContainsKey("HOOKSHOT_TOOLS"), "Windows Play keeps the environment, as the Builder's.");
         var play = GamePlay.StartInfo("/g", Platform.Linux, env);
-        Require(play.FileName == Path.Combine("/g", "bin", "longshot") && play.WorkingDirectory == "/g" && !play.Environment.ContainsKey("APPDIR")
-                && play.ArgumentList.Count == 0, "Play starts bin/longshot in its folder.");
+        Require(play.FileName == Path.Combine("/g", "bin", "hookshot") && play.WorkingDirectory == "/g" && !play.Environment.ContainsKey("APPDIR")
+                && play.ArgumentList.Count == 0, "Play starts bin/hookshot in its folder.");
         Require(GamePlay.StartInfo("/g", Platform.Linux, env, user: "/s").ArgumentList.Count == 0
-                && GamePlay.StartInfo("/g", Platform.Windows, env, user: @"C:\Users\Zoë\AppData\Roaming\Longshot").ArgumentList
-                    .SequenceEqual(new[] { "--user", @"C:\Users\Zoë\AppData\Roaming\Longshot" })
+                && GamePlay.StartInfo("/g", Platform.Windows, env, user: @"C:\Users\Zoë\AppData\Roaming\Hookshot").ArgumentList
+                    .SequenceEqual(new[] { "--user", @"C:\Users\Zoë\AppData\Roaming\Hookshot" })
                 && GamePlay.StartInfo("/g", Platform.Windows, env).ArgumentList.Count == 0,
                 "Windows Play gives the game the shared user folder (--user); Linux's game finds it by itself.");
         // (a settings.json of before, with moveSaves: still read)

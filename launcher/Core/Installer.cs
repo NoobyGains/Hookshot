@@ -1,4 +1,4 @@
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// The registry keys the installer writes (HKEY_CURRENT_USER only), behind an interface so that the tests use a dictionary and
 /// never the real registry. Values are strings, or ints written as DWORDs
@@ -31,14 +31,14 @@ public sealed record InstallPlaces(string Program, string StartMenuLink, string 
 }
 
 /// The Windows launcher installing itself, the simple way: there is no installer program, the launcher is its own (README,
-/// "Installing"). Install copies the running program to %LOCALAPPDATA%\Programs\LongshotLauncher\LongshotLauncher.exe (per user, no
-/// administrator rights), makes a Start menu shortcut and an "Apps &amp; features" entry (HKCU\...\Uninstall\LongshotLauncher), whose
+/// "Installing"). Install copies the running program to %LOCALAPPDATA%\Programs\HookshotLauncher\HookshotLauncher.exe (per user, no
+/// administrator rights), makes a Start menu shortcut and an "Apps &amp; features" entry (HKCU\...\Uninstall\HookshotLauncher), whose
 /// UninstallString is "&lt;program&gt;" --uninstall. Uninstall takes those away again; the launcher's data goes only when asked, and
 /// the builds' game folders and the saves never.
 public static class Installer
 {
-    public const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\LongshotLauncher";
-    public const string DisplayName = "Longshot Launcher", Publisher = "Magic Bean", UninstallArgument = "--uninstall", InstallArgument = "--install";
+    public const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\HookshotLauncher";
+    public const string DisplayName = "Hookshot Launcher", Publisher = "Magic Bean", UninstallArgument = "--uninstall", InstallArgument = "--install";
 
     /// The "Apps &amp; features" entry for the installed program
     public static IReadOnlyDictionary<string, object> Entry(InstallPlaces at, string version, long bytes) => new Dictionary<string, object>
@@ -80,7 +80,7 @@ public static class Installer
     }
 
     static void MakeLink(InstallPlaces at, IShortcutMaker shortcuts) =>
-        shortcuts.Make(at.StartMenuLink, at.Program, null, at.Program, "Install Longshot's builder, build the game from your own copy, and play");
+        shortcuts.Make(at.StartMenuLink, at.Program, null, at.Program, "Install Hookshot's builder, build the game from your own copy, and play");
 
     /// The entry written again with this version (an installed launcher does it at each start, so it follows its own updates)
     public static void Register(InstallPlaces at, string version, IUserRegistry registry)

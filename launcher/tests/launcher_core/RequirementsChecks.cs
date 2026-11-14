@@ -1,4 +1,4 @@
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
 static partial class Program
 {

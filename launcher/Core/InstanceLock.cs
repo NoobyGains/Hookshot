@@ -1,10 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// One launcher per home at a time: two would install the same toolchain into one folder and write builds.json and settings.json
-/// over each other. Windows: a named mutex for the home (Local\LongshotLauncher-&lt;hash of the home&gt;); Linux: &lt;home&gt;/launcher.lock
+/// over each other. Windows: a named mutex for the home (Local\HookshotLauncher-&lt;hash of the home&gt;); Linux: &lt;home&gt;/launcher.lock
 /// held open with an exclusive flock (FileShare.None), which the system lets go when the process ends, however it ends.
 /// A second start pokes the first (Poke: &lt;home&gt;/launcher.show), which brings its window forward, and closes.
 public sealed class InstanceLock : IDisposable
@@ -24,7 +24,7 @@ public sealed class InstanceLock : IDisposable
     public static string MutexName(string root)
     {
         var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)).ToUpperInvariant();
-        return @"Local\LongshotLauncher-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(full)))[..32];
+        return @"Local\HookshotLauncher-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(full)))[..32];
     }
 
     /// This launcher's hold on the home; null when another launcher holds it

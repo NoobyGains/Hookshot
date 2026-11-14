@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:LongshotLauncher.ViewModels"
-             xmlns:c="using:LongshotLauncher.Controls"
-             x:Class="LongshotLauncher.Views.ReadyView"
+             xmlns:vm="using:HookshotLauncher.ViewModels"
+             xmlns:c="using:HookshotLauncher.Controls"
+             x:Class="HookshotLauncher.Views.ReadyView"
              x:DataType="vm:ReadyViewModel">
   <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
     <Border Width="84" Height="84" CornerRadius="42" Background="{StaticResource GoSoft}" HorizontalAlignment="Center"

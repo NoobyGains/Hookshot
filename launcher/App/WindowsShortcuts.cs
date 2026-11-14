@@ -1,14 +1,14 @@
 using System.Diagnostics;
 
-namespace LongshotLauncher;
+namespace HookshotLauncher;
 
-/// The Ready screen's Windows shortcuts (Desktop, Start menu): Longshot.lnk starting the launcher with --play, made by the shell's
+/// The Ready screen's Windows shortcuts (Desktop, Start menu): Hookshot.lnk starting the launcher with --play, made by the shell's
 /// own WScript.Shell through PowerShell (the launcher has no COM interop of its own), or removed when unticked.
 /// (Not yet run on Windows: the launcher's first builds were tried on Linux.)
 public static class WindowsShortcuts
 {
-    public static string DesktopLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Longshot.lnk");
-    public static string StartLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Longshot.lnk");
+    public static string DesktopLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Hookshot.lnk");
+    public static string StartLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Hookshot.lnk");
 
     /// A PowerShell single-quoted string: each quote doubled, the typographic ones too (PowerShell ends a string on ‘ ’ ‚ ‛ as on ',
     /// and a folder named O’Brien would end it early)
@@ -51,7 +51,7 @@ public static class WindowsShortcuts
                 continue;
             }
             Directory.CreateDirectory(Path.GetDirectoryName(link)!);
-            lines.Add(Line(link, launcher, "--play", launcher, "Longshot"));
+            lines.Add(Line(link, launcher, "--play", launcher, "Hookshot"));
         }
         Run(lines);
     }

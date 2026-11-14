@@ -1,27 +1,27 @@
 using System.Text.RegularExpressions;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
-/// One Hookshot save folder found (or chosen): where it was looked for, its profile (the user id folder), its slots with when each
+/// One Longshot save folder found (or chosen): where it was looked for, its profile (the user id folder), its slots with when each
 /// was saved, and what is wrong with it (empty: it can be imported)
-public sealed record HookshotSource(string Where, string Profile, string Path, IReadOnlyList<SaveSlot> Slots, IReadOnlyList<string> Problems)
+public sealed record LongshotSource(string Where, string Profile, string Path, IReadOnlyList<SaveSlot> Slots, IReadOnlyList<string> Problems)
 {
     public bool Valid => Problems.Count == 0;
 }
 
-/// The one bridge from Hookshot (docs/saves.md): its saves, copied into Longshot's. Hookshot is the project Longshot was
-/// forked from, and its game writes the same save files in the same layout, so nothing in them is converted: no path, name or id
+/// The one bridge from Longshot (docs/saves.md): its saves, copied into Hookshot's. Longshot is the Magic Bean team's fork of
+/// Hookshot, and its game writes the same save files in the same layout, so nothing in them is converted: no path, name or id
 /// is written inside a save. The originals are only read, never moved, changed or deleted.
-///   Linux    $XDG_DATA_HOME/hookshot/save/&lt;user id&gt;/ (default ~/.local/share/hookshot): every Hookshot build shares it
-///   Windows  &lt;game folder&gt;\user\save\&lt;user id&gt;\, the game folder %USERPROFILE%\Games\Hookshot by default, or one folder per
-///            version under it (Hookshot's own launcher put them there); any other folder is chosen by hand
-/// A save folder holds account.sav, option.sav and slot_NN\ folders with progress.sav and caption.sav (Longshot's docs/saves.md). Anything
+///   Linux    $XDG_DATA_HOME/longshot/save/&lt;user id&gt;/ (default ~/.local/share/longshot): every Longshot build shares it
+///   Windows  &lt;game folder&gt;\user\save\&lt;user id&gt;\, the game folder %USERPROFILE%\Games\Longshot by default, or one folder per
+///            version under it (Longshot's own launcher put them there); any other folder is chosen by hand
+/// A save folder holds account.sav, option.sav and slot_NN\ folders with progress.sav and caption.sav (Hookshot's docs/saves.md). Anything
 /// else in it, a link, an empty file or one far larger than a save is, refuses the import: the files are checked, not copied blindly.
-public static class HookshotSaves
+public static class LongshotSaves
 {
-    public static readonly SaveProgram Program = new("hookshot", "Hookshot",
-        new Dictionary<Platform, string[]> { [Platform.Linux] = new[] { "{data}/hookshot" }, [Platform.Windows] = new[] { "{home}/Games/Hookshot" } },
-        new[] { "hookshot" }, Array.Empty<string>());
+    public static readonly SaveProgram Program = new("longshot", "Longshot",
+        new Dictionary<Platform, string[]> { [Platform.Linux] = new[] { "{data}/longshot" }, [Platform.Windows] = new[] { "{home}/Games/Longshot" } },
+        new[] { "longshot" }, Array.Empty<string>());
 
     /// A save file is a few kilobytes; anything above this is not one
     public const long MaxSaveFile = 4 << 20;
@@ -29,7 +29,7 @@ public static class HookshotSaves
     static readonly string[] ProfileFiles = { "account.sav", "option.sav" };
     static readonly string[] SlotFiles = { "progress.sav", "caption.sav" };
 
-    /// The folders Hookshot keeps saves in on this PC, in the order shown: its data folder (Linux), its default game folder and
+    /// The folders Longshot keeps saves in on this PC, in the order shown: its data folder (Linux), its default game folder and
     /// each version folder in it (Windows)
     public static IReadOnlyList<string> Roots(SaveEnvironment env)
     {
@@ -48,10 +48,10 @@ public static class HookshotSaves
         return roots;
     }
 
-    /// Every Hookshot save found: in the usual places, or (folder) only under the folder the player chose
-    public static IReadOnlyList<HookshotSource> Find(SaveEnvironment env, string? folder = null)
+    /// Every Longshot save found: in the usual places, or (folder) only under the folder the player chose
+    public static IReadOnlyList<LongshotSource> Find(SaveEnvironment env, string? folder = null)
     {
-        var found = new List<HookshotSource>();
+        var found = new List<LongshotSource>();
         foreach (var root in folder != null ? new[] { System.IO.Path.GetFullPath(folder) } : Roots(env))
         {
             if (!Directory.Exists(root)) continue;
@@ -59,7 +59,7 @@ public static class HookshotSaves
             try { profiles = Saves.Find(root); }
             catch (SaveFailure) { continue; }
             foreach (var p in profiles)
-                if (!found.Any(f => f.Path == p.Path)) found.Add(new HookshotSource(root, p.Id, p.Path, Saves.Describe(p.Path), Validate(p.Path)));
+                if (!found.Any(f => f.Path == p.Path)) found.Add(new LongshotSource(root, p.Id, p.Path, Saves.Describe(p.Path), Validate(p.Path)));
         }
         return found;
     }
@@ -111,20 +111,20 @@ public static class HookshotSaves
         return problems;
     }
 
-    /// Whether importing into target would replace a Longshot save (then the player is asked first)
+    /// Whether importing into target would replace a Hookshot save (then the player is asked first)
     public static bool WouldReplace(string target) => Directory.Exists(target) && Saves.IsSaveFolder(target);
 
-    /// Copies a checked Hookshot save into target. A Longshot save there is replaced only with overwrite (the player said so), and
+    /// Copies a checked Longshot save into target. A Hookshot save there is replaced only with overwrite (the player said so), and
     /// is copied whole to the backup folder first (Saves.Copy). Refused (SaveFailure): a save that does not pass Validate, a
-    /// replace not agreed to, a game or Hookshot running
-    public static SaveCopy Import(HookshotSource source, string target, string backupRoot, bool overwrite,
+    /// replace not agreed to, a game or Longshot running
+    public static SaveCopy Import(LongshotSource source, string target, string backupRoot, bool overwrite,
                                   Func<IReadOnlyList<string>>? running = null, Func<DateTime>? now = null)
     {
         var problems = Validate(source.Path);
         if (problems.Count > 0)
-            throw new SaveFailure("This is not a Hookshot save that can be imported: " + string.Join("; ", problems) + ". Nothing was copied.");
+            throw new SaveFailure("This is not a Longshot save that can be imported: " + string.Join("; ", problems) + ". Nothing was copied.");
         if (WouldReplace(target) && !overwrite)
-            throw new SaveFailure("Longshot already has a save there. Say to replace it (it is backed up first), or keep it.", SaveRefusal.Exists);
-        return Saves.Copy(source.Path, target, backupRoot, "hookshot", source.Profile, running: running, now: now);
+            throw new SaveFailure("Hookshot already has a save there. Say to replace it (it is backed up first), or keep it.", SaveRefusal.Exists);
+        return Saves.Copy(source.Path, target, backupRoot, "longshot", source.Profile, running: running, now: now);
     }
 }

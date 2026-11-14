@@ -1,6 +1,6 @@
-using LongshotLauncher.Core;
+using HookshotLauncher.Core;
 
-namespace LongshotLauncher.ViewModels;
+namespace HookshotLauncher.ViewModels;
 
 /// A problem in plain words (launcher/Core/Problems.cs): what happened, and the fix there is (the graphics driver's page for
 /// the card's maker)

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// What a build is made from: a .nup, the romfs and exefs folders, or (Update) a folder built before, from the game files it keeps
 public abstract record BuildSource
@@ -17,7 +17,7 @@ public sealed record BuildRequest(
     bool PrepareShaders = true, bool Dlss = false, bool DlssLicense = false, bool Fsr = false, bool FsrLicense = false);
 
 /// make_game.py as the 2.x Builders start it (Runner.Info and MainWindow.Run on Windows; builder/linux/AppRun and
-/// longshot_builder.py on Linux): the program, its arguments, its folder and the environment changes (null: removed)
+/// hookshot_builder.py on Linux): the program, its arguments, its folder and the environment changes (null: removed)
 public sealed record MakeGameCommand(
     string FileName, IReadOnlyList<string> Arguments, string WorkingDirectory, IReadOnlyDictionary<string, string?> Environment)
 {
@@ -50,7 +50,7 @@ public sealed record MakeGameCommand(
             if (Languages.Normalize(r.Language) is { } language) args.AddRange(new[] { "--language", language });
         }
         args.AddRange(new[] { "--work", r.Work ?? home.Work });
-        // (the build workers: LONGSHOT_JOBS on Windows, BuildWorkers.Apply; --jobs on Linux, as longshot_builder.py passes them)
+        // (the build workers: HOOKSHOT_JOBS on Windows, BuildWorkers.Apply; --jobs on Linux, as hookshot_builder.py passes them)
         if (!windows && r.Jobs is int jobs) args.AddRange(new[] { "--jobs", jobs.ToString(CultureInfo.InvariantCulture) });
         if (!r.PrepareShaders) args.Add("--no-prepare-shaders");
         var dlss = r.Dlss && r.DlssLicense;
@@ -63,17 +63,17 @@ public sealed record MakeGameCommand(
         var env = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["PYTHONIOENCODING"] = "utf-8",
-            ["LONGSHOT_BUILDER_EXE"] = launcher,
+            ["HOOKSHOT_BUILDER_EXE"] = launcher,
             // (the 2.x setup's home and portable mark: make_game would take them for its work folder and stamp; the launcher passes --work)
-            ["LONGSHOT_SETUP_BASE"] = null,
-            ["LONGSHOT_BUILDER_PORTABLE"] = null,
-            ["LONGSHOT_BUILDER_ARGS"] = null,
+            ["HOOKSHOT_SETUP_BASE"] = null,
+            ["HOOKSHOT_BUILDER_PORTABLE"] = null,
+            ["HOOKSHOT_BUILDER_ARGS"] = null,
             // (DLSS and FSR only when ticked: one set on the PC is not passed on either)
-            ["LONGSHOT_NGX_SDK"] = dlss ? home.NgxSdk : null,
-            ["LONGSHOT_FFX_SDK"] = fsr && windows ? home.FfxSdk : null,
-            ["LONGSHOT_MEM_LIMIT_GB"] = r.MemoryGb?.ToString(CultureInfo.InvariantCulture),
+            ["HOOKSHOT_NGX_SDK"] = dlss ? home.NgxSdk : null,
+            ["HOOKSHOT_FFX_SDK"] = fsr && windows ? home.FfxSdk : null,
+            ["HOOKSHOT_MEM_LIMIT_GB"] = r.MemoryGb?.ToString(CultureInfo.InvariantCulture),
         };
-        if (windows && r.Jobs is int workers) env["LONGSHOT_JOBS"] = workers.ToString(CultureInfo.InvariantCulture);
+        if (windows && r.Jobs is int workers) env["HOOKSHOT_JOBS"] = workers.ToString(CultureInfo.InvariantCulture);
         if (windows)
         {
             // (the tools' own compiler, headers and libraries when they have them: nothing of the PC's but Windows' own)
@@ -87,15 +87,15 @@ public sealed record MakeGameCommand(
         {
             // (builder/linux/AppRun: everything the AppImage builds with)
             var lib = tools.LibRoot;
-            env["LONGSHOT_TOOLS"] = tools.ToolsRoot;
+            env["HOOKSHOT_TOOLS"] = tools.ToolsRoot;
             env["EMSDK"] = Path.Combine(lib, "emsdk");
-            env["LONGSHOT_SYSROOT"] = Path.Combine(lib, "sysroot");
-            env["LONGSHOT_FFMPEG"] = Path.Combine(lib, "ffmpeg");
+            env["HOOKSHOT_SYSROOT"] = Path.Combine(lib, "sysroot");
+            env["HOOKSHOT_FFMPEG"] = Path.Combine(lib, "ffmpeg");
             // (tools.lock's sdl2, unpacked beside the builder; a builder that carried its tools has it in lib itself)
-            env["LONGSHOT_SDL2"] = directoryExists(Path.Combine(lib, "sdl2"))
+            env["HOOKSHOT_SDL2"] = directoryExists(Path.Combine(lib, "sdl2"))
                 ? Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0") : Path.Combine(lib, "libSDL2-2.0.so.0");
-            // (DLSS or FSR 4: longshot_vk.so built here with NGX or AMD's FSR API headers, not the prebuilt one, which has neither)
-            env["LONGSHOT_VK_PREBUILT"] = dlss || fsr ? null : Path.Combine(lib, "longshot_vk.so");
+            // (DLSS or FSR 4: hookshot_vk.so built here with NGX or AMD's FSR API headers, not the prebuilt one, which has neither)
+            env["HOOKSHOT_VK_PREBUILT"] = dlss || fsr ? null : Path.Combine(lib, "hookshot_vk.so");
         }
         return new MakeGameCommand(tools.Python, args, tools.ToolsRoot, env);
     }
@@ -147,11 +147,11 @@ public sealed record MakeGameCommand(
     }
 }
 
-/// Play: the build's game from its folder, as the 2.x Builders start it (MainWindow.StartGame; on Linux longshot_builder.play with
+/// Play: the build's game from its folder, as the 2.x Builders start it (MainWindow.StartGame; on Linux hookshot_builder.play with
 /// make_game.game_env: without what the AppImage runtime and the tools put in the environment)
 public static class GamePlay
 {
-    static readonly string[] Dropped = { "LONGSHOT_", "PYTHON", "APPDIR", "APPIMAGE", "ARGV0", "OWD" };   // (make_game.GAME_ENV_DROP)
+    static readonly string[] Dropped = { "HOOKSHOT_", "PYTHON", "APPDIR", "APPIMAGE", "ARGV0", "OWD" };   // (make_game.GAME_ENV_DROP)
 
     /// The environment the game starts with, from the launcher's
     public static Dictionary<string, string> Environment(Platform platform, IReadOnlyDictionary<string, string> current)
@@ -160,11 +160,11 @@ public static class GamePlay
             ? new Dictionary<string, string>(current, StringComparer.OrdinalIgnoreCase)
             : current.Where(kv => !Dropped.Any(p => kv.Key.StartsWith(p, StringComparison.Ordinal)) && kv.Key != "LD_LIBRARY_PATH")
                 .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
-        env["LONGSHOT_NO_UPDATE_CHECK"] = "1";   // (the launcher already checked for updates: the game does not ask again)
+        env["HOOKSHOT_NO_UPDATE_CHECK"] = "1";   // (the launcher already checked for updates: the game does not ask again)
         return env;
     }
 
-    /// user: Longshot's user folder, which every build shares (SaveEnvironment.LongshotUser), given to the game as --user on Windows.
+    /// user: Hookshot's user folder, which every build shares (SaveEnvironment.HookshotUser), given to the game as --user on Windows.
     /// Every Windows build takes --user, the ones from before the launcher too; without it the game keeps its saves in its own
     /// folder's user\. On Linux the game finds the shared one by itself, so nothing is passed
     public static ProcessStartInfo StartInfo(string folder, Platform platform, IReadOnlyDictionary<string, string>? current = null, string? user = null)

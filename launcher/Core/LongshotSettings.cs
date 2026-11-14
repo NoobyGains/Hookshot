@@ -2,17 +2,17 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
-public sealed record HookshotSettingsCopy(string Source, string Target, IReadOnlyList<string> Files, string? Backup,
+public sealed record LongshotSettingsCopy(string Source, string Target, IReadOnlyList<string> Files, string? Backup,
                                          IReadOnlyList<string> SkippedKeys, string? Language = null);
 
-/// The settings a Hookshot game folder can bring into one Longshot build. Saves and the shared user folder are separate.
-public static class HookshotSettings
+/// The settings a Longshot game folder can bring into one Hookshot build. Saves and the shared user folder are separate.
+public static class LongshotSettings
 {
     public const int MaxFileSize = 64 << 10;
     static readonly UTF8Encoding Utf8 = new(false, true);
-    static readonly string[] TargetFiles = { "longshot_options.ini", "language.txt" };
+    static readonly string[] TargetFiles = { "hookshot_options.ini", "language.txt" };
     static readonly HashSet<string> Buttons = new("a b x y ls rs l r zl zr plus minus left up right down".Split(' '), StringComparer.Ordinal);
     static readonly HashSet<string> Keys = new(Buttons.Concat("move_up move_down move_left move_right cam_up cam_down cam_left cam_right".Split(' ')), StringComparer.Ordinal);
     static readonly Regex KeyName = new("^[a-z][a-z0-9_-]{0,63}$", RegexOptions.CultureInvariant);
@@ -49,7 +49,7 @@ public static class HookshotSettings
         return real;
     }
 
-    /// emptyOk: the build's own file, which may be empty (nothing to keep, nothing to back up); a Hookshot file must have content
+    /// emptyOk: the build's own file, which may be empty (nothing to keep, nothing to back up); a Longshot file must have content
     static byte[]? ReadFile(string path, bool emptyOk = false)
     {
         var info = new FileInfo(path);
@@ -87,13 +87,13 @@ public static class HookshotSettings
         return w >= 640 && h >= 360 && (long)w * h <= 5120L * 2880 && (long)w * 4 >= (long)h * 5 && (long)w * 9 <= (long)h * 48;
     }
 
-    /// What a Hookshot game folder brings: its compatible options, in its order (null: no hookshot_options.ini, or nothing in
-    /// it Longshot takes), its game language (null: no language.txt), and the keys left out (unknown to Longshot, or a value
-    /// outside the launcher's copy of its rows, which Longshot would clamp on load anyway: the build keeps its own value). Refused
+    /// What a Longshot game folder brings: its compatible options, in its order (null: no longshot_options.ini, or nothing in
+    /// it Hookshot takes), its game language (null: no language.txt), and the keys left out (unknown to Hookshot, or a value
+    /// outside the launcher's copy of its rows, which Hookshot would clamp on load anyway: the build keeps its own value). Refused
     /// (SaveFailure) only for what is not a settings file at all, or a newer options_version than was checked
     sealed record Found(IReadOnlyList<(string Key, string Value)>? Options, string? Language, IReadOnlyList<string> Skipped)
     {
-        public IReadOnlyList<string> Files => (Options != null ? new[] { "longshot_options.ini" } : Array.Empty<string>())
+        public IReadOnlyList<string> Files => (Options != null ? new[] { "hookshot_options.ini" } : Array.Empty<string>())
                                                .Concat(Language != null ? new[] { "language.txt" } : Array.Empty<string>()).ToArray();
     }
 
@@ -101,23 +101,23 @@ public static class HookshotSettings
     {
         var skipped = new HashSet<string>(StringComparer.Ordinal);
         List<(string Key, string Value)>? options = null;
-        if (ReadFile(Path.Combine(folder, "hookshot_options.ini")) is { } ini)
+        if (ReadFile(Path.Combine(folder, "longshot_options.ini")) is { } ini)
         {
             var kept = new Dictionary<string, string>(StringComparer.Ordinal);
             var order = new List<string>();
-            foreach (var raw in Text(ini, "hookshot_options.ini").Split('\n'))
+            foreach (var raw in Text(ini, "longshot_options.ini").Split('\n'))
             {
                 var line = raw.Trim();
                 if (line.Length == 0 || line[0] is '#' or ';') continue;
                 var eq = line.IndexOf('=');
-                if (eq <= 0 || !KeyName.IsMatch(line[..eq].Trim())) throw new SaveFailure("hookshot_options.ini has an invalid setting line.");
+                if (eq <= 0 || !KeyName.IsMatch(line[..eq].Trim())) throw new SaveFailure("longshot_options.ini has an invalid setting line.");
                 var key = line[..eq].Trim();
                 var value = line[(eq + 1)..].Trim();
                 bool valid;
                 if (key == "options_version")
                 {
-                    // shortcut: schema checked at Hookshot v4, with Longshot's legacy reader; review before accepting a newer format.
-                    if (!Integer(value, 0, 4)) throw new SaveFailure("This Hookshot settings version has not been checked for Longshot. Nothing was copied.");
+                    // shortcut: schema checked at Longshot v4, with Hookshot's legacy reader; review before accepting a newer format.
+                    if (!Integer(value, 0, 4)) throw new SaveFailure("This Longshot settings version has not been checked for Hookshot. Nothing was copied.");
                     valid = true;
                 }
                 else if (Ranges.TryGetValue(key, out var range)) valid = Integer(value, range.Min, range.Max);
@@ -135,7 +135,7 @@ public static class HookshotSettings
                 // so a key is imported with its last value, or listed as skipped when that last value is the one left out)
                 if (!valid)
                 {
-                    skipped.Add(key);   // (unknown, or out of range: listed and left out, as Longshot would clamp or ignore it)
+                    skipped.Add(key);   // (unknown, or out of range: listed and left out, as Hookshot would clamp or ignore it)
                     if (kept.Remove(key)) order.Remove(key);
                     continue;
                 }
@@ -151,15 +151,15 @@ public static class HookshotSettings
             var code = Text(text, "language.txt").Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0 && !l.StartsWith('#'));
             language = Languages.Normalize(code) ?? throw new SaveFailure("language.txt has no supported game language. Nothing was copied.");
         }
-        if (options == null && language == null) throw new SaveFailure("No compatible Hookshot settings in that folder. Choose the Hookshot game folder.");
+        if (options == null && language == null) throw new SaveFailure("No compatible Longshot settings in that folder. Choose the Longshot game folder.");
         return new Found(options, language, skipped.Order(StringComparer.Ordinal).ToArray());
     }
 
-    /// The rows Longshot reads by the options_version of their file: a line of the key in a file older than Since (no
+    /// The rows Hookshot reads by the options_version of their file: a line of the key in a file older than Since (no
     /// options_version line at all: -1) holds the old default, whether chosen or not, and is moved on load. game_speed: realtime=1
     /// without the line (gpu/vk/vk_menu.cpp menu_init's !v2); key_y and key_zl: the mouse's buttons added (host/nn_hid.c
     /// binds_load); descriptor_reuse, menu_shortcut, ultrawide: menu_init's version < 4, 5, 6 (and vk_draw.cpp menu_env_on,
-    /// host/hos_wide_size.h hos_aspect_on). Checked against Longshot's options_version 6
+    /// host/hos_wide_size.h hos_aspect_on). Checked against Hookshot's options_version 6
     static readonly (string Key, int Since)[] Migrated =
     {
         ("game_speed", 0), ("key_y", 3), ("key_zl", 3), ("descriptor_reuse", 4), ("menu_shortcut", 5), ("ultrawide", 6),
@@ -174,18 +174,18 @@ public static class HookshotSettings
         return eq > 0 ? (line[..eq].Trim(), line[(eq + 1)..].Trim()) : (null, "");
     }
 
-    /// An options_version as Longshot reads it (atoi: 0 when it is not a number)
+    /// An options_version as Hookshot reads it (atoi: 0 when it is not a number)
     static int OptionsVersion(string value) => int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0;
 
-    /// The build's own longshot_options.ini with the imported keys in it: the file's lines kept, in their order (Longshot's
+    /// The build's own hookshot_options.ini with the imported keys in it: the file's lines kept, in their order (Hookshot's
     /// own settings, such as make_game.py's compile_shaders, vsync, the budgets, auto_*, note_* bindings, and any key it does not
     /// know), each imported key's value put in place of the old one, and the imported keys the file does not have yet added at
     /// the end, as make_game.py's write_compile_level and the menu's own save keep the lines they do not write.
-    /// The merged file is read under Hookshot's options_version, so that Longshot migrates the imported rows as it would
-    /// Hookshot's own file: the imported marker replaces the build's, and without one the build's options_version lines are
+    /// The merged file is read under Longshot's options_version, so that Hookshot migrates the imported rows as it would
+    /// Longshot's own file: the imported marker replaces the build's, and without one the build's options_version lines are
     /// removed (a file from before the marker). Every line kept means the same under that version: a line of the build's own
-    /// (not imported) whose key Longshot migrates (Migrated) between the build's version and the imported one is removed, so
-    /// that the row takes Longshot's current default rather than being moved again (an options_version 6 menu_shortcut=0,
+    /// (not imported) whose key Hookshot migrates (Migrated) between the build's version and the imported one is removed, so
+    /// that the row takes Hookshot's current default rather than being moved again (an options_version 6 menu_shortcut=0,
     /// Insert or F1, read under 4 would become Insert, F1 or Esc). The other kept lines are of keys no migration reads
     internal static string Merge(string? existing, IReadOnlyList<(string Key, string Value)> imported)
     {
@@ -193,7 +193,7 @@ public static class HookshotSettings
         var eol = existing?.Contains("\r\n") == true ? "\r\n" : "\n";
         var lines = (existing ?? "").Split('\n').Select(l => l.TrimEnd('\r')).ToList();
         if (lines.Count > 0 && lines[^1].Length == 0) lines.RemoveAt(lines.Count - 1);   // (the last line's end)
-        var had = -1;   // (the build's options_version: its last line's, as Longshot reads it; -1 without one)
+        var had = -1;   // (the build's options_version: its last line's, as Hookshot reads it; -1 without one)
         foreach (var line in lines)
             if (Line(line) is ("options_version", var v)) had = OptionsVersion(v);
         var now = values.TryGetValue("options_version", out var marker) ? OptionsVersion(marker) : -1;
@@ -225,35 +225,35 @@ public static class HookshotSettings
 
     public static IReadOnlyList<string> FilesIn(string gameFolder) => Load(Folder(gameFolder)).Files;
 
-    /// A preview writes nothing. A real import backs up the existing files, then writes Hookshot's settings into them: the
-    /// imported keys into the build's longshot_options.ini, its other lines kept (Merge), and language.txt replaced.
-    public static HookshotSettingsCopy Import(string sourceGameFolder, string targetGameFolder, string backupRoot, bool overwrite,
+    /// A preview writes nothing. A real import backs up the existing files, then writes Longshot's settings into them: the
+    /// imported keys into the build's hookshot_options.ini, its other lines kept (Merge), and language.txt replaced.
+    public static LongshotSettingsCopy Import(string sourceGameFolder, string targetGameFolder, string backupRoot, bool overwrite,
                                              bool dryRun = false, Func<IReadOnlyList<string>>? running = null, Func<DateTime>? now = null)
     {
         var source = Folder(sourceGameFolder);
         var target = Folder(targetGameFolder);
-        if (source.Equals(target, Comparison)) throw new SaveFailure("The Hookshot and Longshot game folders must differ.");
+        if (source.Equals(target, Comparison)) throw new SaveFailure("The Longshot and Hookshot game folders must differ.");
         var found = Load(source);
         var previous = TargetFiles.Select(n => (Name: n, Bytes: ReadFile(Path.Combine(target, n), emptyOk: true)))
                                   .Where(f => f.Bytes != null).ToDictionary(f => f.Name, f => f.Bytes!, StringComparer.Ordinal);
         var files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         if (found.Options != null)
         {
-            var existing = previous.TryGetValue("longshot_options.ini", out var old) ? Text(old, "longshot_options.ini") : null;
-            files.Add("longshot_options.ini", Utf8.GetBytes(Merge(existing, found.Options)));
+            var existing = previous.TryGetValue("hookshot_options.ini", out var old) ? Text(old, "hookshot_options.ini") : null;
+            files.Add("hookshot_options.ini", Utf8.GetBytes(Merge(existing, found.Options)));
         }
         if (found.Language != null) files.Add("language.txt", Utf8.GetBytes(found.Language + "\n"));
         // (an empty file has no settings to replace: imported into without asking, and restored as it was if a write fails)
         var replacing = files.Keys.Any(n => previous.TryGetValue(n, out var bytes) && bytes.Length > 0);
-        if (!dryRun && replacing && !overwrite) throw new SaveFailure("Longshot already has settings there. Back them up and replace them, or keep them.", SaveRefusal.Exists);
+        if (!dryRun && replacing && !overwrite) throw new SaveFailure("Hookshot already has settings there. Back them up and replace them, or keep them.", SaveRefusal.Exists);
         if (!dryRun && (running ?? (() => Saves.Running(Platforms.Current)))() is { Count: > 0 } busy)
             throw new SaveFailure($"Close {string.Join(" and ", busy)} before importing settings.", SaveRefusal.Running, busy);
         var stamp = (now ?? (() => DateTime.Now))().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
         backupRoot = Folder(backupRoot, mustExist: false);
-        var backup = Path.Combine(backupRoot, "hookshot-settings-" + stamp);
-        for (var n = 2; Directory.Exists(backup) || File.Exists(backup); n++) backup = Path.Combine(backupRoot, $"hookshot-settings-{stamp}-{n}");
+        var backup = Path.Combine(backupRoot, "longshot-settings-" + stamp);
+        for (var n = 2; Directory.Exists(backup) || File.Exists(backup); n++) backup = Path.Combine(backupRoot, $"longshot-settings-{stamp}-{n}");
         if (Saves.Inside(source, backup) || Saves.Inside(target, backup)) throw new SaveFailure("Choose a backup folder outside both game folders.");
-        var result = new HookshotSettingsCopy(source, target, files.Keys.ToArray(), replacing ? backup : null, found.Skipped, found.Language);
+        var result = new LongshotSettingsCopy(source, target, files.Keys.ToArray(), replacing ? backup : null, found.Skipped, found.Language);
         if (dryRun) return result;
         if (replacing)
         {
@@ -286,7 +286,7 @@ public static class HookshotSettings
                 catch (Exception restore) when (restore is IOException or UnauthorizedAccessException) { restored = false; }
             var recovery = result.Backup != null ? "Restore them from the backup."
                 : $"New, incomplete settings may remain in {target}. Remove those imported files before retrying.";
-            throw new SaveFailure(restored ? $"The settings could not be imported ({e.Message}). Longshot's settings are as they were."
+            throw new SaveFailure(restored ? $"The settings could not be imported ({e.Message}). Hookshot's settings are as they were."
                                           : $"The settings could not be imported or fully restored ({e.Message}). {recovery}", backup: result.Backup);
         }
         return result;

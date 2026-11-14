@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
-namespace LongshotLauncher.Core;
+namespace HookshotLauncher.Core;
 
 /// The launcher's own words in the player's language: each text is looked up by its English (Lang/&lt;code&gt;.json, embedded), a
 /// regional catalog falling back to its language's (fr-CA to fr), and anything missing to the English. Separate from the
