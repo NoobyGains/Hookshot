@@ -549,7 +549,8 @@ static partial class Program
         var (d, m) = Shortcuts.LinuxPaths(env);
         Require(m == Path.Combine(root, "data", "applications", "longshot.desktop") && File.Exists(d) && File.Exists(m), "Both shortcuts made.");
         var text = File.ReadAllText(m);
-        Require(text.Contains("Exec=\"/apps/Longshot.AppImage\" --play \"" + game + "\"") && text.StartsWith("[Desktop Entry]\n"),
+        // (the folder quoted as Exec quotes it: a Windows scratch folder's backslashes are doubled there)
+        Require(text.Contains("Exec=" + Shortcuts.Quote("/apps/Longshot.AppImage") + " --play " + Shortcuts.Quote(game)) && text.StartsWith("[Desktop Entry]\n"),
                 "The entry starts the launcher's Play of that folder: " + text);
         Shortcuts.WriteLinux("/apps/Longshot.AppImage", null, desktop: false, menu: true, icon: "/i.png", getenv: env);
         Require(!File.Exists(d) && File.Exists(m), "Unticked: removed.");

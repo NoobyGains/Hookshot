@@ -20,11 +20,29 @@ static class AtomicFile
                 f.Write(bytes);
                 f.Flush(flushToDisk: true);
             }
-            File.Move(tmp, full, overwrite: true);
+            Replace(tmp, full);
         }
         finally
         {
             try { File.Delete(tmp); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+    }
+
+    /// The rename over the old file. Windows refuses it (access denied, or a sharing violation) while another rename over the
+    /// same file is under way or a reader has it open: tried again for up to about two seconds, then the last refusal stands
+    static void Replace(string tmp, string full)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                File.Move(tmp, full, overwrite: true);
+                return;
+            }
+            catch (Exception e) when (OperatingSystem.IsWindows() && attempt < 40 && e is IOException or UnauthorizedAccessException)
+            {
+                Thread.Sleep(10 + attempt * 2);
+            }
         }
     }
 }

@@ -57,7 +57,7 @@ public static class SelfUpdate
         getenv ??= Environment.GetEnvironmentVariable;
         processPath ??= Environment.ProcessPath;
         if (platform == Platform.Linux)
-            return getenv("APPIMAGE") is { Length: > 0 } appImage && Path.IsPathFullyQualified(appImage) ? appImage : null;
+            return getenv("APPIMAGE") is { Length: > 0 } appImage && appImage.StartsWith('/') ? appImage : null;   // (a Linux path, whatever system reads it)
         if (processPath == null) return null;
         // (either separator: the name is read the same on any system)
         var name = processPath.Split('/', '\\')[^1];

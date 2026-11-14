@@ -102,8 +102,10 @@ public static class Disk
     static bool Within(string path, string root)
     {
         var c = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        var r = Path.TrimEndingDirectorySeparator(root);
-        return r.Length == 0 || path.Equals(r, c) || path.StartsWith(r + Path.DirectorySeparatorChar, c) || root == "/";
+        // (every separator at the end off, the root's own too: "C:\" is "C:", "/" is "", which holds every path. Path's
+        // TrimEndingDirectorySeparator keeps a root's, so on Windows no path was within "C:\" and the free space was unknown)
+        var r = root.TrimEnd('/', Path.DirectorySeparatorChar);
+        return r.Length == 0 || path.Equals(r, c) || path.StartsWith(r + Path.DirectorySeparatorChar, c);
     }
 
     /// The drive a path is on, as the window names it: "D:" on Windows, the mount point on Linux ("/" , "/home", "/mnt/games")
