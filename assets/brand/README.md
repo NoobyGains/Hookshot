@@ -8,8 +8,8 @@ lights; nothing is taken from the game's own files.
 
 | Object | Model | Credit |
 |---|---|---|
-| Hookshot | `Hookshot_DTStheTDS.blend`, from the download `hookshot-ocarina-of-time.zip` | DTStheTDS (the name in the file) |
-| Hyrule shield | `Oot_HyruleShield.fbx` with its textures, from the download `zelda-ocarina-of-time-hyrule-shield.zip` | Author to be added |
+| Hookshot | `Hookshot_DTStheTDS.blend`, from the download `hookshot-ocarina-of-time.zip` | DTStheTDS (the name in the file); open to use, checked by the repository's owner on 2026-11-14 |
+| Hyrule shield | `Oot_HyruleShield.fbx` with its textures, from the download `zelda-ocarina-of-time-hyrule-shield.zip` | Author to be added; open to use, checked by the repository's owner on 2026-11-14 |
 
 The models are not in this repository: only the pictures rendered from them are. **To do:** add each model's page and
 licence here (neither download carried a licence file). The Hookshot, the shield and its crest are Nintendo's designs;
@@ -26,7 +26,7 @@ Rendered on 2026-11-14 in Blender 4.5 (Cycles, OptiX, RTX 5090), 96 samples, 600
 | File | Size | Use |
 |---|---|---|
 | `emblem_hookshot.png`, `emblem_shield.png` | 600×600 | The first frame of each turn: what the still banner is built from |
-| `hero.webp` | 1200×450, 40 frames, animated WebP | The README header: both objects turn once, and loop |
+| `header.webp` | 1200×450, 40 frames, animated WebP | The README header: both objects turn once, and loop |
 | `hero.png` | 1600×600, rounded corners | The still banner |
 | `social-preview.png` | 1280×640 | GitHub's social preview (uploaded by hand in Settings) |
 | `icon.png` | 512×512, rounded square | Listings and avatars |
