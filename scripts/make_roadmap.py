@@ -28,6 +28,7 @@ STAGES = [
         ("graphics.jpg", "New graphics options", "View distance, grass, shadows, bloom, colour grade, FXAA."),
         ("counters.jpg", "Timer and counters", "Speedrun timer, death counter and the N64's rupee counter."),
         ("panel:shaders", "No more stuck at 99%", "Shader preparation carries on past a stuck graphics driver."),
+        ("retro.jpg", "Retro N64 look", "240 lines and the N64's own dither, at no cost."),
     ]),
     ("doing", "IN PROGRESS", "being worked on now", AMBER, [
         ("chart:memory", "Memory in long sessions",
@@ -226,7 +227,11 @@ def main():
                 tx, ty, tw_ = cx + 18, cy + ph + 16, cw - 36
             d = ImageDraw.Draw(im)
             badge(d, cx + 12, cy + 12, kind, {"done": "DONE", "doing": "IN PROGRESS", "next": "PLANNED"}[kind], colour)
-            d.text((tx, ty), ctitle, font=card_t, fill=TEXT if kind != "next" else (200, 208, 222))
+            tf, ts = card_t, 19
+            while d.textlength(ctitle, font=tf) > tw_ - 6 and ts > 13:   # (a long title is set smaller to fit its card)
+                ts -= 1
+                tf = font("Unbounded-ExtraBold.ttf", ts)
+            d.text((tx, ty + (19 - ts) // 2), ctitle, font=tf, fill=TEXT if kind != "next" else (200, 208, 222))
             for j, line in enumerate(wrap(d, ctext, card_b, tw_)):
                 d.text((tx, ty + 34 + j * 22), line, font=card_b, fill=MUTED)
             if kind == "doing":   # (an amber stripe along the bottom: work under way)

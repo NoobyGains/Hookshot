@@ -99,6 +99,30 @@ Everything below is on `main` in this repository, tested in the game on a GeForc
 **Field of view** (Gameplay tab, 50% to 150%): from a close, cinematic 60% to a wide 140%, where Kakariko's whole gate
 and the cliffs around it fit on screen.
 
+### Retro look: the game as the Nintendo 64 drew it
+
+<img src="docs/images/features/retro-look.jpg" alt="Gerudo Valley with adult Link: Retro look off, and N64 with the picture at 240 lines and the console's dither, full frame and 1:1 pixels">
+
+**Retro look** (Graphics tab, off by default) brings back the 1998 picture: **N64** draws the game at the console's 240
+lines, with colours cut to 16 bits through the N64's own 4x4 "magic square" dither (the same matrix angrylion's
+cycle-accurate N64 renderer uses), scaled up soft. It costs nothing measurable (60 FPS either way on an RTX 5090), and
+the Insert menu stays sharp over it. An **N64 + CRT** look with adjustable scanlines, phosphor mask, glow and curvature
+is being reworked after the first version's plain stripes.
+
+### DLSS 5 neural rendering, tested
+
+<img src="docs/images/features/dlss5-face.jpg" alt="Adult Link's face in Gerudo Valley with DLSS 5 neural rendering off and on">
+
+<img src="docs/images/features/dlss5-motion.webp" alt="Five seconds in Gerudo Valley, the camera circling adult Link, with DLSS 5 off on the left and on on the right">
+
+Tested on a GeForce RTX 5090 at 4K: DLSS 5's neural rendering ran on 99.6% of frames at 4.6 ms a frame (60 FPS off,
+51 on). It gives faces skin shading, hair that catches the light and eyes with depth. **Hookshot does not include DLSS
+5:** NVIDIA has not released it to developers, so its runtime is not ours to ship. These pictures were taken with a
+player's own runtime through RenoDX's DLSS 5 add-on for ReShade. The game's Neural tab already has the switch and the
+model's settings for when NVIDIA does ([DLSS 5 neural rendering](#dlss-5-neural-rendering) below says what it needs).
+
+### Colour grade
+
 <img src="docs/images/features/colour-grade.jpg" alt="Kakariko Village four ways: colour grade off, Vivid, Cinematic and Cool">
 
 **Colour grade** (Graphics tab: Rich, Vivid, Warm, Cool, Cinematic), with **Bloom** (a glow around bright light) and **FXAA**, plus **View distance, Grass and Shadow distance** rows that change
@@ -112,7 +136,7 @@ when the game closes.
 ## Roadmap
 
 <p align="center">
-  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 4 done, 2 in progress, 4 coming next, each as a card with a picture. The same items are listed as text below." width="820">
+  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 5 done, 2 in progress, 4 coming next, each as a card with a picture. The same items are listed as text below." width="820">
 </p>
 
 **Done** is on `main` now. **In progress** is being worked on at the moment. **Coming next** is planned but not
@@ -131,6 +155,7 @@ reaches.
 - **Timer and counters:** Speedrun timer, Death counter and the N64's rupee counter
 - **No more stuck at 99%:** the Builder's shader preparation carries on past a graphics driver that never finishes a
   shader, and closing the game while shaders build no longer counts against you
+- **Retro N64 look:** the picture at the console's 240 lines with its own dither; the loading screen's 3D Hookshot
 - Also: the one-click Windows HDR launcher, fixes from the Longshot fork and Ocarina Reborn, the water's per-light
   shadow maps (YakuzaFanA), several users, each game in its own folders, the RX 6600 / 6650 XT / 6500 XT fallback
 
