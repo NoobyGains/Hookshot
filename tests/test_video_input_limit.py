@@ -21,7 +21,21 @@ of 600 pictures, one frame every 60th of a second:
   second, which a limit below the decoder's delay cannot do without starving;
 - HOS_VIDEO_INPUT_LIMIT=0: as before, the whole movie taken at once, the event never cleared;
 - HOS_VIDEO_INPUT_LIMIT=4, under the pictures the decoder holds back: the first Acquire finds no picture and
-  waits (why the limit is above the decoder's delay).
+  waits (why the limit is above the decoder's delay);
+- with the buffers an Acquire reserves before its picture (the reservations of tests/test_video_reserved_buffers.py,
+  cut from the source whole): an Acquire before the movie's first submission reserves its buffer, and the player then
+  submits until it is refused. While the buffer waits for its picture nothing waits to be decoded and no submission is
+  refused: each one is decoded into the decoder at once, and the first picture out (the decoder holds seven back) goes
+  into the reserved buffer, whose sync is reached and whose sync point event is signalled once. Then the limit as
+  before: refused with 16 waiting, the ready event clear. The rest of the movie plays in order, none skipped, the
+  ready event following the rule after every call and signalled once each time room comes back; every picture
+  submitted fills one buffer, and the stream's end one of its own, marked last. An Acquire after the end is reserved,
+  and reached once when the buffer is given back;
+- two decoders: one reserved while the other, full, refuses a submission: the refusal and the other decoder's
+  submissions reach nothing of the first; its own eighth submission does;
+- a negative control: the same player against the source with the reserved buffers not filled at a submission
+  (dec_submit without fill_reserved) must fail: the submissions pile up behind the reserved buffer and the one at the
+  limit is refused while that buffer waits for its picture, which nothing can bring then.
 
 python -I -B tests/test_video_input_limit.py [--cxx clang++]
 """
@@ -96,19 +110,19 @@ static void hos_vcore_back(void) {}
 static int sleeps;
 static void hos_sleep_ns(int64_t ns) { sleeps++, clock_ns += ns; }
 /* the system events (host/nn_os_sync.c): made from the system region, never freed */
-static int event_state[64], event_signals[64], events_made, clears, signals;
+static int event_state[64], event_signals[64], event_clears[64], events_made, clears, signals;
 static uint64_t hos_sys_alloc(uint64_t size, uint64_t align) { (void)size, (void)align; return (uint64_t)++events_made; }
 static void hos_system_event_init(uint64_t key, int autoclear) { (void)autoclear; event_state[key] = 0; }
 static void hos_system_event_signal(uint64_t key) { event_state[key] = 1, event_signals[key]++, signals++; }
-static void hos_system_event_clear(uint64_t key) { event_state[key] = 0, clears++; }
+static void hos_system_event_clear(uint64_t key) { event_state[key] = 0, event_clears[key]++, clears++; }
 static LONG64 InterlockedIncrement64(volatile LONG64 *p) { return ++*p; }   /* (submitted(): a submission's id) */
 
 @TYPES@
 
-static Dec dec;
+static Dec dec, dec2;   /* (objects 1 and 3) */
 static Pool pool;
 static void *host_of(uint64_t obj, uint32_t magic) {
-    if (magic == DEC_MAGIC) return obj == 1 ? &dec : NULL;
+    if (magic == DEC_MAGIC) return obj == 1 ? &dec : obj == 3 ? &dec2 : NULL;
     return magic == POOL_MAGIC && obj == 2 ? &pool : NULL;
 }
 static void pool_rgba(Pool *o) { (void)o; }
@@ -158,29 +172,32 @@ static int bad;
 static void check(int ok, const char *what) { if (!ok) { printf("FAIL: %s\n", what); bad = 1; } }
 #define FRAME_NS 16666667
 static uint8_t data[16];
-static uint64_t submit(int64_t pts, int last, uint64_t *id) {
+static uint64_t submit_to(uint64_t decoder, int64_t pts, int last, uint64_t *id) {
     Ctx c;
     memset(&c, 0, sizeof c);
-    c.x[0] = (uint64_t)(uintptr_t)id, c.x[1] = 1, c.x[2] = (uint64_t)(uintptr_t)data, c.x[3] = sizeof data;
+    c.x[0] = (uint64_t)(uintptr_t)id, c.x[1] = decoder, c.x[2] = (uint64_t)(uintptr_t)data, c.x[3] = sizeof data;
     c.x[4] = (uint64_t)pts, c.x[5] = (uint64_t)last;
     dec_submit(&c);
     return c.x[0];
 }
+static uint64_t submit(int64_t pts, int last, uint64_t *id) { return submit_to(1, pts, last, id); }
 static uint32_t slot;
-static uint64_t acquire(void) {
-    static uint64_t sync;
+static uint64_t acquired_sync;   /* (the sync handle the last Acquire wrote: 0 a picture in it, else a reservation's) */
+static uint64_t acquire_from(uint64_t decoder) {
     Ctx c;
     memset(&c, 0, sizeof c);
-    c.x[0] = (uint64_t)(uintptr_t)&slot, c.x[1] = (uint64_t)(uintptr_t)&sync, c.x[2] = 1;
+    c.x[0] = (uint64_t)(uintptr_t)&slot, c.x[1] = (uint64_t)(uintptr_t)&acquired_sync, c.x[2] = decoder;
     dec_acquire(&c);
     return c.x[0];
 }
-static void release(uint32_t i) {
+static uint64_t acquire(void) { return acquire_from(1); }
+static void release_to(uint64_t decoder, uint32_t i) {
     Ctx c;
     memset(&c, 0, sizeof c);
-    c.x[0] = 1, c.x[1] = i;
+    c.x[0] = decoder, c.x[1] = i;
     dec_release(&c);
 }
+static void release(uint32_t i) { release_to(1, i); }
 static uint64_t ready(void) {
     Ctx c;
     memset(&c, 0, sizeof c);
@@ -188,6 +205,7 @@ static uint64_t ready(void) {
     return ready_event(&c);
 }
 static void fresh(void) {
+    for (int i = 0; i < MAX_SLOTS; i++) drop_reserved(&dec, i);
     pending_free(&dec);
     for (int i = 0; i < dec.qn; i++) picture_free(&dec.queue[(dec.qhead + i) % MAX_QUEUE]);
     const uint64_t event = dec.ready;
@@ -199,12 +217,13 @@ static void fresh(void) {
 }
 /* the game's player: each frame it submits until it is refused (or the movie is all in), takes one picture and gives
    the buffer back. late_at: the frame that comes two seconds late (-1: none) */
-static int most_waiting, wrong_event, taken, out_of_order, starved_frames, late_recovered;
+static int most_waiting, wrong_event, taken, out_of_order, starved_frames, late_recovered, pictures_out, reserved_out;
 static int64_t last_pts;
-static void play(int pictures, int late_at) {
+static void play_from(int first, int pictures, int late_at) {
     const uint64_t event = ready();
-    int next = 0;
-    most_waiting = wrong_event = taken = out_of_order = starved_frames = 0, late_recovered = -1, last_pts = -1;
+    int next = first;
+    most_waiting = wrong_event = taken = out_of_order = starved_frames = pictures_out = reserved_out = 0;
+    late_recovered = -1, last_pts = -1;
     for (int frame = 0; frame < pictures + 400 && !(dec.eos && !dec.qn && taken); frame++) {
         while (next < pictures) {
             uint64_t id = 0;
@@ -224,6 +243,8 @@ static void play(int pictures, int late_at) {
         const int64_t handed = dec.acquires;
         if (acquire() != 0) { check(0, "an Acquire failed"); return; }
         if (sleeps != slept) starved_frames++;
+        if (acquired_sync) reserved_out++;
+        else pictures_out++;
         if (dec.last_pts != last_pts || (dec.acquires != handed && !dec.eos && dec.last_pts > last_pts)) {
             if (dec.last_pts < last_pts) out_of_order++;
             if (dec.last_pts != last_pts) taken++;
@@ -236,6 +257,7 @@ static void play(int pictures, int late_at) {
         clock_ns += frame == late_at ? 2000000000 : FRAME_NS;
     }
 }
+static void play(int pictures, int late_at) { play_from(0, pictures, late_at); }
 int main(int argc, char **argv) {
     const int limit = input_limit();
     if (argc > 1 && !strcmp(argv[1], "off")) {
@@ -253,6 +275,100 @@ int main(int argc, char **argv) {
         fresh();
         play(600, -1);
         check(starved_frames > 0, "a limit under the decoder's delay starves the first Acquire (it waits for a picture)");
+        if (!bad) puts("ok");
+        return bad;
+    }
+    if (argc > 1 && !strcmp(argv[1], "reserved")) {
+        check(limit == INPUT_LIMIT, "the default limit");
+        enum { FENCE = 40, FENCE_END = 41, FENCE_OTHER = 42 };   /* (the game's sync point events: keys of their own) */
+        fresh();
+        const uint64_t event = ready();
+        /* an Acquire before the movie's first submission: its buffer reserved for the first picture */
+        if (acquire() != 0) check(0, "the early Acquire failed");
+        const uint64_t s = acquired_sync;
+        const uint32_t reserved_slot = slot;
+        check(s && !hos_video_sync_reached(s) && dec.reserved[reserved_slot] == s && dec.busy[reserved_slot],
+              "an Acquire before the first submission reserves its buffer, its sync not reached");
+        check(hos_video_sync_defer(FENCE, s) == 1 && hos_video_sync_waiting(FENCE), "the game's sync point event for it waits");
+        /* the player submits until it is refused */
+        int n = 0, refused_while_reserved = 0, waiting_while_reserved = 0, filled_at = -1, wrong = 0;
+        for (; n < 100; n++) {
+            uint64_t id = 0;
+            const LONG64 before = submissions;
+            const uint64_t r = submit((int64_t)n * FRAME_NS, 0, &id);
+            const int reserved_now = dec.reserved[reserved_slot] != 0;
+            if (event_state[event] != !input_full(dec.npending, dec.qn, input_limit())) wrong++;
+            if (r == RESULT_INPUT_FULL) {
+                if (reserved_now) refused_while_reserved++;
+                if (submissions != before || id) check(0, "a refused submission used a submission id");
+                break;
+            }
+            if (reserved_now && (dec.npending || dec.qn)) waiting_while_reserved++;
+            if (!reserved_now && filled_at < 0) filled_at = n;
+        }
+        check(refused_while_reserved == 0, "no submission refused while a buffer waits for its picture");
+        check(waiting_while_reserved == 0, "while a buffer is reserved nothing waits: each submission is decoded at once");
+        check(filled_at == DELAY && dec.slot_pts[reserved_slot] == 0,
+              "the first picture out (the decoder held seven back) goes into the reserved buffer");
+        check(hos_video_sync_reached(s) && event_signals[FENCE] == 1 && !hos_video_sync_waiting(FENCE),
+              "its sync reached, its sync point event signalled once");
+        check(n == DELAY + 1 + INPUT_LIMIT && dec.refused == 1 && dec.npending == INPUT_LIMIT && event_state[event] == 0 && wrong == 0,
+              "then the limit as before: refused with 16 waiting, the ready event clear exactly while full");
+        /* the player shows the reserved buffer, gives it back and plays the movie on to its end */
+        release(reserved_slot);
+        check(event_signals[FENCE] == 1 && dec.reserved[reserved_slot] == 0, "giving the filled buffer back reaches nothing again");
+        play_from(n, 600, -1);
+        check(taken == 599 && out_of_order == 0 && dec.skipped == 0 && starved_frames == 0 && reserved_out == 0,
+              "the rest of the movie in order, none skipped, no Acquire left waiting or reserved");
+        check(wrong_event == 0 && event_clears[event] > 1 && event_signals[event] == 1 + event_clears[event] && event_state[event] == 1,
+              "the ready event follows the rule after every call, signalled once each time room came back");
+        check(1 + pictures_out == 600 + 1 && dec.eos && dec.slot_last[slot] && dec.last_pts == 599LL * FRAME_NS,
+              "every picture submitted fills one buffer, and the stream's end one of its own, the last picture again, marked last");
+        check(event_signals[FENCE] == 1, "the reservation's event signalled once in the whole movie");
+        /* an Acquire after the end: reserved (no picture is coming), reached once when its buffer is given back */
+        if (acquire() != 0) check(0, "the Acquire after the end failed");
+        const uint64_t after = acquired_sync;
+        const uint32_t after_slot = slot;
+        /* (its properties stay the picture it held until one comes: the game waits for the sync before it reads them) */
+        check(after && dec.reserved[after_slot] == after && !hos_video_sync_reached(after), "an Acquire after the end is reserved, not done");
+        check(hos_video_sync_defer(FENCE_END, after) == 1, "a sync point event for it waits");
+        release(after_slot);
+        release(after_slot);   /* (given back twice: nothing more) */
+        check(hos_video_sync_reached(after) && event_signals[FENCE_END] == 1, "given back: its sync reached, its event signalled once");
+
+        /* two decoders: one with a reserved buffer while the other, full, refuses a submission */
+        fresh();
+        uint64_t id = 0;
+        for (n = 0; n < 100 && submit((int64_t)n * FRAME_NS, 0, &id) == 0; n++) {}
+        memset(&dec2, 0, sizeof dec2);
+        dec2.ctx = &context, dec2.slots[0] = 2;
+        if (acquire_from(3) != 0) check(0, "the second decoder's Acquire failed");
+        const uint64_t other = acquired_sync;
+        check(other && dec2.reserved[slot] == other && hos_video_sync_defer(FENCE_OTHER, other) == 1,
+              "the second decoder's early Acquire reserved");
+        const LONG64 before = submissions;
+        check(submit((int64_t)n * FRAME_NS, 0, &id) == RESULT_INPUT_FULL && submissions == before, "the first decoder, full, refuses");
+        check(!hos_video_sync_reached(other) && event_signals[FENCE_OTHER] == 0 && dec2.reserved[0] == other,
+              "the refusal reaches nothing of the other decoder's reservation");
+        /* (and a submission the first decoder takes reaches nothing of it either: before #41 any submission, on any
+           decoder, reached every buffer handed out idle) */
+        Ctx stop;
+        memset(&stop, 0, sizeof stop);
+        stop.x[0] = 1;
+        dec_flush(&stop, "Stop");
+        check(submit((int64_t)n * FRAME_NS, 0, &id) == 0 && dec.npending == 1 && !hos_video_sync_reached(other) &&
+              event_signals[FENCE_OTHER] == 0, "a submission the first decoder takes reaches nothing of the other's either");
+        int filled = -1;
+        for (int k = 0; k < DELAY + 1; k++) {
+            if (submit_to(3, (int64_t)k * FRAME_NS, 0, &id) != 0) check(0, "the second decoder refused");
+            if (filled < 0 && !dec2.reserved[0]) filled = k;
+        }
+        check(filled == DELAY && hos_video_sync_reached(other) && event_signals[FENCE_OTHER] == 1,
+              "its own eighth submission fills it, reached once");
+        check(dec.npending == 1 && dec.qn == 0, "and the first decoder is as it was: its one submission waits, undecoded");
+        for (int i = 0; i < MAX_SLOTS; i++) drop_reserved(&dec2, i);
+        pending_free(&dec2);
+        for (int i = 0; i < dec2.qn; i++) picture_free(&dec2.queue[(dec2.qhead + i) % MAX_QUEUE]);
         if (!bad) puts("ok");
         return bad;
     }
@@ -308,12 +424,8 @@ int main(int argc, char **argv) {
 """
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cxx", default="clang++")
-    parser.add_argument("--source", type=Path, default=ROOT / "host/nn_video.c")
-    args = parser.parse_args()
-    src = args.source.read_text(encoding="utf-8")
+def fixture_of(src):
+    """the fixture (C++) made from one text of host/nn_video.c"""
     defines = "\n".join(re.findall(r"^#define (?:RESULT_NO_OUTPUT|RESULT_INPUT_FULL|INPUT_LIMIT|POOL_MAGIC|DEC_MAGIC|MAX_SLOTS|"
                                    r"MAX_QUEUE|SYNC_IDLE_TAG|SYNC_IDLE_MASK)\b.*$", src, re.M))
     types = "\n".join((defines,
@@ -354,18 +466,41 @@ def main():
         raise SystemExit("dec_submit uses a submission id before it refuses")
     if src.count("{ RET(ready_event(c)); }") != 3:
         raise SystemExit("a codec's submission-ready event is not its decoder's")
-    fixture = HARNESS.replace("@TYPES@", types).replace("@CODE@", code)
+    return HARNESS.replace("@TYPES@", types).replace("@CODE@", code)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cxx", default="clang++")
+    parser.add_argument("--source", type=Path, default=ROOT / "host/nn_video.c")
+    args = parser.parse_args()
+    src = args.source.read_text(encoding="utf-8")
+    # (the negative control: the reserved buffers not filled at a submission)
+    fill = "    fill_reserved(d);   /* (hookshot: a buffer reserved by an acquire before this submission gets its picture now) */\n"
+    submit = block(src, "static void dec_submit(Ctx *c) {")
+    if submit.count(fill) != 1:
+        raise SystemExit("dec_submit does not fill the reserved buffers (or the line changed: update the negative control)")
+    unfilled = src.replace(fill, "", 1)
     compiler = shutil.which(args.cxx)
     if not compiler:
         raise SystemExit("C++ compiler not found: " + args.cxx)
     with tempfile.TemporaryDirectory(prefix="video-input-limit-") as temporary:
         folder = Path(temporary)
-        (folder / "fixture.cpp").write_text(fixture, encoding="utf-8")
-        exe = folder / ("fixture.exe" if os.name == "nt" else "fixture")
-        subprocess.run([compiler, "-std=c++17", "-include", ENV_ON_H, "-O1", "-w", str(folder / "fixture.cpp"), "-o",
-                        str(exe)], check=True, timeout=120)
+        exes = {}
+        for name, text in (("fixture", src), ("unfilled", unfilled)):
+            (folder / (name + ".cpp")).write_text(fixture_of(text), encoding="utf-8")
+            exes[name] = folder / (name + (".exe" if os.name == "nt" else ""))
+            subprocess.run([compiler, "-std=c++17", "-include", ENV_ON_H, "-O1", "-w", str(folder / (name + ".cpp")), "-o",
+                            str(exes[name])], check=True, timeout=120)
+        exe = exes["fixture"]
         env = {k: v for k, v in os.environ.items() if not k.startswith("HOS_VIDEO_")}
-        for mode, value in (("", None), ("off", "0"), ("small", "4")):
+        control = subprocess.run([str(exes["unfilled"]), "reserved"], capture_output=True, text=True, timeout=60, env=env)
+        if control.returncode == 0 or "FAIL: no submission refused while a buffer waits for its picture" not in control.stdout:
+            print(control.stdout, end="")
+            raise SystemExit("the negative control passed: the combined case does not catch reserved buffers left unfilled")
+        print("negative control (dec_submit without fill_reserved) fails as it must:",
+              control.stdout.splitlines()[0] if control.stdout else "(no output)")
+        for mode, value in (("", None), ("reserved", None), ("off", "0"), ("small", "4")):
             run_env = dict(env)
             if value is not None:
                 run_env["HOS_VIDEO_INPUT_LIMIT"] = value
