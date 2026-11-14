@@ -528,8 +528,10 @@ number is not the obvious one:
 It applies after remapping to either pad binding, keys and mouse buttons. Only Switch buttons accept it, excluding
 Plus and Minus; directions, Walk and ocarina notes do not. Other values mean Off. Saving keeps the flags, not live latches.
 Opening Insert, Plus/Minus, focus loss, rebinding and Reset to defaults clear latches. Background pad presses can
-latch again when Controller in background permits them. Linux's other game dialogs are not guaranteed resets;
-Insert always releases the latch.
+latch again when Controller in background permits them. On Linux, `hos_oot_menu_focus` clears latches whenever
+`f_802ed660` runs for a menu screen's pane focus, not only the pause page (`nx2/oot_patches.py`
+`patch_menu_focus`). This describes the hook; individual title, save and game-over transitions have not been
+separately verified in play. Insert always releases the latch.
 
 | Key | Values |
 |---|---|

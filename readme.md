@@ -912,8 +912,8 @@ puts them all back. A gamepad button taken from another Switch button swaps with
 with the next. Both gamepad inputs, bound keys and mouse buttons share the latch. Every Toggle starts Off.
 Plus, Minus, stick directions, Walk and ocarina note rows have no Toggle. Opening Insert, pressing Plus or Minus,
 losing focus, rebinding or Reset to defaults releases latched buttons. With Controller in background On, a new
-press can latch again behind another window. On Linux, other game dialogs do not necessarily clear the latch;
-press Insert to release it. There is no separate on-screen latch indicator.
+press can latch again behind another window. On Linux, any menu screen receiving pane focus also clears the latch,
+not only the pause page. Insert always releases it. There is no separate on-screen latch indicator.
 
 **Ocarina notes:** the page gains five rows, `Ocarina note (L)`, `(R)`, `(A)`, `(Y)`, `(X)`, unset by default: the game's own
 buttons play until you bind a note to a key or gamepad input of your own, and a bound note then answers only that input while
