@@ -1272,10 +1272,11 @@ switch that stands in for a menu row (`RX_VK_PACE`, `RX_VK_UPSCALE`, `RX_VK_FRAM
 
 To enable the debug tools, turn **Debug tools** on in the menu's Debug tab (or add `HOS_OOT_CHEATS=1` to
 `hookshot_env.txt` in the game folder). The tools then show below it on the same tab. **Damage taken** is in the
-**Player** group beside **Heart protection**: Half, Normal (the default), Double or Quadruple. It applies only while
-Debug tools is on: off, Link takes Normal damage, and the saved choice returns when the tools do. Heart protection takes
-priority while enabled. The tab's Developer section, always shown, has the Descriptor reuse, Sampler cache, Robust
-buffers and ASTC as RGBA8 rows.
+**Player** group beside **Heart protection**: Half, Normal (the default), Double or Quadruple (`damage_taken=0/1/2/3`
+in `hookshot_options.ini`). It applies only while Debug tools is on: off, Link takes Normal damage, and the saved
+choice returns when the tools do. Heart protection takes priority while enabled. Half scales the full hit before life
+is clamped to zero: with two quarter hearts left, a four-quarter hit still kills. The tab's Developer section, always
+shown, has the Descriptor reuse, Sampler cache, Robust buffers and ASTC as RGBA8 rows.
 
 A save whose minimap stopped showing after a Teleport on an earlier build (the area left had hidden it, and the flag
 stayed set in the save) is mended by the Teleport itself: teleport to an outdoor area, wait until you can move, then
