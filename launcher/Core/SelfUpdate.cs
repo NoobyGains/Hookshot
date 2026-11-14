@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 
 namespace HookshotLauncher.Core;
 
-/// The launcher updating itself (docs/releases.md, "The launcher's own update"). It is one file on both systems, a
+/// The launcher updating itself (docs/launcher.md, "Releases and channels"). It is one file on both systems, a
 /// self-contained single-file program on Windows and an AppImage on Linux, so an update is one file, whatever that file is named:
 ///   1. download the release's launcher of this kind (LauncherLayout.UpdateKey: the setup program, the program out of the portable
 ///      zip, or the AppImage) beside this one as &lt;name&gt;.new, checked for its size and SHA-256 (the signed release names both);

@@ -18,7 +18,7 @@ public enum ListKind { Setup, Linux }
 /// A version's parts. Run: the Windows builder, relative to the install
 public sealed record PartsList(ListKind Kind, string Tag, IReadOnlyList<Part> Parts, string? Run);
 
-/// Hookshot's tools.lock (docs/releases.md, "tools.lock"; scripts/tools.py and builder/setup/setup.c read it the same way):
+/// The tools.lock format of the Longshot Launcher's builders (its docs/releases.md; a Hookshot AppImage may carry one too):
 ///     tool &lt;name&gt; &lt;version&gt; &lt;system&gt; &lt;sha256&gt; &lt;size&gt; &lt;dest&gt; &lt;prefix&gt; &lt;url&gt; [&lt;url&gt; ...]
 /// Each tool is a part of a builder's install (windows-x64: the Windows builder's; linux-x64: beside the unpacked Linux AppImage,
 /// from the tools.lock inside it): its archive's &lt;prefix&gt; folder ("-": all of it) becomes &lt;dest&gt;.

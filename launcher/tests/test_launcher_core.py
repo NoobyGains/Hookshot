@@ -104,6 +104,20 @@ def check_save_user(hookshot):
         raise SystemExit("Core/Saves.cs's UserId differs from Hookshot's player: " + expected)
 
 
+def check_upstream():
+    """Core/Upstream.cs, launcher/README.md and the repository's docs/launcher.md name one Longshot Launcher commit: the one the
+    launcher was taken at, where the next pull of its changes starts (docs/launcher.md)"""
+    m = re.search(r'public const string Commit = "([0-9a-f]{40})";', (ROOT / "Core" / "Upstream.cs").read_text(encoding="utf-8"))
+    if m is None:
+        raise SystemExit("Core/Upstream.cs names no commit")
+    commit = m.group(1)
+    if "`%s`" % commit[:8] not in (ROOT / "README.md").read_text(encoding="utf-8"):
+        raise SystemExit("README.md does not name the Longshot Launcher commit %s (Core/Upstream.cs)" % commit[:8])
+    doc = ROOT.parent / "docs" / "launcher.md"
+    if doc.is_file() and commit not in doc.read_text(encoding="utf-8"):
+        raise SystemExit("docs/launcher.md does not name the Longshot Launcher commit %s (Core/Upstream.cs)" % commit)
+
+
 def check_translations():
     """The catalogs' texts are the window's, with their placeholders and plural forms (scripts/translations.py). A text a catalog
     lacks shows in English: said, not a failure"""
@@ -124,6 +138,7 @@ def main():
     parser.add_argument("--hookshot", type=Path, default=None)
     args = parser.parse_args()
     check_translations()
+    check_upstream()
     # (the launcher lives in Hookshot's repository: its own checkout, unless another is named)
     hookshot = args.hookshot or (ROOT.parent if (ROOT.parent / "nx2" / "make_game.py").is_file() else None)
     if hookshot:
