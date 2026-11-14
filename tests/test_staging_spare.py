@@ -58,7 +58,7 @@ def main():
 
     frame = tex[tex.index("const uint64_t keep = staging_keep();"):]
     frame = frame[:frame.index("kept += it->size;")]
-    check("if (!spare_give_back(*it)) destroy_buffer(it->buffer, it->allocation);" in frame,
+    check("if (linux_entered_pressure || !spare_give_back(*it)) destroy_buffer(it->buffer, it->allocation);" in frame,
           "texture_frame frees idle arenas on the replay thread with the spare on")
     print("the spare staging arena is made and freed off the replay thread: ok")
 

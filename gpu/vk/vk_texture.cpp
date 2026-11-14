@@ -56,6 +56,7 @@
 #include "astc_bc_policy.h"
 #include "drawn_writeback.h"
 #include "vram_compact.h"
+#include "linux_pressure.h"
 #include "evict_reason.h"
 #include "keep_rendered.h"
 #include "target_overlap.h"
@@ -361,6 +362,13 @@ static void oom_reserve_tend(bool known, uint64_t commit_free, uint64_t reserve)
     (void)known, (void)commit_free, (void)reserve;
 #endif
 }
+static uint64_t linux_avail_reserve() {
+    static const uint64_t v = linux_pressure::avail_reserve(getenv("RX_VK_AVAIL_RESERVE_MB"));
+    return v;
+}
+static bool linux_pressed = false;
+static bool linux_entered_pressure = false;
+static std::atomic<uint64_t> linux_shortfall_bytes{0}, linux_shortfall_seq{0};
 uint64_t pool_cap() {
     static const uint64_t mb = getenv("RX_VK_TARGET_POOL_MB") ? (uint64_t)std::max(0, atoi(getenv("RX_VK_TARGET_POOL_MB"))) : 256;
     return mb << 20;
@@ -4558,6 +4566,10 @@ uint64_t preset_texture_budget(uint64_t preset_mb, bool preset_applies, bool vra
 
 int64_t texture_readback_wait_ns() { return st_readback_wait_ns.load(std::memory_order_relaxed); }
 int64_t texture_frame_ns() { return st_texture_frame_ns.load(std::memory_order_relaxed); }
+uint64_t linux_pressure_shortfall(uint64_t* seq) {
+    if (seq) *seq = linux_shortfall_seq.load(std::memory_order_acquire);
+    return linux_shortfall_bytes.load(std::memory_order_acquire);
+}
 
 void texture_frame(uint64_t completed) {
     const TraceTimer timed{st_texture_frame_ns};   // (hookshot: the frame trace's tex_frame_ms)
@@ -4584,18 +4596,21 @@ void texture_frame(uint64_t completed) {
         uint64_t kept = 0;
         for (auto it = arenas.begin(); it != arenas.end();) {
             const bool idle = it->value <= completed && it->value != rec_value;
-            // (and one nothing has staged into for 30 s: Kokiri Forest's gameplay stages next to nothing, and the 64 MB it kept are VRAM
-            // behind the BAR. A load makes one again. RX_VK_STAGING_IDLE_S=<n>: that long, 0: kept)
+            // (and one nothing has staged into for 30 s, or 5 s while Linux memory pressure is on: Kokiri Forest's gameplay stages
+            // next to nothing, and the 64 MB it kept are VRAM behind the BAR. A load makes one again. RX_VK_STAGING_IDLE_S=<n>:
+            // that long, 0: kept)
             static const int64_t idle_s = getenv("RX_VK_STAGING_IDLE_S") ? atoll(getenv("RX_VK_STAGING_IDLE_S")) : 30;
-            const bool stale = idle_s && std::chrono::steady_clock::now() - it->used_at > std::chrono::seconds(idle_s);
-            if (idle && (it->size > kArena || kept + it->size > keep || stale)) {
-                if (!spare_give_back(*it)) destroy_buffer(it->buffer, it->allocation);   // (SpareArenas)
+            const int64_t wait_s = linux_pressed && idle_s > 5 ? 5 : idle_s;
+            const bool stale = wait_s && std::chrono::steady_clock::now() - it->used_at > std::chrono::seconds(wait_s);
+            if (idle && (it->size > kArena || kept + it->size > keep || stale || linux_entered_pressure)) {
+                if (linux_entered_pressure || !spare_give_back(*it)) destroy_buffer(it->buffer, it->allocation);   // (SpareArenas: not kept as the spare while Linux memory pressure is on)
                 it = arenas.erase(it);
                 continue;
             }
             kept += it->size;
             ++it;
         }
+        linux_entered_pressure = false;
         if (frame_no % 600 == 0) {   // (the process's memory now and then: what the host side holds)
             PROCESS_MEMORY_COUNTERS_EX pm{};
             pm.cb = sizeof pm;
@@ -4603,38 +4618,59 @@ void texture_frame(uint64_t completed) {
                 logf("vk: memory: working set %llu MB (peak %llu), private %llu MB, staging %llu MB in %zu arenas",
                      (unsigned long long)(pm.WorkingSetSize >> 20), (unsigned long long)(pm.PeakWorkingSetSize >> 20),
                      (unsigned long long)(pm.PrivateUsage >> 20), (unsigned long long)(kept >> 20), arenas.size());
+        }
 #if defined(__linux__) && defined(__GLIBC__)
-            // (glibc's heap: what its arenas hold free. The shader translation and the loads' decoding leave their garbage spread through
-            // the threads' arenas (26 of them, 1.2 GB resident in Kokiri Forest, the heap's growth in a scene change never going back),
-            // and a free chunk's pages are the process's till malloc_trim gives them to the system. Asked on a worker, when 192 MB or
-            // more are free: RX_VK_MALLOC_TRIM_MB=<n>: that many, 0: never; the "vk: malloc:" line says what the arenas hold)
-            // (every 1800 presents: mallinfo2 walks every free chunk of every arena with its lock held)
+        // (glibc's heap: what its arenas hold free. The shader translation and the loads' decoding leave their garbage spread through
+        // the threads' arenas (26 of them, 1.2 GB resident in Kokiri Forest, the heap's growth in a scene change never going back),
+        // and a free chunk's pages are the process's till malloc_trim gives them to the system. Asked on a worker, when 192 MB or
+        // more are free (64 MB while Linux memory pressure is on): RX_VK_MALLOC_TRIM_MB=<n>: that many, 0: never; the "vk: malloc:"
+        // line says what the arenas hold)
+        // (every 1800 presents, or every 600 while Linux memory pressure is on so long as the last trim gave at least 16 MB back
+        // or free arena bytes grew by 64 MB since it: mallinfo2 walks every free chunk of every arena with its lock held)
+        {
             static std::atomic<bool> busy{false};
-            if (frame_no % 1800 == 0 && !busy.exchange(true))
-                jobs_push([] {
+            static std::atomic<uint64_t> last_unreturned_mb{0};
+            const bool log_malloc = frame_no % 1800 == 0;
+            const bool check_malloc = log_malloc || (linux_pressed && frame_no % 600 == 0);
+            if (check_malloc && !busy.exchange(true)) {
+                const bool pressed_now = linux_pressed;
+                jobs_push([log_malloc, pressed_now] {
                     static const uint64_t trim_mb = getenv("RX_VK_MALLOC_TRIM_MB") ? (uint64_t)atoll(getenv("RX_VK_MALLOC_TRIM_MB")) : 192;
+                    const uint64_t threshold_mb = pressed_now && trim_mb > 64 ? 64 : trim_mb;
                     const struct mallinfo2 a = mallinfo2();
+                    const uint64_t free_mb = (uint64_t)(a.fordblks >> 20);
+                    const uint64_t prev_unreturned = last_unreturned_mb.load(std::memory_order_relaxed);
                     PROCESS_MEMORY_COUNTERS_EX pm0{};
                     pm0.cb = sizeof pm0;
                     K32GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pm0, sizeof pm0);
-                    logf("vk: malloc: %llu MB in arenas (%llu MB in use, %llu MB free, %llu MB of it at the tops), %llu MB mapped",
-                         (unsigned long long)(a.arena >> 20), (unsigned long long)(a.uordblks >> 20), (unsigned long long)(a.fordblks >> 20),
-                         (unsigned long long)(a.keepcost >> 20), (unsigned long long)(a.hblkhd >> 20));
-                    if (trim_mb && (a.fordblks >> 20) >= trim_mb) {
+                    if (log_malloc)
+                        logf("vk: malloc: %llu MB in arenas (%llu MB in use, %llu MB free, %llu MB of it at the tops), %llu MB mapped",
+                             (unsigned long long)(a.arena >> 20), (unsigned long long)(a.uordblks >> 20), (unsigned long long)free_mb,
+                             (unsigned long long)(a.keepcost >> 20), (unsigned long long)(a.hblkhd >> 20));
+                    if (threshold_mb && free_mb >= threshold_mb && (log_malloc || !prev_unreturned || free_mb >= prev_unreturned + 64)) {
+                        uint64_t avail0 = 0, swap0 = 0, avail1 = 0, swap1 = 0;
+                        linux_pressure::read_meminfo(&avail0, &swap0);
                         const auto t0 = std::chrono::steady_clock::now();
                         malloc_trim(0);
                         PROCESS_MEMORY_COUNTERS_EX pm1{};
                         pm1.cb = sizeof pm1;
                         K32GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pm1, sizeof pm1);
+                        linux_pressure::read_meminfo(&avail1, &swap1);
+                        const uint64_t now_free_mb = (uint64_t)(mallinfo2().fordblks >> 20);
+                        const uint64_t before_mb = (uint64_t)(pm0.PrivateUsage >> 20), after_mb = (uint64_t)(pm1.PrivateUsage >> 20);
+                        const uint64_t priv_saved_mb = before_mb > after_mb ? before_mb - after_mb : 0;
+                        const uint64_t sys_saved_mb = (avail1 + swap1) > (avail0 + swap0) ? ((avail1 + swap1) - (avail0 + swap0)) >> 20 : 0;
+                        const uint64_t saved_mb = std::max(priv_saved_mb, sys_saved_mb);
+                        last_unreturned_mb.store(saved_mb < 16 ? now_free_mb : 0, std::memory_order_relaxed);
                         logf("vk: malloc_trim: %llu MB free in the arenas now, the process's private memory %llu -> %llu MB (%.0f ms)",
-                             (unsigned long long)(mallinfo2().fordblks >> 20), (unsigned long long)(pm0.PrivateUsage >> 20),
-                             (unsigned long long)(pm1.PrivateUsage >> 20),
+                             (unsigned long long)now_free_mb, (unsigned long long)before_mb, (unsigned long long)after_mb,
                              std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
                     }
                     busy = false;
                 });
-#endif
+            }
         }
+#endif
     }
     bc_scratch_idle();
     compact_step(completed);   // (hookshot, RX_VK_COMPACT: while its pass is open nothing of the textures' pool is freed)
@@ -4836,6 +4872,65 @@ void texture_frame(uint64_t completed) {
                      "their %llu MB (RX_VK_COMMIT_RESERVE_MB)", (unsigned long long)(commit_free >> 20),
                      (unsigned long long)(reserve >> 20), (unsigned long long)(budget >> 20),
                      (unsigned long long)(total_bytes >> 20));
+            }
+        }
+    }
+    // (hookshot) and Linux's memory pressure (MemAvailable and SwapFree in /proc/meminfo, linux_pressure.h): on a 16 GB Steam
+    // Deck OLED, guest shmem (5.6-6.0 GB), renderer anon (~3.9 GB) and VMA blocks share the same RAM while RADV's device-heap
+    // budget (~7.5 GB) says VRAM is under 50% used. Every VMA block is kernel-pinned in physical RAM and cannot be swapped out,
+    // so MemAvailable dipped to 180-440 MB with 4-7 GB in swap and earlyoom killed the game. Sampled every 30 presents (and shared
+    // with imports_give_back through linux_shortfall_bytes so no file is read under pools_mu): below RX_VK_AVAIL_RESERVE_MB
+    // (1536 MB) of MemAvailable or RX_VK_COMMIT_RESERVE_MB (2560 MB) of MemAvailable + SwapFree, PressureHold cuts the texture
+    // budget on an integrated GPU (where VRAM is system RAM) from the texture total at entry (with a 512 MB floor) and steps it
+    // back up once both reserves clear by 256 MB (kClearMargin), while the RAM-side valves (staging arenas, capture spares,
+    // idle imports, malloc_trim) run on every GPU
+    {
+        static linux_pressure::PressureHold hold;
+        static uint64_t cached_avail = 0, cached_swap = 0, held_cached = UINT64_MAX;
+        static bool cached_has_swap = true, have_meminfo = false;
+        const uint64_t avail_res = linux_avail_reserve(), commit_res = commit_reserve();
+        if (!avail_res && !commit_res) {
+            hold = {};
+            held_cached = UINT64_MAX;
+            linux_pressed = false;
+            linux_shortfall_bytes.store(0, std::memory_order_release);
+        } else {
+            const bool sampled_now = !have_meminfo || frame_no % 30 == 0;
+            if (sampled_now)
+                have_meminfo = linux_pressure::read_meminfo(&cached_avail, &cached_swap, nullptr, nullptr, &cached_has_swap);
+            if (have_meminfo) {
+                const bool was_active = hold.active;
+                const uint64_t over = linux_pressure::shortfall(cached_avail, cached_swap, avail_res, commit_res, cached_has_swap);
+                if (sampled_now) {
+                    linux_shortfall_bytes.store(over, std::memory_order_relaxed);
+                    linux_shortfall_seq.fetch_add(1, std::memory_order_release);
+                    held_cached = hold.step(total_bytes, cached_avail, cached_swap, avail_res, commit_res,
+                                            linux_pressure::kClearMargin, linux_pressure::kBudgetFloor, cached_has_swap);
+                }
+                const uint64_t held = held_cached;
+                linux_pressed = hold.active;
+                if (hold.active && !was_active) linux_entered_pressure = true;
+                if (hold.active) {
+                    const bool igpu = dev.props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
+                    if (igpu) {
+                        budget = std::min(budget, held);
+                        rule_budget = std::min(rule_budget, held);
+                        pool_pressed = true;
+                        compact.pressed = true;
+                        if (compact.next_check > frame_no + vram_compact::rest(true))
+                            compact.next_check = frame_no + vram_compact::rest(true);
+                    }
+                    static uint64_t said_at;
+                    if (!said_at || frame_no - said_at >= 600) {
+                        said_at = frame_no;
+                        logf("vk: memory pressure on Linux: %llu MB available, %llu MB swap free (reserves %llu / %llu MB); the "
+                             "textures' budget down to %llu MB of their %llu MB%s (RX_VK_AVAIL_RESERVE_MB, RX_VK_COMMIT_RESERVE_MB)",
+                             (unsigned long long)(cached_avail >> 20), (unsigned long long)(cached_swap >> 20),
+                             (unsigned long long)(avail_res >> 20), (unsigned long long)(commit_res >> 20),
+                             (unsigned long long)(budget >> 20), (unsigned long long)(total_bytes >> 20),
+                             igpu ? "" : " (not cut: discrete GPU)");
+                    }
+                }
             }
         }
     }

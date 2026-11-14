@@ -30,6 +30,9 @@
 #include <thread>
 #include <setjmp.h>
 #include <signal.h>
+#if defined(__linux__) && defined(__GLIBC__)
+#include <malloc.h>
+#endif
 
 #include "shader_recompiler/backend/spirv/emit_spirv.h"
 
@@ -44,6 +47,7 @@
 #include "vk_fsr3_inputs.h"
 #include "reactive_policy.h"
 #include "upscaler_rows.h"
+#include "linux_pressure.h"
 #include "pcache_stamp.h"
 #include "vk_reactive.h"   // (the upscalers' reactive mask: the scene copied before its transparent draws)
 #include "vk_dump.h"
@@ -2323,7 +2327,7 @@ PipeEntry* graphics_pipeline(const Program& p, const NvnState& s, const Targets&
     pipeline_note(key, p, s, at, topo, color_types);
     static const bool sync = env_on("RX_VK_SYNC_PIPELINES");
     if (sync) {
-        e->pipeline = build_graphics(p, s, at, topo);
+        if (program_cache_complete_graphics(p)) e->pipeline = build_graphics(p, s, at, topo);
         e->ready = true;
         return remember(e);
     }
@@ -2331,6 +2335,10 @@ PipeEntry* graphics_pipeline(const Program& p, const NvnState& s, const Targets&
     // when a library is cold: the entry stays not ready, and the draw is left out or waits for the full build)
     uint64_t cold[2]{};
     if (gpl_wanted() && !p.fallback) {
+        if (!program_cache_complete_graphics(p)) {
+            e->ready.store(true, std::memory_order_release);
+            return remember(e);
+        }
         const auto t0 = std::chrono::steady_clock::now();
         const VkPipeline linked = gpl_link(p, s, at, topo, cold);
         st_link_us += std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count();
@@ -2352,6 +2360,10 @@ PipeEntry* graphics_pipeline(const Program& p, const NvnState& s, const Targets&
     job->e = e, job->p = &p, job->s = s, job->at = at, job->topo = topo, job->cold[0] = cold[0], job->cold[1] = cold[1];
     jobs_push([job] {
         // (over a linked one, which goes once the GPU is past every submission that may have bound it: fast_retire)
+        if (!program_cache_complete_graphics(*job->p)) {
+            job->e->ready.store(true, std::memory_order_release);
+            return;
+        }
         use_counters.made_how = 0;
         if (const VkPipeline full = build_graphics(*job->p, job->s, job->at, job->topo))
             if (const VkPipeline linked = job->e->pipeline.exchange(full)) fast_retire(linked);
@@ -2373,7 +2385,7 @@ PipeEntry* graphics_pipeline(const Program& p, const NvnState& s, const Targets&
 /// shader, 3 fragment output
 /// cold: made only if the driver has it compiled already; set, and nothing made, when it would have had to compile
 VkPipeline build_graphics(const Program& p, const NvnState& s, const Targets& at, VkPrimitiveTopology topo, int part, bool* cold) {
-    if (at.n < 0 || at.n > 8) return VK_NULL_HANDLE;   // (hookshot: at most 8 colour targets)
+    if (at.n < 0 || at.n > 8 || program_modules_dropped(p)) return VK_NULL_HANDLE;   // (hookshot: at most 8 colour targets)
     const Shader::Info& vs = *vertex_info(p);
     const auto t0 = std::chrono::steady_clock::now();
     static const bool trace = env_on("RX_VK_PIPELINE_TRACE");
@@ -9056,8 +9068,8 @@ void precompile_run(void (*progress)(size_t done, size_t total)) {
         std::lock_guard lk(state_mu);
         if (!state_file) state_open_locked();
     }
-    std::unordered_set<uint64_t> wanted;
-    for (const auto& n : notes) wanted.insert(n->prog);
+    std::unordered_set<uint64_t> wanted, wanted_variants;
+    for (const auto& n : notes) wanted.insert(n->prog), wanted_variants.insert(mix(n->prog, n->variant));
     // (the compute programs: those this install's play dispatched (hookshot_computes.bin) and those the shipped state list names,
     // each once; every kept one on a first start, with nothing dispatched yet: computes_plan)
     const ComputePlan plan = computes_plan(getenv("RX_VK_PRECOMPILE_COMPUTES"), !env_on("RX_VK_NO_STATE_LIST"));
@@ -9066,6 +9078,9 @@ void precompile_run(void (*progress)(size_t done, size_t total)) {
     std::unordered_set<uint64_t> listed_here;   // (the listed keys this install has a program of)
     const size_t programs_n = program_cache_load_some(wanted, [&](Program& p) {
         ensure_layout(p);
+#ifdef __linux__
+        if (!p.compute && wanted_variants.count(mix(p.key, p.variant))) program_cache_note_built(p);   // (pipeline_cache_play)
+#endif
         if (p.compute) {
             computes.push_back(&p);
             if (plan.keys.count(p.key)) listed_here.insert(p.key);
@@ -10040,6 +10055,37 @@ int64_t draw_slotgen_saves() {   // (Descriptor reuse: of those, what the global
 void pipeline_cache_play() {
     play_cache_begin();
     programs_play_begin();   // (the census: what is made from here on is made in play)
+#ifdef __linux__
+    // (hookshot) On Linux with <= 20 GB of RAM (the Steam Deck's 16 GB shared memory and 16 GB PCs) or when memory pressure is
+    // already active (or RX_VK_DROP_MODULES=1), the VkShaderModules of ready programs whose pipelines were built in precompile_run
+    // (~37,000 modules, ~1.5-1.8 GB of uncompressed SPIR-V in the driver's heap) have done their work once precompile_run finishes.
+    // Any graphics program whose noted pipelines were built remakes its module from hookshot_programs.bin
+    // (program_cache_complete_graphics) if play ever builds a new state variant; programs without a built graphics pipeline (not
+    // noted by program_cache_note_built) keep their vertex and fragment modules so in-play pipeline builds do not read the disk.
+    // 32-64 GB Linux desktops keep their modules by default so new pipeline variants in play never touch the disk.
+    // RX_VK_KEEP_MODULES=1 (or RX_VK_DROP_MODULES=0) keeps all
+    if (!env_on("HOOKSHOT_PREPARE_ONLY") && !prepare_left_workers()) {
+        uint64_t avail_bytes = 0, swap_free_bytes = 0, total_bytes = 0;
+        bool has_swap = true;
+        uint64_t over = 0;
+        if (linux_pressure::read_meminfo(&avail_bytes, &swap_free_bytes, nullptr, &total_bytes, &has_swap)) {
+            over = linux_pressure::shortfall(avail_bytes, swap_free_bytes,
+                                             linux_pressure::avail_reserve(getenv("RX_VK_AVAIL_RESERVE_MB")),
+                                             linux_pressure::commit_reserve(getenv("RX_VK_COMMIT_RESERVE_MB")),
+                                             has_swap);
+        }
+        size_t dropped_modules = 0;
+        if (linux_pressure::should_drop_modules(total_bytes, over, getenv("RX_VK_KEEP_MODULES"), getenv("RX_VK_DROP_MODULES"))) {
+            dropped_modules = program_cache_drop_modules();
+            if (dropped_modules)
+                logf("vk: programs: %zu shader modules let go after the precompile (RX_VK_KEEP_MODULES=1 keeps them)",
+                     dropped_modules);
+        }
+#if defined(__GLIBC__)
+        if (dropped_modules) malloc_trim(0);
+#endif
+    }
+#endif
 }
 
 // ---- (hookshot) What the programs' loader asks of the pipelines (vk_pipelines.h) ----
