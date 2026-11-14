@@ -27,6 +27,7 @@ struct Stage {
     // program cache (vk_progcache.cpp), which every translated program passes. Not in vk_shader.cpp, whose bytes are part of
     // the translator's stamp: a change there translates every player's programs again
     mutable uint32_t phis = 0;
+    mutable uint32_t calls = 0;   // (hookshot) its OpFunctionCall instructions, noted with the phis (fallback_size_policy.h)
     // (hookshot) where its SPIR-V is in hookshot_programs.bin, and how many words (0: compressed or translated in this run, so
     // its module stays): once precompile_run has built its pipelines, its module can be let go on Linux and made again from the
     // file if play ever builds a new pipeline state variant for this program
@@ -134,6 +135,7 @@ struct KeptProgram {
 };
 void program_cache_each(const std::function<void(const KeptProgram&)>& fn);   // (fn: on several threads at once, in no order)
 void program_cache_borrow(uint64_t key, const std::function<void(Program&)>& fn);   // (made for fn, then let go; still kept)
+void program_cache_borrow_all(uint64_t key, const std::function<void(std::vector<std::unique_ptr<Program>>&)>& fn);   // (every variant at once)
 /// (hookshot) A compute program read from the cache at its key's first pick has no code yet (vk_progcache.cpp
 /// program_cache_load): its SPIR-V is read and its module made here, before the first use of the module (vk_draw.cpp dispatch).
 /// True: it is whole (or was). False: its code did not read or made no module; it is marked failed

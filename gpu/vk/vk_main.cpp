@@ -4,6 +4,7 @@
 #include "vk_paths.h"
 #include "vk_loader.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 
@@ -13,6 +14,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cwchar>
+#include <ctime>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -196,6 +198,16 @@ bool create_instance() {
                 logf("vk: streamline wants the instance extension %s: enabled", sl_want[i]);
         }
     }
+#ifndef _WIN32
+    // (hookshot) Mesa's Intel compiler (driconf shader_spilling_rate, read when the driver loads, ignored by the others): when a
+    // program does not fit its registers it spills some and allocates the whole program again, rounds of one at first and then
+    // of (spilled so far / rate). Held to 32 lanes an Iris Xe has 32 registers a lane, and MKW's large compute programs spill
+    // thousands: at Mesa 26.2's default abccf81b45c5eb50, which play dispatches, was not built after 20 minutes and 13 GB, at 2
+    // in 32 s and 1.7 GB; 7a548525c239b91b 531 s and 7.6 GB, at 2 87 s and 4 GB (i9-13900H, 2026-11-14). The programs that do
+    // not spill are built as before; the driver's estimate of those that do moved from 12% better to 53% worse (3 was 165 s for
+    // abccf81b45c5eb50, 4 not built in 8 minutes). A value the player set is kept
+    setenv("shader_spilling_rate", "2", 0);
+#endif
     VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};
     app.pApplicationName = "mkw-recomp";
     app.apiVersion = VK_API_VERSION_1_3;
@@ -746,6 +758,8 @@ bool create_device() {
         dev.radv_gcn = drv.driverID == VK_DRIVER_ID_MESA_RADV && !f11.storageInputOutput16;
         logf("vk: subgroups: default %u lanes, %u-%u, pinned to 32 on stages %#x; RADV on GCN 1-4: %s", sg.subgroupSize, sc.minSubgroupSize,
              sc.maxSubgroupSize, (unsigned)dev.sg32_stages, dev.radv_gcn ? "yes" : "no");
+        if (drv.driverID == VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA && getenv("shader_spilling_rate"))
+            logf("vk: Mesa's Intel compiler spills at rate %s (driconf shader_spilling_rate: 2 unless set)", getenv("shader_spilling_rate"));
     }
     if (!f13.dynamicRendering || !f13.synchronization2 || !f12.timelineSemaphore) {
         logf("vk: the GPU lacks dynamic rendering, synchronization2 or timeline semaphores");
@@ -1246,8 +1260,11 @@ std::string skipped_path() {
 //   compiling", above) can leave that compile unfinished inside it, and builds behind it then wait for ever (on AMD, any build of
 //   the same program: #1823's dump of issue 996): builds stuck on players' cards of all kinds, AMD and NVIDIA (#2107). Whatever
 //   the cause, a part that needs the stuck driver cannot go on. So when nothing has moved for RX_VK_PREPARE_STALL_S seconds
-//   (300; 0: never stopped. Long: some steps read the caches or
-//   decide the predictions for a while with no count, on a slow disk or CPU too), the run says where it stopped and why, leaves
+//   (300; 0: never stopped. Long: some steps read the caches or decide the predictions for a while with no count, on a slow
+//   disk or CPU too. While a driver compile is under way, three times that; and twelve times while the process also keeps
+//   half a CPU or more busy, the compiler at work: on an Iris Xe one variant of abccf81b45c5eb50, a program MKW dispatches in
+//   play, was not done after 15 minutes held to 32 lanes, where a stuck compile uses no CPU and still stops at three times),
+//   the run says where it stopped and why, leaves
 //   hookshot_prepare_skipped so the game's own starts do not stop in the same place (what was not prepared is built when first
 //   drawn), and ends at once with exit status 4 (make_game.py: "the GPU driver stopped responding"). Not through exit(): that
 //   unloads the driver, which can wait on the same lock. Before, it waited until make_game.py stopped it after 15 minutes with no
@@ -1273,6 +1290,14 @@ void prepare_moved(int part, size_t done, size_t total) {
     if (part != prepare_seen.part || done != prepare_seen.done || !prepare_seen.moved_ms)
         prepare_seen = {part, done, total, steady_ms()};
 }
+/// (hookshot) A driver compile that ended (vk_draw.cpp ComputeTurn): the driver answers, so the watchdog's clock starts again though
+/// the part's count has not moved. The compute warm's count moves when a program's variants are all done, up to 64 of them,
+/// not as each one ends: on an Iris Xe one held to 32 lanes can take minutes, and the watchdog stopped a preparation whose
+/// driver was compiling all along
+void prepare_compiled_seen() {
+    std::lock_guard lk(prepare_seen_mu);
+    if (prepare_seen.moved_ms) prepare_seen.moved_ms = steady_ms();
+}
 /// The run ends now: the log written out, then TerminateProcess, not exit(), which unloads a driver that can still hold workers
 /// (@@done first for a run that finished: the line the game prints after the preparation, host/hos_main.c)
 [[noreturn]] void prepare_end(int code) {
@@ -1286,6 +1311,20 @@ void prepare_moved(int part, size_t done, size_t total) {
     std::_Exit(code);
 }
 std::atomic<int> driver_faults_seen{0};
+/// (hookshot) The CPU time this process has used, in ms (-1: the system does not say): a driver compile that is working keeps a CPU
+/// busy, one that is stuck on a lock uses none
+int64_t process_cpu_ms() {
+#ifdef _WIN32
+    FILETIME created, ended, kernel, user;
+    if (!GetProcessTimes(GetCurrentProcess(), &created, &ended, &kernel, &user)) return -1;
+    const auto ms = [](const FILETIME& f) { return (int64_t)((((uint64_t)f.dwHighDateTime << 32) | f.dwLowDateTime) / 10000); };
+    return ms(kernel) + ms(user);
+#else
+    timespec t;
+    if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t)) return -1;
+    return (int64_t)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+#endif
+}
 void prepare_watchdog() {
     static const int stall_s = getenv("RX_VK_PREPARE_STALL_S") ? atoi(getenv("RX_VK_PREPARE_STALL_S")) : 300;
     // (a status line after this long with no other line; RX_VK_PREPARE_STATUS_S=<s>, for the tests)
@@ -1296,9 +1335,20 @@ void prepare_watchdog() {
                                             "the pipeline cache's save"};
         const int64_t limit_s = stall_s > 0 ? stall_s : 300;   // (the save's lines stop after this, whatever RX_VK_PREPARE_STALL_S)
         const int save_stall_s = stall_s * 2;   // (a risky save's stop: twice the parts', above)
+        const int64_t compile_stall_s = stall_s * 3;   // (a slow compute compile: three times, 900 s by default; a stuck one still stops)
+        const int64_t busy_compile_stall_s = stall_s * 12;   // (one with a CPU at work: an hour by default)
+        // (the CPU the process used over the last window, 30 s by default: half a CPU or more is a compiler at work)
+        const int64_t busy_window_ms = std::clamp<int64_t>((int64_t)stall_s * 100, 1000, 30000);
+        int64_t cpu_then = process_cpu_ms(), cpu_then_ms = steady_ms();
+        bool cpu_busy = false;
         for (;;) {
             Sleep(1000);
             const int64_t now = steady_ms();
+            if (now - cpu_then_ms >= busy_window_ms) {
+                const int64_t cpu = process_cpu_ms();
+                cpu_busy = cpu >= 0 && cpu_then >= 0 && (cpu - cpu_then) * 2 >= now - cpu_then_ms;
+                cpu_then = cpu, cpu_then_ms = now;
+            }
             PrepareSeen at;
             {
                 std::lock_guard lk(prepare_seen_mu);
@@ -1309,19 +1359,22 @@ void prepare_watchdog() {
             const int faults = driver_faults();
             const bool left = prepare_left_workers();
             const bool risky = faults > 0 || left;   // (the driver may be stuck: the save too can wait for ever)
+            const bool compiling = at.part < 3 && prepare_compiling();
+            const int64_t part_stall_s = compiling ? (cpu_busy ? busy_compile_stall_s : compile_stall_s) : stall_s;
             // (what it waits on: after a fault in the driver, most likely the driver; else the driver or the disk, a slow one
             // reading the caches)
             const char* waiting_on = faults ? "waiting on the GPU driver, which faulted (above)"
                                      : left ? "waiting on the GPU driver, which still has pipelines it did not finish"
-                                            : "waiting on the GPU driver or the disk";
+                                     : compiling && cpu_busy ? "waiting on the GPU driver, which is compiling (a CPU busy)"
+                                                             : "waiting on the GPU driver or the disk";
             if (faults != driver_faults_seen.exchange(faults))
                 logf("vk: preparation: the GPU driver faulted %d time%s so far (above): a driver can stop responding after one, so a "
                      "stop here would be why", faults, faults == 1 ? "" : "s");
-            if (stall_s > 0 && (at.part < 3 ? still >= stall_s : risky && still >= save_stall_s)) {
+            if (stall_s > 0 && (at.part < 3 ? still >= part_stall_s : risky && still >= save_stall_s)) {
                 if (at.part < 3)
-                    logf("vk: preparation: STOPPED: nothing moved for %d s in %s (%zu of %zu): the GPU driver stopped responding%s. "
-                         "The rest is built in play, when first drawn; updating the GPU driver may help", stall_s, what, at.done,
-                         at.total, faults ? " after it faulted (above)" : "");
+                    logf("vk: preparation: STOPPED: nothing moved for %lld s in %s (%zu of %zu): the GPU driver stopped responding%s. "
+                         "The rest is built in play, when first drawn; updating the GPU driver may help", (long long)part_stall_s, what,
+                         at.done, at.total, faults ? " after it faulted (above)" : "");
                 else
                     logf("vk: preparation: STOPPED: %s waited %d s on the GPU driver, %s. The pipelines are made; only this "
                          "file is left out. Updating the GPU driver may help", what, save_stall_s,
@@ -1348,8 +1401,8 @@ void prepare_watchdog() {
                     continue;   // (silent from here: make_game.py's 15 minutes with no line stop a save that never ends)
             } else if (still >= quiet_s) {
                 if (stall_s > 0)
-                    logf("vk: preparation: waiting: nothing in %s has finished for %lld s (%zu of %zu), %s. Stopped at %d s if "
-                         "nothing moves", what, (long long)still, at.done, at.total, waiting_on, stall_s);
+                    logf("vk: preparation: waiting: nothing in %s has finished for %lld s (%zu of %zu), %s. Stopped at %lld s if "
+                         "nothing moves", what, (long long)still, at.done, at.total, waiting_on, (long long)part_stall_s);
                 else
                     logf("vk: preparation: waiting: nothing in %s has finished for %lld s (%zu of %zu), %s", what,
                          (long long)still, at.done, at.total, waiting_on);
@@ -1787,6 +1840,8 @@ const char* describe() {
 MkwVkRenderer table;
 
 } // namespace
+/// (vk_internal.h: the driver compile that ended, for the watchdog above)
+void prepare_compiled() { prepare_compiled_seen(); }
 } // namespace mkwvk
 
 // (hookshot) The window is being closed (host/display.c, host/posix/display_sdl.c, before they end the process): while the

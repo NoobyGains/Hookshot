@@ -189,20 +189,24 @@ void Strided(EmitContext& ctx, u32 count, u32 threads, Id invocation, Func&& bod
     }
 }
 
-/// The raw stage buffer word of line `line` for element `element` (a vertex or a primitive).
-Id LineWord(EmitContext& ctx, Id array, Id element, u32 base, u32 num_lines, u32 line) {
+/// The attribute region's index of line `line` (a value) for element `element` (a vertex or a primitive): base + (element / 32)
+/// * num_lines * 32 + element % 32 + line * 32.
+Id LineIndex(EmitContext& ctx, Id element, u32 base, u32 num_lines, Id line) {
     const Id group{ctx.OpShiftRightLogical(ctx.U32[1], element, ctx.Const(5U))};
     const Id slot{ctx.OpBitwiseAnd(ctx.U32[1], element, ctx.Const(31U))};
     const Id first{ctx.OpIAdd(
         ctx.U32[1], ctx.OpIMul(ctx.U32[1], group, ctx.Const(num_lines * 32)),
         ctx.OpIAdd(ctx.U32[1], slot, ctx.Const(base)))};
-    return ctx.OpLoad(
-        ctx.U32[1],
-        SharedWord(ctx, array, ctx.OpIAdd(ctx.U32[1], first, ctx.Const(line * 32))));
+    return ctx.OpIAdd(ctx.U32[1], first, ctx.OpShiftLeftLogical(ctx.U32[1], line, ctx.Const(5U)));
 }
 
 /// A mesh workgroup takes records for its primitives' corners from the records buffer's allocator and writes them; the vertex
 /// stage's indirect draw covers the records taken (MESH_FALLBACK_DRAW_WORD). A task's flag first bounds its count.
+/// (hookshot) The records are written by one loop over their words, the workgroup's threads side by side: thread t writes
+/// words t, t + threads, ... of the workgroup's records, each word a load from the attribute region and a store. They were
+/// written out unrolled, a primitive's corners and every line of each, its own address each: 348 stores a thread for a mesh
+/// of 126 primitives and 28 lines, which Mesa's Intel compiler (Iris Xe, 32 lanes) took 207 s and 3.8 GB to build (41 s and
+/// 1.5 GB without them). Side by side, the stores of a step are one run of memory, too.
 void MeshFallbackEpilogue(EmitContext& ctx) {
     const MeshInfo& mesh{ctx.mesh_info};
     const u32 corners{mesh.Corners()};
@@ -240,45 +244,49 @@ void MeshFallbackEpilogue(EmitContext& ctx) {
     Barrier(ctx);
     const Id base{ctx.OpLoad(ctx.U32[1], ctx.mesh_primitive_count)};
     If(ctx, ctx.OpINotEqual(ctx.U1, base, none), [&] {
-        const Id invocation{LocalInvocation(ctx)};
-        Strided(ctx, mesh.max_primitives, ctx.mesh_threads, invocation, [&](Id primitive) {
-            If(ctx, ctx.OpULessThan(ctx.U1, primitive, count), [&] {
-                for (u32 corner = 0; corner < corners; ++corner) {
-                    const Id byte{ctx.OpIAdd(
-                        ctx.U32[1], ctx.OpIMul(ctx.U32[1], primitive, ctx.Const(corners)),
-                        ctx.Const(4U + corner))};
-                    // (an index byte the program left unwritten is held to the vertex count)
-                    const Id vertex{Clamped(
-                        ctx, ctx.OpLoad(ctx.U32[1], SharedWord(ctx, ctx.mesh_map, byte)),
-                        mesh.max_vertices)};
-                    const Id record{ctx.OpIAdd(
-                        ctx.U32[1], base,
-                        ctx.OpIAdd(ctx.U32[1], ctx.OpIMul(ctx.U32[1], primitive, ctx.Const(corners)),
-                                   ctx.Const(corner)))};
-                    const Id word{ctx.OpIAdd(ctx.U32[1], ctx.Const(MESH_FALLBACK_HEADER_WORDS),
-                                             ctx.OpIMul(ctx.U32[1], record, ctx.Const(words)))};
-                    StoreWord(ctx, BufferWord(ctx, ctx.mesh_fallback_records_member_index, word),
-                              ctx.Const(1U));
-                    for (u32 line = 0; line < mesh.vertex_lines.size(); ++line) {
-                        const Id value{LineWord(ctx, ctx.mesh_attributes, vertex, 0,
-                                                static_cast<u32>(mesh.vertex_lines.size()), line)};
-                        StoreWord(ctx, BufferWord(ctx, ctx.mesh_fallback_records_member_index,
-                                                  ctx.OpIAdd(ctx.U32[1], word, ctx.Const(1U + line))),
-                                  value);
-                    }
-                    for (u32 line = 0; line < mesh.primitive_lines.size(); ++line) {
-                        const Id value{LineWord(ctx, ctx.mesh_attributes, primitive,
-                                                ctx.mesh_primitive_base,
-                                                static_cast<u32>(mesh.primitive_lines.size()), line)};
-                        StoreWord(ctx, BufferWord(ctx, ctx.mesh_fallback_records_member_index,
-                                                  ctx.OpIAdd(ctx.U32[1], word,
-                                                             ctx.Const(static_cast<u32>(1U + mesh.vertex_lines.size()) +
-                                                                       line))),
-                                  value);
-                    }
-                }
-            });
-        });
+        const u32 vertex_lines{static_cast<u32>(mesh.vertex_lines.size())};
+        const u32 primitive_lines{static_cast<u32>(mesh.primitive_lines.size())};
+        // (the workgroup's records are words first .. first + taken * words: its first record's, then each record's validity,
+        // its vertex's lines and its primitive's lines)
+        const Id records{PushU64(ctx, ctx.mesh_fallback_records_member_index)};
+        const Id first{ctx.OpIAdd(ctx.U32[1], ctx.Const(MESH_FALLBACK_HEADER_WORDS),
+                                  ctx.OpIMul(ctx.U32[1], base, ctx.Const(words)))};
+        const Id total{ctx.OpIMul(ctx.U32[1], taken, ctx.Const(words))};
+        const Id at_var{ctx.mesh_fallback_epilogue_word};   // (declared in the entry block: EmitMeshPrologue)
+        ctx.OpStore(at_var, LocalInvocation(ctx));
+        const Id header{ctx.OpLabel()}, body{ctx.OpLabel()}, next{ctx.OpLabel()}, done{ctx.OpLabel()};
+        ctx.OpBranch(header);
+        ctx.AddLabel(header);
+        const Id at{ctx.OpLoad(ctx.U32[1], at_var)};
+        const Id more{ctx.OpULessThan(ctx.U1, at, total)};   // (before the merge: it must be the branch's neighbour)
+        ctx.OpLoopMerge(done, next, spv::LoopControlMask::DontUnroll);
+        ctx.OpBranchConditional(more, body, done);
+        ctx.AddLabel(body);
+        // (record r is corner r % corners of primitive r / corners: its index byte is the map's byte 4 + r)
+        const Id record{ctx.OpUDiv(ctx.U32[1], at, ctx.Const(words))};
+        const Id word{ctx.OpISub(ctx.U32[1], at, ctx.OpIMul(ctx.U32[1], record, ctx.Const(words)))};
+        const Id primitive{ctx.OpUDiv(ctx.U32[1], record, ctx.Const(corners))};
+        // (an index byte the program left unwritten is held to the vertex count)
+        const Id vertex{Clamped(
+            ctx, ctx.OpLoad(ctx.U32[1], SharedWord(ctx, ctx.mesh_map, ctx.OpIAdd(ctx.U32[1], record, ctx.Const(4U)))),
+            mesh.max_vertices)};
+        // (word 0 the validity, 1 .. vertex_lines its vertex's lines, then its primitive's: one load, its index clamped into the
+        // region, as the word 0 and the lines of the other kind ask for one past it)
+        const Id line{ctx.OpISub(ctx.U32[1], word, ctx.Const(1U))};
+        const Id of_vertex{ctx.OpULessThan(ctx.U1, line, ctx.Const(vertex_lines))};
+        const Id vertex_index{LineIndex(ctx, vertex, 0, vertex_lines, line)};
+        const Id primitive_index{LineIndex(ctx, primitive, ctx.mesh_primitive_base, primitive_lines,
+                                           ctx.OpISub(ctx.U32[1], line, ctx.Const(vertex_lines)))};
+        const Id index{Clamped(ctx, ctx.OpSelect(ctx.U32[1], of_vertex, vertex_index, primitive_index),
+                               ctx.mesh_attribute_words)};
+        const Id line_value{ctx.OpLoad(ctx.U32[1], SharedWord(ctx, ctx.mesh_attributes, index))};
+        const Id value{ctx.OpSelect(ctx.U32[1], ctx.OpIEqual(ctx.U1, word, ctx.u32_zero_value), ctx.Const(1U), line_value)};
+        StoreWord(ctx, BufferWordAt(ctx, records, ctx.OpIAdd(ctx.U32[1], first, at)), value);
+        ctx.OpBranch(next);
+        ctx.AddLabel(next);
+        ctx.OpStore(at_var, ctx.OpIAdd(ctx.U32[1], at, ctx.Const((std::max)(ctx.mesh_threads, 1U))));
+        ctx.OpBranch(header);
+        ctx.AddLabel(done);
     });
 }
 
@@ -611,6 +619,12 @@ void EmitMeshPrologue(EmitContext& ctx) {
     }
     if (ctx.stage != Stage::Mesh) {
         return;
+    }
+    if (ctx.mesh_fallback) {
+        // (hookshot) the epilogue's loop index (MeshFallbackEpilogue): a function's variables open its first block, and the
+        // prologue is the first thing in it. Before anything else here
+        ctx.mesh_fallback_epilogue_word = ctx.AddLocalVariable(
+            ctx.TypePointer(spv::StorageClass::Function, ctx.U32[1]), spv::StorageClass::Function);
     }
     if (ctx.mesh_fallback && ctx.runtime_info.mesh_fallback_task) {
         // (hookshot) the slot its task gave this workgroup, from the map at its index of the dispatch (TaskEpilogue). Read here,

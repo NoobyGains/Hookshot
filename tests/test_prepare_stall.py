@@ -13,6 +13,8 @@ showing the last line written ("vertex format NVN 0xe -> vk 17"). In one log the
   the pipeline steps' own progress lines (#2186) coming every 10 s; the shader programs' count after a quiet spell, and nothing of
   its own while the pipeline steps move (their lines say it); once nothing has moved for RX_VK_PREPARE_STALL_S, the reason,
   hookshot_prepare_skipped and exit status 4.
+  compile finished past the ordinary one), and a compile that never ends is still stopped at the longer limit. precompile_run's
+  separate 30 s limit likewise gives an active compute compile 900 s instead of abandoning it and ending a preparation.
   The pipeline cache's save is stopped only when workers were left in the driver or it faulted, and after twice that limit (a
   fault AMD's retry recovered from counts, so a slow save there is not stopped as early); otherwise it is reported, and its lines
   end so that make_game.py's silence limit still applies.
@@ -198,6 +200,7 @@ WATCH_HEAD = r'''
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -214,9 +217,10 @@ static void host_flush() { std::fflush(stdout); }
 static const MkwVkHost host_v{host_log, host_flush};
 const MkwVkHost* host = &host_v;
 static int faults;
-static bool left;
+static bool left, compiling;
 int driver_faults() { return faults; }
 bool prepare_left_workers() { return left; }
+bool prepare_compiling() { return compiling; }
 std::string skipped_path() { return std::getenv("FIXTURE_SKIPPED"); }
 '''
 
@@ -226,14 +230,34 @@ int main(int argc, char** argv) {
     const std::string c = argv[1];
     if (c == "fault") faults = 1;
     if (c == "save-left") left = true;
+    if (c == "slow-compile" || c == "stuck-compile" || c == "busy-compile") compiling = true;
     prepare_watchdog();
-    if (c == "stuck" || c == "fault") {
+    if (c == "stuck" || c == "fault" || c == "stuck-compile") {
         prepare_moved(1, 5, 10);
         Sleep(20000);   // (the watchdog ends the process before this does)
         return 8;
     }
     if (c == "moving") {
         for (size_t i = 1; i <= 15; i++) prepare_moved(0, i, 100), Sleep(300);
+        return 0;
+    }
+    if (c == "compiling") {   // (the count stands, but the driver's compiles end: a compute program's variants, one worker each)
+        prepare_moved(0, 5, 100);
+        for (int i = 0; i < 25; i++) prepare_compiled_seen(), Sleep(300);
+        return 0;
+    }
+    if (c == "slow-compile") {   // (one compile still under way at the ordinary limit: three times it, not a stop)
+        prepare_moved(0, 5, 100);
+        Sleep(7000);
+        return 0;
+    }
+    if (c == "busy-compile") {   // (a compile with a CPU at work: past three times the limit, twelve times it before a stop)
+        std::atomic<bool> done{false};
+        std::thread burn([&] { volatile uint64_t x = 0; while (!done.load(std::memory_order_relaxed)) x = x + 1; });
+        prepare_moved(0, 5, 100);
+        Sleep(15000);
+        done = true;
+        burn.join();
         return 0;
     }
     if (c == "save") {   // (a long save, nothing left in the driver: reported, then silent, never stopped)
@@ -312,6 +336,10 @@ def check_watchdog(cxx, tmp):
             ("fault", 4, ["faulted 1 time so far", "waiting on the GPU driver, which faulted (above)", "after it faulted (above)", "STOPPED"],
              []),
             ("moving", 0, ["still working on the shader programs"], ["STOPPED", "waiting:"]),
+            ("compiling", 0, [], ["STOPPED", "waiting:"]),
+            ("slow-compile", 0, ["Stopped at 12 s"], ["STOPPED"]),
+            ("stuck-compile", 4, ["Stopped at 12 s", "STOPPED: nothing moved for 12 s"], ["a CPU busy"]),
+            ("busy-compile", 0, ["Stopped at 48 s", "which is compiling (a CPU busy)"], ["STOPPED"]),
             ("save", 0, ["still writing the pipeline cache's save", "this is the disk"], ["STOPPED", "(5 s)", "(6 s)"]),
             ("save-left", 4, ["which still has pipelines it did not finish", "(5 s)", "Stopped at 8 s",
                                "STOPPED: the pipeline cache's save waited 8 s"], []),
@@ -361,8 +389,13 @@ def check_sources():
     draw = (ROOT / "gpu/vk/vk_draw.cpp").read_text(encoding="utf-8")
     if draw.count("note_driver_fault();") < 4:
         raise SystemExit("a fault guard does not count its faults for the watchdog")
-    if block(draw, "void precompile_run(").count("prepare_left_workers_note();") != 1:
+    precompile = block(draw, "void precompile_run(")
+    if precompile.count("prepare_left_workers_note();") != 1:
         raise SystemExit("precompile_run goes on from stuck workers without saying so to the save")
+    if ("? (prepare_only_run ? 0 : std::max(stall_s, 900))" not in precompile or "std::chrono::seconds(limit_s)" not in precompile
+            or 'static const bool prepare_only_run = env_on("HOOKSHOT_PREPARE_ONLY");' not in precompile):
+        raise SystemExit("precompile_run abandons an active compute compile at the ordinary 30 s limit, or in the preparation's "
+                         "own process, where the watchdog stops a stuck one")
 
 
 def check_make_game():

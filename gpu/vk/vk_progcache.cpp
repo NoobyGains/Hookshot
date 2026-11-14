@@ -370,7 +370,10 @@ void get_info(Reader& r, Shader::Info& i) {
 void program_cache_save(const Program& p, const std::vector<std::vector<uint32_t>>& spirv) {
     // (each stage's phis, for fallback_compute_pipelines: the SPIR-V is not kept after this. Before the program is published)
     if (spirv.size() == p.stages.size())
-        for (size_t k = 0; k < p.stages.size(); k++) p.stages[k].phis = fallback_size::spirv_phis(spirv[k].data(), spirv[k].size());
+        for (size_t k = 0; k < p.stages.size(); k++) {
+            p.stages[k].phis = fallback_size::spirv_phis(spirv[k].data(), spirv[k].size());
+            p.stages[k].calls = fallback_size::spirv_calls(spirv[k].data(), spirv[k].size());
+        }
     disk_init();
     if (!disk_on || spirv.size() != p.stages.size()) return;
     std::vector<uint8_t> o;
@@ -510,6 +513,7 @@ void program_cache_read(FILE* in, std::mutex* mu, uint64_t key, const std::vecto
             }
             st.module = make_module(spirv, key, nullptr);
             st.phis = fallback_size::spirv_phis(spirv.data(), spirv.size());
+            st.calls = fallback_size::spirv_calls(spirv.data(), spirv.size());
             ok = ok && st.module;
         }
         ok = ok && answers_fit(*p, p->answers);   // (hookshot: an answer past the stages or their slots: not this record)
@@ -633,6 +637,7 @@ bool complete_from(Program& p, FILE* in, std::mutex* mu, bool* busy = nullptr) {
         return false;
     }
     st.phis = fallback_size::spirv_phis(spirv.data(), spirv.size());
+    st.calls = fallback_size::spirv_calls(spirv.data(), spirv.size());
     module_id_learned(p.key, p.variant, st.module);   // (the next run's load makes its pipeline without this read: vk_programs.h)
     return true;
 }
@@ -843,6 +848,19 @@ size_t program_cache_load_some(const std::unordered_set<uint64_t>& wanted, const
     return n;
 }
 
+/// (hookshot) As program_cache_borrow, every variant of key given to fn at once (alive until fn returns): the preparation's compute
+/// warm hands them to several threads (vk_draw.cpp prepare_run)
+void program_cache_borrow_all(uint64_t key, const std::function<void(std::vector<std::unique_ptr<Program>>&)>& fn) {
+    std::vector<std::unique_ptr<Program>> variants;
+    program_cache_load(key, variants, true);
+    fn(variants);
+    for (auto& p : variants) {
+        for (Stage& st : p->stages)
+            if (st.module) vkDestroyShaderModule(dev.device, st.module, nullptr);
+        if (p->layout) vkDestroyPipelineLayout(dev.device, p->layout, nullptr);
+        if (p->set_layout) vkDestroyDescriptorSetLayout(dev.device, p->set_layout, nullptr);
+    }
+}
 /// (hookshot) Program key's kept variants made for fn, then let go (modules and layouts): the records stay for play
 void program_cache_borrow(uint64_t key, const std::function<void(Program&)>& fn) {
     std::vector<std::unique_ptr<Program>> variants;

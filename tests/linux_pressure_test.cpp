@@ -67,6 +67,7 @@ struct Info {
 
 namespace fallback_size {
 inline uint32_t spirv_phis(const uint32_t* words, size_t n) { return n ? words[0] : 0; }
+inline uint32_t spirv_calls(const uint32_t*, size_t) { return 0; }
 }
 
 namespace mkwvk {
@@ -144,7 +145,7 @@ size_t ZSTD_decompress(void* dst, size_t dst_cap, const void* src, size_t src_si
 }
 bool ZSTD_isError(size_t code) { return code == ~size_t{0}; }
 
-VkShaderModule make_module(const std::vector<uint32_t>& spirv) {
+VkShaderModule make_module(const std::vector<uint32_t>& spirv, uint64_t = 0, bool* = nullptr) {
     ++make_module_calls;
     if (fail_make_module || spirv.empty()) return VK_NULL_HANDLE;
     const VkShaderModule h = ++next_module_id;

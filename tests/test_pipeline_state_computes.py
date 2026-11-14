@@ -261,11 +261,20 @@ def check_source(draw):
         at = draw.index(signature)
         return draw[at:draw.index("\n}\n", at)]
     pre = body_of("void precompile_run(")
-    for line in ('const ComputePlan plan = computes_plan(getenv("RX_VK_PRECOMPILE_COMPUTES"), !env_on("RX_VK_NO_STATE_LIST"));',
+    for line in ('const ComputePlan plan = computes_plan(precompile_computes_which(), !env_on("RX_VK_NO_STATE_LIST"));',
                  "if (!plan.all && !plan.none) wanted.insert(plan.keys.begin(), plan.keys.end());",
                  "}, plan.all, true);"):
         if line not in pre:
             raise SystemExit("precompile_run does not take its compute programs from computes_plan: no `%s`" % line)
+    # (RX_VK_PRECOMPILE_COMPUTES read in one place, which defaults it to "listed" on Mesa's Intel driver alone; every plan
+    # comes from there: precompile_run, the load at create and the preparation's compute warm)
+    which = body_of("const char* precompile_computes_which() {")
+    for line in ('if (const char* e = getenv("RX_VK_PRECOMPILE_COMPUTES")) return e;',
+                 'return dev.driver_id == VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA ? "listed" : nullptr;'):
+        if line not in which:
+            raise SystemExit("precompile_computes_which: no `%s`" % line)
+    if draw.count('getenv("RX_VK_PRECOMPILE_COMPUTES")') != 1 or draw.count("computes_plan(precompile_computes_which(),") != 3:
+        raise SystemExit("a compute plan is made from something other than precompile_computes_which")
     if "computes_read()" in pre or "state_record_compute(" in pre or "state_record_compute(" in body_of("void state_list_prepare("):
         raise SystemExit("precompile_run reads the learned list past the plan, or the prepare writes compute records")
     calls = [m.start() for m in re.finditer(r"(?<![\w:])state_record_compute\(", draw)]
@@ -588,6 +597,7 @@ struct Pre {
 static bool in_cache = false, broken = false;
 static int asks = 0, compiles = 0, destroys = 0;
 static void pin_subgroup(decltype(VkComputePipelineCreateInfo::stage)&, unsigned) {}
+static void pin_compute(decltype(VkComputePipelineCreateInfo::stage)& st, const Program& p) { pin_subgroup(st, p.workgroup[0]); }
 static VkResult cached_compute(const VkComputePipelineCreateInfo* ci, VkPipeline* pl) {
     CHECK(ci->stage.module == 0x2468 && ci->layout == 0x1357);
     if (ci->flags & VK_PIPELINE_CREATE_FAIL_ON_PIPELINE_COMPILE_REQUIRED_BIT) {
