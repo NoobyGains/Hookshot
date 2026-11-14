@@ -156,6 +156,7 @@ VkPipeline build_graphics(const Program& p, const NvnState&, const Targets&, VkP
     return (VkPipeline)(0x100 + ++built);
 }
 VkComputePipelineCreateInfo compute_pipeline_info(const Program& p, bool) { return {p.key}; }
+bool precompile_compute_quick(VkComputePipelineCreateInfo& ci) { (void)ci; return false; }   // (Intel's quick compute builds: not Intel here)
 VkResult cached_compute(const VkComputePipelineCreateInfo* ci, VkPipeline* out) {
     if (mode == "stuck-compute" && ci->key == kStuckCompute) hang();
     std::this_thread::sleep_for(std::chrono::milliseconds(1));

@@ -129,6 +129,7 @@ extern Device dev;
 /// draw or dispatch never waits for a compile. It never waits here either: while a worker holds the gate, busy is set and
 /// the caller answers VK_PIPELINE_COMPILE_REQUIRED (cold) without asking the driver.
 bool intel_compiles_side_by_side();   // (vk_menu.cpp: the row as this run started with it)
+bool intel_quick_compute();   // (vk_menu.cpp: the Intel quick compute builds row, as it is now: vk_draw.cpp compute_optimize)
 inline bool intel_gate_on() {
 #ifdef _WIN32
     static const bool on = !intel_compiles_side_by_side() && dev.props.vendorID == 0x8086;
