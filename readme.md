@@ -93,9 +93,9 @@ Everything below is on `main` in this repository, tested in the game on a GeForc
 **Field of view** (Gameplay tab, 50% to 150%): from a close, cinematic 60% to a wide 140%, where Kakariko's whole gate
 and the cliffs around it fit on screen.
 
-<img src="docs/images/features/bloom-and-colour-grade.jpg" alt="Kakariko Village four ways: original, bloom high, colour grade rich, colour grade warm">
+<img src="docs/images/features/colour-grade.jpg" alt="Kakariko Village four ways: colour grade off, Vivid, Cinematic and Cool">
 
-**Bloom, Colour grade and FXAA** (Graphics tab), plus **View distance, Grass and Shadow distance** rows that change
+**Colour grade** (Graphics tab: Rich, Vivid, Warm, Cool, Cinematic), with **Bloom** (a glow around bright light) and **FXAA**, plus **View distance, Grass and Shadow distance** rows that change
 how far the game draws models, grass and shadows. Each has an Original setting that looks exactly like the game.
 
 Behind the scenes: the Builder's **"Preparing shaders" step no longer hangs at 99%** on a driver that never finishes a
