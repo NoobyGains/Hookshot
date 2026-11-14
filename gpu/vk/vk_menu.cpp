@@ -837,6 +837,10 @@ const char* tx_grade(int v) {
     static const char* t[kGrades] = {"Off", "Rich", "Vivid", "Warm", "Cool", "Cinematic"};
     return (unsigned)v < kGrades ? t[v] : t[0];
 }
+const char* tx_colour_vision(int v) {   // (the Colour vision row)
+    static const char* t[kCvds] = {"Off", "Protanopia", "Deuteranopia", "Tritanopia"};
+    return (unsigned)v < kCvds ? t[v] : t[0];
+}
 const char* tx_retro(int v) {   // (the Retro look row)
     static const char* t[kRetroLooks] = {"Off", "N64", "N64 + CRT"};
     return (unsigned)v < kRetroLooks ? t[v] : t[0];
@@ -1426,6 +1430,16 @@ Row rows[] = {
     {TAB_GRAPHICS, "Colour grade", &opts.grade, 0, kGrades - 1, 1, tx_grade,
      "A colour grade on the finished picture: richer colour and contrast, a warm or cool tone, a soft vignette. Off shows the "
      "game's own colours. Not with HDR set to Native. Changes at once.", nullptr, false, true},
+    // (hookshot: in the same pass, last on the picture: vk_framegen.cpp framegen_scale, fg_scale.comp finish())
+    {TAB_GRAPHICS, "Brightness", &opts.brightness, 70, 150, 5, tx_percent,
+     "The picture's mid-tones lighter or darker, its black and white kept: a gamma curve, as a TV's or ReShade's Levels "
+     "gamma. 100% is the game's picture. For SDR: with HDR on, set HDR paper white instead. Changes at once.", nullptr, false,
+     true},
+    {TAB_GRAPHICS, "Colour vision", &opts.colour_vision, 0, kCvds - 1, 1, tx_colour_vision,
+     "For colour blindness: the colours a player with it confuses moved to ones they can tell apart (daltonization: Machado, "
+     "Oliveira and Fernandes' 2009 model of what they see, then Fidaner, Lin and Ozguven's shift of what they miss). "
+     "Protanopia and Deuteranopia: red and green; Tritanopia: blue and yellow. Not a simulation; greys and white stay as "
+     "they are. Not with HDR set to Native. Changes at once.", nullptr, false, true},
     // (hookshot: in the same pass, after the three above)
     {TAB_GRAPHICS, "Retro look", &opts.retro, 0, kRetroLooks - 1, 1, tx_retro,
      "The picture as a Nintendo 64 made it: 240 lines, soft, its colours cut to the console's 16 bits with its dither. N64 + "
