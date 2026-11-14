@@ -59,6 +59,15 @@ VkResult vkCreateComputePipelines(VkDevice, VkPipelineCache, uint32_t count, con
     // Vulkan may return owned pipeline handles together with an error: cleanup must inspect the output.
     *p = allocate('P', info->layout); return fail ? VK_ERROR_OUT_OF_DEVICE_MEMORY : VK_SUCCESS;
 }
+// (vk_framegen.cpp make_pipe builds its pipes through the driver-fault guards and Intel's compiler gate, vk_draw.h and
+// vk_internal.h: the same calls here, through the counted stand-ins above)
+struct IntelDriverGate { IntelDriverGate() {} ~IntelDriverGate() {} };   // (held: nothing to hold here)
+VkResult extern_guarded_shader_module(const VkShaderModuleCreateInfo* ci, VkShaderModule* m) {
+    return vkCreateShaderModule(VK_NULL_HANDLE, ci, nullptr, m);
+}
+VkResult extern_guarded_compute(VkPipelineCache cache, const VkComputePipelineCreateInfo* ci, VkPipeline* p) {
+    return vkCreateComputePipelines(VK_NULL_HANDLE, cache, 1, ci, nullptr, p);
+}
 void vkDestroyPipeline(VkDevice, VkPipeline h, const VkAllocationCallbacks*) { release(h, 'P'); }
 void vkDestroyPipelineLayout(VkDevice, VkPipelineLayout h, const VkAllocationCallbacks*) { release(h, 'L'); }
 void vkDestroyDescriptorSetLayout(VkDevice, VkDescriptorSetLayout h, const VkAllocationCallbacks*) { release(h, 'D'); }
