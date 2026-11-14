@@ -686,7 +686,7 @@ them does not renew a size change's declined restart prompt. Choosing a differen
 
 The other rows are 0 Off and 1 On. Some are read at the start, before the menu exists, by the code that needs them:
 `handheld_profile` and `output_res` (`host/nn_applet.c`), `ultrawide` (`host/hos_main.c`), `robust_buffers`
-(`gpu/vk/vk_main.cpp`) and the controls (`host/nn_hid.c`).
+(`gpu/vk/vk_main.cpp`), the controls (`host/nn_hid.c`) and `skip_title_screen` (`host/oot_autoload.c`).
 
 These named keys, including `walk_mode` and `walk_speed`, are independent of the internal host/renderer option IDs in
 `gpu/vk/vk_api.h`; renumbering an option does not require changing a player's saved options file.

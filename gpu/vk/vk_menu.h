@@ -160,6 +160,7 @@ struct Options {
                           // (vk_menu_i18n.cpp). Saved as menu_language
     int keyboard = 0;   // (hookshot) 0 Auto, 1 On, 2 Off; persisted by the Keyboard row
     int mic = 1;          // (hookshot) the ocarina's microphone: 0 Off, 1 the system's default, 2.. a device as host->mic_name lists it (host/nn_audio_in.c)
+    int skip_title = 0;   // (hookshot) start with the most recent save, pressing through the title and its file list (host/oot_autoload.c); read at the start
 };
 extern Options opts;
 

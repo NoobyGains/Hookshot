@@ -130,6 +130,7 @@ STUBS = r"""
 static int32_t pad_stick[4], mouse_right[2];
 static int mouse_captured;
 static void pads_read(uint64_t *b, int32_t s[4]) { (void)b; stick_max(s, pad_stick); }
+void hos_oot_autoload_input(void) {}   /* (host/oot_autoload.c: the Skip title screen row's presses) */
 int hos_mouse_native(void) { return -1; }
 void hos_mouse_native_free(int free) { (void)free; }
 void hos_mouse_native_stick(int held) { (void)held; }
