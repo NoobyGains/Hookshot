@@ -460,6 +460,11 @@ def patch_movie_frames(s):
 #   as their lengths. Cut to 0, their timing is lost even though the eight pitches are recorded. The mode-13 cut is separate.
 # - f_832b2690, recording completion: after the eighth note starts, it times that note and writes its final delay into
 #   the same recording. Its unsigned cut must carry too, or the saved eighth note has zero length and is not played.
+# - f_80652cb0, the interactive floor (the Deku Tree's ground webs), and the physics' two water managers on the same base,
+#   f_83895f20 (phive::InteractiveWaterMgr) and f_838a2660 (phive::ResponsiveWaterMgr; their water, ice and sand bodies): each
+#   update cuts the frame's seconds over 1/60 to whole simulation steps, queues at most 3 and skips the simulation under 1. Cut
+#   to 0, the web stood still under Link and the water surfaces stopped answering what pushed into them. Found for the managers
+#   by NX2navi (its owater set), which carries the same remainder per object.
 # hos_frame_whole carries the fractions per counter while the frames' own time is the step, so each moves at the game's rate;
 # otherwise it cuts as the game does. A site is added here once it is seen to misbehave in game. (A site's function, its code to
 # replace, and the counter's address for its remainder.)
@@ -482,6 +487,14 @@ WHOLE_SITES = (
     # (the floor web's simulation steps: keep each object's fraction before the existing 0..3 clamp, issues 2667/2271)
     ("void f_80652cb0(Ctx *__restrict A64_NOESC c) {@",
      "    c->x[22]=recomp_fp_to_int(c->vreg[0][0]&UINT64_C(0xffffffff),32,32,1,3,c->fpcr,&c->fpsr);@",
+     "c->x[19] + 2296"),
+    # (the two water managers' simulation steps, the same code as the floor web's on the same base: x19 the manager, the
+    #  function's x0; each the function's one cut)
+    ("void f_83895f20(Ctx *__restrict A64_NOESC c) {@",
+     "    c->x[8]=recomp_fp_to_int(c->vreg[0][0]&UINT64_C(0xffffffff),32,32,1,3,c->fpcr,&c->fpsr);@",
+     "c->x[19] + 2296"),
+    ("void f_838a2660(Ctx *__restrict A64_NOESC c) {@",
+     "    c->x[8]=recomp_fp_to_int(c->vreg[0][0]&UINT64_C(0xffffffff),32,32,1,3,c->fpcr,&c->fpsr);@",
      "c->x[19] + 2296"),
     ("void f_832b32b0(Ctx *__restrict A64_NOESC c) {@",
      "    c->x[8]=recomp_fp_to_int(c->vreg[0][0]&UINT64_C(0xffffffff),32,32,0,3,c->fpcr,&c->fpsr);@",
@@ -1159,7 +1172,8 @@ def report(paths, counts, protect_hearts=False):
               "keeps the game's own step)" % (step_sites, len(STEP_SITES)))
     elif whole_sites != len(WHOLE_SITES):   # (the frames' own time without them: the pick-up indicator stays above 60 fps)
         print("oot_patches: WARNING: %d of %d frame counters found for the step's whole frames (above 60 fps a counter can stop: "
-              "the pick-up indicator, the water ripples, the time of day, Scarecrow's Song)" % (whole_sites, len(WHOLE_SITES)))
+              "the pick-up indicator, the water ripples, the time of day, Scarecrow's Song, the floor web, the water surfaces)"
+              % (whole_sites, len(WHOLE_SITES)))
 
 
 def apply(gen, *, protect_hearts=False, required=False):
