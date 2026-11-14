@@ -3522,9 +3522,11 @@ int desc_reuse_level();   // (below: RX_VK_DESC_REUSE and the Descriptor reuse r
 bool ub_snapshot_on() {
     static const bool snapshot = [] {
         const char* e = getenv("RX_VK_UB_SNAPSHOT");
+        // (every Intel GPU, its discrete Arc cards with VRAM mirrors too: an Arc B580 with mirrors lost the Kokiri Forest floor
+        // to the sky without it; the other integrated GPUs while the pools have no mirror)
         const bool on = e ? env_on("RX_VK_UB_SNAPSHOT")
-                          : !pools_mirrored() && (dev.props.vendorID == 0x8086 ||
-                                                  dev.props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU);
+                          : dev.props.vendorID == 0x8086 ||
+                                (!pools_mirrored() && dev.props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU);
         logf("vk: uniform buffers %s (RX_VK_UB_SNAPSHOT=%d)", on ? "copied as submitted" : "bound in place", on ? 1 : 0);
         return on;
     }();
@@ -3624,7 +3626,8 @@ VkDescriptorBufferInfo uniform_range(const NvnState& s, const Stage& st, uint32_
                 return {cur->stream, at, n};
             }
         // (RX_VK_UB_SNAPSHOT=1: the contents as they are now, in the stream, not the pool the GPU reads later)
-        // (on by default on integrated GPUs when the pools have no VRAM mirror (vk_memory.cpp mirror_on() off): the GPU then
+        // (on by default on Intel, whatever the mirrors, and on integrated GPUs when the pools have no VRAM mirror
+        // (vk_memory.cpp mirror_on() off): the GPU then
         // reads the game's memory itself when it runs the frame, and by then the game has written the next frame's uniforms
         // over the ones submitted (the per-object matrices are in memory it reuses frame after frame). On Intel the depth
         // prepass drew the Kokiri ground with other objects' matrices, out of sight: the depth there stayed far, and the fog
@@ -3632,7 +3635,9 @@ VkDescriptorBufferInfo uniform_range(const NvnState& s, const Stage& st, uint32_
         // fence fix https://github.com/NotRexed/Hookshot/pull/2419). On a Steam Deck on main 6749ba21, bound in place, 1 of 3
         // starts froze in a conversation (a capture's and a readback's write-back never came) where 0 of ~25 did with the copy;
         // the copy's cost there is ~1 fps. A mirror
-        // is made at the submission and does not see the rewrite. Discrete GPUs with no mirror (GCN since
+        // is made at the submission and does not see the rewrite, so it was thought to cover the discrete cards, but an Arc
+        // B580 (101.9154) with mirrors on showed the same, the forest floor and the treehouses gone to sky and white glowing
+        // blocks, all gone with the snapshot at no frame rate cost. Discrete GPUs with no mirror (GCN since
         // https://github.com/NotRexed/Hookshot/pull/2343,
         // RX_VK_MIRROR=0) keep the default off until it is measured there. RX_VK_UB_SNAPSHOT=0: off)
         const bool snapshot = ub_snapshot_on();

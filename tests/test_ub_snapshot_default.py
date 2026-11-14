@@ -1,8 +1,9 @@
 """The uniform-buffer snapshot default, game-free: the actual selection code from gpu/vk/vk_draw.cpp, compiled.
 
-On an integrated GPU (or Intel) whose buffer pools have no VRAM mirror, a uniform buffer bound in place is the game's own
-memory, which it rewrites right after the submit; the copy as submitted is the default there. With mirrors, or on a
-discrete GPU without them (GCN since #2343, RX_VK_MIRROR=0), it stays in place. Set, RX_VK_UB_SNAPSHOT reads as env_on does
+On an integrated GPU whose buffer pools have no VRAM mirror, a uniform buffer bound in place is the game's own
+memory, which it rewrites right after the submit; the copy as submitted is the default there, and on every Intel GPU, its
+discrete Arc cards with mirrors included (an Arc B580 with mirrors lost the Kokiri Forest floor to the sky without it). With
+mirrors on another GPU, or on a discrete GPU without them (GCN since #2343, RX_VK_MIRROR=0), it stays in place. Set, RX_VK_UB_SNAPSHOT reads as env_on does
 (gpu/vk/compat/hookshot_env.h): 1, on, true, yes force the copy; 0, off, false, no, empty force the pool.
 
     python -I -B tests/test_ub_snapshot_default.py [--cxx g++]
@@ -71,13 +72,16 @@ CASES = [("0", "i", "1002", "unset", "copy"),    # (an AMD APU, the Steam Deck: 
          ("0", "i", "8086", "unset", "copy"),    # (an Intel iGPU, https://github.com/NotRexed/Hookshot/pull/2464)
          ("0", "d", "8086", "unset", "copy"),    # (an Intel discrete card without mirrors, same Intel fix)
          ("0", "d", "1002", "unset", "pool"),    # (GCN, mirrorless since the linked pull above: not measured)
+         ("1", "d", "8086", "unset", "copy"),    # (an Intel discrete card with mirrors: an Arc B580 needed it, Kokiri Forest)
+         ("1", "i", "8086", "unset", "copy"),    # (an Intel iGPU with mirrors)
          ("1", "d", "10de", "unset", "pool"), ("1", "i", "1002", "unset", "pool"),
          ("0", "d", "1002", "1", "copy"), ("0", "d", "1002", "on", "copy"), ("0", "d", "1002", "yes", "copy"),
          ("1", "d", "10de", "true", "copy"),
          ("0", "i", "1002", "0", "pool"), ("0", "i", "1002", "off", "pool"), ("0", "i", "1002", "no", "pool"),
          ("0", "i", "1002", "false", "pool"), ("0", "i", "1002", "", "pool")]
 
-REUSE_CASES = [("0", "i", "8086", "unset", "unset", "copy-each"),
+REUSE_CASES = [("1", "d", "8086", "unset", "unset", "copy-each"),   # (Intel keeps its copy for each binding, mirrors or not)
+               ("0", "i", "8086", "unset", "unset", "copy-each"),
                ("0", "i", "8086", "unset", "1", "reuse"),
                ("0", "i", "8086", "unset", "on", "reuse"),
                ("0", "i", "8086", "unset", "0", "copy-each"),
