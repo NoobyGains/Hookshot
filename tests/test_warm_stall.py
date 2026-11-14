@@ -67,6 +67,7 @@ HEAD = r'''
 #include <unordered_map>
 #include <vector>
 #include "warm_bounded.h"
+#include "crash_markers.h"   // (precompile_warm begins and ends its marker through it, as vk_draw.cpp includes it)
 #define CHECK(c) do { if (!(c)) { std::fprintf(stderr, "CHECK failed line %d: %s\n", __LINE__, #c); std::_Exit(7); } } while (0)
 using VkPipeline = uintptr_t;
 using VkPrimitiveTopology = int;
@@ -228,7 +229,8 @@ int main(int argc, char** argv) {
     }
     if (mode == "closed") {   // (closed in it: not counted; nothing saved or marked here)
         CHECK(stop && built < notes - 1 && !markers && !saves);
-        CHECK(warming() == (had ? std::atoi(had) : 0));
+        crash_markers::close();   // (the close, mkwvk_close_asked's last step: the file as this start found it, none for none)
+        CHECK(warming() == (had ? std::atoi(had) : -1));
         CHECK(logged.find("stopped before the end") != std::string::npos);
         return 0;
     }

@@ -71,6 +71,7 @@
 #include "vk_programs.h"
 #include "vk_pipelines.h"
 #include "warm_bounded.h"
+#include "crash_markers.h"   // (the files that count the starts that crashed in a step: a close puts them back)
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
 namespace mkwvk {
@@ -8553,13 +8554,13 @@ bool prepare_run(void (*progress)(size_t done, size_t total), bool background, b
                 fclose(f);
                 logf("vk: the last start did not finish the driver's part of the shaders: left out");
             } else {
-                if (FILE* w = fopen(warming.c_str(), "wb")) fclose(w);
+                crash_markers::begin(warming, 1, crash_markers::none);
                 if (!warm_libraries(progress)) {
-                    remove(warming.c_str());
+                    crash_markers::end(warming);
                     return false;
                 }
             }
-            remove(warming.c_str());
+            crash_markers::end(warming);
         }
         prepared_for.warmed = warmed;
         prepared_write(path, prepared_for);
@@ -8584,8 +8585,8 @@ bool prepare_run(void (*progress)(size_t done, size_t total), bool background, b
         fclose(f);
         warm = warm_cs = false;
         logf("vk: the last start did not finish the driver's part of the shaders: left out");
-    } else if (warm || warm_cs) {
-        if (FILE* w = fopen(warming.c_str(), "wb")) fclose(w);
+    } else if (warm || warm_cs) {   // (a start closed in them leaves no file: crash_markers::close)
+        crash_markers::begin(warming, 1, crash_markers::none);
     }
     pcache_init();   // (once, here: the workers below build compute pipelines into it)
     std::atomic<size_t> next{0}, done{0}, made{0}, libs{0}, variants{0}, asking{0}, capped{0};
@@ -8681,7 +8682,7 @@ bool prepare_run(void (*progress)(size_t done, size_t total), bool background, b
     if (prepare_stopped()) {   // (closed: what was made is in the program cache already, the rest is made at the next start)
         logf("vk: shader preparation stopped at %zu of %zu (the window was closed): the next start goes on from there", done.load(),
              total);
-        remove(warming.c_str());
+        // (the file as the close leaves it, crash_markers::close: a close neither counts as a crash nor clears one)
         return false;
     }
     int64_t translated = 0, failed = 0;
@@ -8695,11 +8696,11 @@ bool prepare_run(void (*progress)(size_t done, size_t total), bool background, b
         prepared_for.warmed = 0;
         prepared_write(path, prepared_for);
         if (!warm_libraries(progress)) {
-            remove(warming.c_str());
+            crash_markers::end(warming);
             return false;
         }
     }
-    if (!background) remove(warming.c_str());
+    if (!background) crash_markers::end(warming);
     // (the driver's part left out, by a start that ended in it or in play, is not tried again for this driver: as before)
     prepared_for.warmed = warmed;
     prepared_write(path, prepared_for);
@@ -8737,10 +8738,11 @@ void prepare_progress_log(const char* what, size_t done, size_t total, std::chro
 /// compiled. The precompile does the same by keeping them all ready, which is the memory RX_VK_LOAD=create is there to save
 /// and more than a 16 GB PC has (its precompile was killed at 23,407 of 35,870 pipelines under a 12 GB cap). Here each
 /// worker borrows one program, builds its notes' pipelines one after the other and destroys each at once: never more
-/// pipelines alive than workers (warm_bounded.h). Before the game, with the precompile's progress; a start that ended in it
-/// begins again at the next one, and after two that did not get through, the notes are taken as they are (what a cache
-/// then lacks is made at its first draw, as on an install that was never prepared). A start closed in it (prepare_stopped)
-/// is not counted: two closes in a row ("it looked stuck") took the notes as they were, and play compiled the rest.
+/// pipelines alive than workers (warm_bounded.h). Before the game, with the precompile's progress; a start closed in it begins
+/// again at the next one (the close puts the file back as the start found it, crash_markers.h), and after two that crashed in it
+/// (or were killed), the notes are taken as they are (what a cache then lacks is made at its first draw, as on an install that
+/// was never prepared). A start closed in it is not counted: two closes in a row ("it looked stuck") took the notes as they were,
+/// and play compiled the rest.
 /// A pipeline the driver never finishes (#2107; "stuck at 99%") holds its worker for good. As precompile_run and predict_run,
 /// once no program is left to hand out (or anywhere in the run, after a fault in the driver) and nothing has finished for
 /// RX_VK_PRECOMPILE_STALL_S seconds (30; 0: wait for all), the warm goes on and leaves that worker in the driver. Before, it
@@ -8776,7 +8778,7 @@ bool precompile_warm(void (*progress)(size_t done, size_t total)) {
              "are, a pipeline the caches lack is made when it is first drawn");
         return false;
     }
-    if (FILE* f = fopen(warming.c_str(), "wb")) fprintf(f, "%d\n", ended_inside + 1), fclose(f);
+    crash_markers::begin(warming, ended_inside + 1, ended_inside ? ended_inside : crash_markers::none);
     // (by program, in the notes' order: a worker's borrowed program serves all its notes)
     for (const NoteRef& r : w->refs) {
         auto& list = w->by_prog[r.prog];
@@ -8896,10 +8898,7 @@ bool precompile_warm(void (*progress)(size_t done, size_t total)) {
         if (!prepare_only) pipeline_cache_save(true);
         // (not by the preparation's own process: warm_bounded.h leaves_marker)
         if (warm_bounded::leaves_marker(prepare_only, all, prepare_stopped())) precompile_built_write(total);
-        remove(warming.c_str());
-    } else if (prepare_stopped() && !gone_on) {
-        // (closed in it: not counted, the count it had written back, as predict_run's; one that ended in it, or went on, is)
-        if (FILE* f = fopen(warming.c_str(), "wb")) fprintf(f, "%d\n", ended_inside), fclose(f);
+        crash_markers::end(warming);   // (closed in it: not counted, the close wrote the count back, crash_markers::close; gone on: the marker stays)
     }
     logf("vk: precompile: %zu noted pipelines of %zu programs and %zu compute pipelines of %zu compute programs built into the "
          "pipeline cache and let go (%zu and %zu not made, %zu whose program variant is not kept), on %u threads in %.1f s (the "
@@ -9009,7 +9008,9 @@ void precompile_run(void (*progress)(size_t done, size_t total)) {
     // (a start that dies in here would die in here every time, the notes being what it builds from: a player saw the console reach
     // 542 of 543 and the game close. The file says this step began and did not end: the next start lets the notes go and plays)
     // (two starts in a row, not one: closing the window while it ran counted as a crash, and the next start then skipped the
-    // precompile and compiled everything in play: "stuck at 99%, then fine on the second start", 2026-11-08)
+    // precompile and compiled everything in play: "stuck at 99%, then fine on the second start", 2026-11-08. And a close does
+    // not count at all: a quit ends the process before this returns, so two quits in it still dropped the notes. The close puts
+    // the file back as the start found it, crash_markers.h)
     const std::string running = pipe_notes_path() + ".running";
     int ended_inside = 0;
     if (FILE* f = fopen(running.c_str(), "rb")) {
@@ -9021,10 +9022,11 @@ void precompile_run(void (*progress)(size_t done, size_t total)) {
             logf("vk: the last two starts did not get through the precompile: its notes are dropped");
             return;
         }
-        logf("vk: the last start did not get through the precompile (closed, or it crashed there): trying it once more");
+        logf("vk: the last start did not get through the precompile (it crashed there, or was killed): trying it once more");
     }
-    if (FILE* f = fopen(running.c_str(), "wb")) fprintf(f, "%d\n", ended_inside + 1), fclose(f);
-    struct Done { const std::string& path; ~Done() { remove(path.c_str()); } } done_marker{running};
+    crash_markers::begin(running, ended_inside + 1, ended_inside ? ended_inside : crash_markers::none);
+    // (stopped: the window was closed, and the close puts the file back, crash_markers::close)
+    struct Done { const std::string& path; ~Done() { if (!prepare_stopped()) crash_markers::end(path); } } done_marker{running};
     pcache_init();
     std::vector<std::unique_ptr<PipeNote>> notes = pipe_notes_read();
     // (the notes file and the state list opened now, before play, with the notes just read: pipeline_note and state_record opened
@@ -9239,7 +9241,8 @@ void predict_run(void (*progress)(size_t done, size_t total)) {
     }
     // (the marker counts the starts that began it: two that did not get through it (a driver that hangs or ends the process on one
     // of these pipelines) and it is let go, the rest left to play, as precompile_run does with its notes)
-    // A start closed in it (prepare_stopped) writes its count back unchanged: only one that crashed or hung there counts
+    // A start closed in it has its count written back unchanged by the close (crash_markers::close), whether its workers stopped in
+    // time or not: only one that crashed or hung there counts
     int began = 0;
     bool resumed = false;
     if (FILE* f = fopen(predict_pending_path().c_str(), "rb")) {
@@ -9254,7 +9257,7 @@ void predict_run(void (*progress)(size_t done, size_t total)) {
     }
     if (resumed) logf("vk: the last start did not finish building the predicted pipelines (%s): they are built again (what the "
                       "driver kept comes from its cache)", began ? "it ended in them" : "closed");
-    if (FILE* f = fopen(predict_pending_path().c_str(), "wb")) fprintf(f, "%d\n", began + 1), fclose(f);
+    crash_markers::begin(predict_pending_path(), began + 1, began);
     size_t programs = 0;
     PredictCounts left_out;
     std::vector<std::unique_ptr<PipeNote>> predicted = predict_pipelines(notes, &programs, &left_out);
@@ -9386,8 +9389,7 @@ void predict_run(void (*progress)(size_t done, size_t total)) {
          : prepare_stopped() ? " (stopped: the window was closed; the driver keeps what was built)" : "");
     if (!prepare_stopped() && !out_of_time.load() && !gone_on) predicted_sample_write(pre->predicted);
     // (gone on: what is stuck is left to play, as the stall guard says; a start that does it again would only stall again)
-    if (!prepare_stopped()) remove(predict_pending_path().c_str());
-    else if (FILE* f = fopen(predict_pending_path().c_str(), "wb")) fprintf(f, "%d\n", began), fclose(f);   // (closed: not counted)
+    if (!prepare_stopped()) crash_markers::end(predict_pending_path());   // (closed: the close writes `began` back, not counted)
     driver_cache_log("after the prediction");
 }
 
