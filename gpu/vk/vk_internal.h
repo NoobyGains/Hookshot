@@ -295,6 +295,8 @@ void memory_note_gpu_write(uint64_t gpu, uint64_t size);
 uint64_t vk_timeline_completed();
 /// A future submission completion covering images retired during replay; zero: no safe value.
 uint64_t vk_retirement_value();
+/// The newest value handed out to a submission or a present: no recording begun so far has a later one
+uint64_t vk_values_handed_out();
 void vk_timeline_wait(uint64_t v);
 uint32_t memory_generation();
 /// 1: a page of [guest, guest + size) was written after generation gen; 0: none was
@@ -402,6 +404,8 @@ int driver_faults();   // (hookshot, vk_draw.cpp) the driver faults the pipeline
 void prepare_left_workers_note();   // (hookshot, vk_draw.cpp) predict_run or precompile_run left workers inside the driver
 bool prepare_left_workers();
 void fill_replay_table(MkwVkRenderer& t);     // vk_replay.cpp
+// the game profile's program keys: the runtime's (HOOKSHOT_PROFILE_*), else the built-in header's (vk_draw.cpp)
+const char* profile_keys(const char* runtime, const char* built);
 
 } // namespace mkwvk
 
