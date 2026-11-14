@@ -497,6 +497,7 @@ lists its files' checksums in `SHA256SUMS`. A copy from anywhere else may not be
 | The game opens and closes, or the log says "device lost" | Update your graphics driver. On AMD cards there are known crashes ([#708](https://github.com/NotRexed/Hookshot/issues/708), [#614](https://github.com/NotRexed/Hookshot/issues/614)) |
 | Parts of the picture are missing, or a message says your card has no mesh shader support | The card or its driver has no mesh shaders. Update the driver; older cards are not supported ([#640](https://github.com/NotRexed/Hookshot/issues/640)) |
 | AMD: blocky textures, solid rectangles in the sky or unusually dark courtyard surfaces | Try the [RGBA8 texture workaround](#amd-texture-workaround). It uses more graphics memory |
+| Windows: HDR is on, but the game stays SDR | The **HDR** row's help in the menu, and the `vk: HDR:` line in the log, say why. "HDR is off for this display": turn on **Use HDR** for the display the game is on, in Windows' **Settings > System > Display**. "Windows has HDR on, but the graphics driver offers the game no HDR output": Windows' desktop is in HDR but the driver does not offer HDR to Vulkan games; update the graphics driver with a clean install (NVIDIA: run the installer, choose **Custom**, tick **Perform a clean installation**), then restart the PC. A clean install resets the driver's settings, such as the output colour depth. |
 | Linux: the game does not start or the picture is broken | The game needs a Vulkan 1.3 driver with mesh shaders. Check with `vulkaninfo \| grep mesh`: it should list `VK_EXT_mesh_shader`. Update Mesa or the NVIDIA driver |
 | Steam Deck: the game freezes and closes in Kokiri Forest or the Great Deku Tree (`gfx_0.0.0 timeout` in `journalctl -k`) | `RX_VK_MESH_NOCULL=2c56dc1006942f74` in `hookshot_env.txt` gets past it with every model drawn (the culling pass that runs for seconds is turned off). `RX_VK_SKIP_CODE=2c56dc1006942f74` also gets past it, but the models those draws make go missing (see the [development guide](docs/development.md#switches-for-testing-and-debugging), [#817](https://github.com/NotRexed/Hookshot/issues/817)) |
 | "Your antivirus removed part of the build tools" | A false alarm on unsigned programs. Restore the files from Windows Security's Protection history, or add `%LOCALAPPDATA%\HookshotBuilder` to its exclusions, then press **Repair** |
@@ -549,6 +550,23 @@ It has not been tested on an Intel GPU yet. On such a PC:
 5. If it still crashes or runs slowly, [report it](https://github.com/NotRexed/Hookshot/issues/new/choose) with
    `hookshot_log.txt` from a run with `HOS_VIDEO_LOG=1` in `hookshot_env.txt`, the build's details, and the FPS on the
    title and in the first scene.
+
+#### Steam Deck
+
+On a Steam Deck (LCD or OLED, found by its processor) the game turns on its Steam Deck profile by itself: the settings
+that ran fastest there. With the Quality preset on **Auto (this PC)** it sets Minimum's scaling, and when the profile is
+first chosen **Frame generation** 2x and the **VRAM budget** Auto (2.5 GB with the Deck's 16 GB, not Minimum's 2.2 GB
+cap); if you change those two afterwards they stay as you set them. Whatever the preset, the renderer runs its commands on
+a thread of its own and keeps no graphics pipelines ready before the title, which ran the Deck out of memory.
+`RX_VK_STEAM_DECK=0` in `hookshot_env.txt` (or a line `steam_deck=0` in `hookshot_options.ini`) turns it off (Auto then
+gives back Minimum's VRAM budget; Frame generation stays as it is), and `=1` turns it on elsewhere.
+The log's `vk: Steam Deck profile:` and `Auto (this PC)` lines say what it did.
+
+The largest gain on the Deck is its GPU clock, which the game cannot set itself. In Gaming Mode, open the Quick Access
+menu (the **...** button), then **Performance**: turn on **Use per-game profile** and **Manual GPU clock control**, and
+set **GPU clock frequency** to 1600 MHz. In Kokiri Forest the game went from about 15 to about 20 frames a second (about
+28 to 39 shown with Frame generation 2x), and its slowest frames from about 81 to 46 ms. It draws about 19 W instead of
+about 8 W and ran up to 68 °C, so it suits the Deck docked or plugged in.
 
 #### AMD texture workaround
 
@@ -719,9 +737,10 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   rows yourself sets it back to Custom.
 - **Auto (this PC)**, which a first start begins on, chooses for the PC it runs on: the memory tier from the card's
   video memory (an integrated GPU, a Steam Deck or a card without mesh shaders at Minimum), DLSS on an NVIDIA RTX card
-  or FSR 4 on an AMD RX 9000 where the build has them (else the game's own upscaler). It leaves the Output resolution as
-  it is: on a first start the game's own 2560x1440, or the screen's size where that is smaller (a Steam Deck's 1280x800,
-  a 1080p monitor), applied from the first start with no restart. In the first minute of play it then measures the GPU: while
+  or FSR 4 on an AMD RX 9000 where the build has them (else the game's own upscaler), and on a Steam Deck the
+  [Steam Deck](#steam-deck) profile. It leaves the Output resolution as it is: on a first start the game's own
+  2560x1440, or the screen's size where that is smaller (a Steam Deck's 1280x800, a 1080p monitor), applied from the
+  first start with no restart. In the first minute of play it then measures the GPU: while
   frames are missed with the GPU over 90% busy it lowers the Render resolution a step, and while the frame rate cap holds
   with the GPU under half busy it raises it a step, up to the best mode that still upscales (DLSS or FSR Quality, or 100%
   with the game's own; never DLAA or native AA). At most two steps; a PC that holds its cap keeps its picture. It chooses again when the card or the screen changes. `hookshot_log.txt`'s

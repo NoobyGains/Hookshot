@@ -39,6 +39,7 @@ def main():
         'void guest_cpu_wrote(uint64_t gpu, uint64_t n) {'))
     fixture = r'''
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -84,6 +85,7 @@ bool shadow_written_all = false;
 int64_t st_wbd_known_game = 0, st_wbd_known_collected = 0, st_wbd_known_replay = 0;
 void shadow_written_to(std::vector<uint32_t>& list, const uint32_t* pages, int64_t n);
 void guest_cpu_wrote(uint64_t gpu, uint64_t n);
+std::atomic<uint64_t> replay_cpu_view{1};   // (guest_cpu_wrote bumps it: memory_replay_cpu_view's count, vk_memory.cpp)
 ''' + helper + r'''
 // A write-back of a run of the pool (offset and bytes, whole words), as memory_end_submission records it: the pages the
 // shadow does not know from guest memory first, then the pass. diff false: the whole copy

@@ -112,6 +112,19 @@ def main():
         raise SystemExit("a mesh workgroup does not take its records and add them to the draw's count")
     if "MESH_FALLBACK_CAPACITY" not in epilogue:
         raise SystemExit("a mesh workgroup past the slots is not left out")
+    # (the records are written by one loop over their words, the threads side by side: unrolled, a primitive's corners and every
+    # line of each, 348 stores a thread of 6fcc901fbc8b73c7 took Mesa's Intel compiler 207 s and 3.8 GB. The loop's index is a
+    # function variable, declared in the entry block by the prologue)
+    if "Strided(" in epilogue or "OpLoopMerge(done, next, spv::LoopControlMask::DontUnroll)" not in epilogue:
+        raise SystemExit("the fallback epilogue writes its records unrolled, not in one loop over their words")
+    if "ctx.mesh_fallback_epilogue_word" not in epilogue or \
+            "ctx.mesh_fallback_epilogue_word = ctx.AddLocalVariable(" not in block(mesh, "void EmitMeshPrologue(EmitContext& ctx)"):
+        raise SystemExit("the epilogue's loop index is not declared in the entry block")
+    if "AddLocalVariable" in epilogue:
+        raise SystemExit("the epilogue declares a function variable mid-function (spirv-val rejects it)")
+    loop_head = epilogue[epilogue.index("ctx.OpLoopMerge(done, next"):]
+    if "ctx.OpBranchConditional(more, body, done);" not in loop_head.split("\n")[1]:
+        raise SystemExit("the epilogue loop's merge is not followed at once by its branch (spirv-val rejects anything between)")
     isbe = block(mesh, "Id EmitIsbeRead(")
     if "mesh_fallback_task_threads" not in isbe or "ctx.OpUMod" not in isbe:
         raise SystemExit("a fallback mesh workgroup takes its slot, not its meshlet within the task workgroup, as its index")

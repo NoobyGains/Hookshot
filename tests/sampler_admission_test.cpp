@@ -159,6 +159,7 @@ struct Pushed;
 std::array<Pushed, 2>& pushed();
 struct Recording { VkDescriptorPool pool{}; std::vector<VkDescriptorPool> extra; } recording;
 Recording* cur = &recording;
+std::atomic<uint64_t> pools_extra{0};
 bool g_fine = false;
 enum { FC_PUSH_FULL, FC_PUSH_WRITES, FC_PUSH_DESCS, FC_PUSH_DELTA, FC_POOL_SETS, FC_POOL_DESCS };
 int64_t fine_n[6]{};

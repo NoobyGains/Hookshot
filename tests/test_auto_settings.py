@@ -88,6 +88,52 @@ def check_source():
     need("vk_api.h", api, ["#define MKWVK_WINDOW_VERSION 3", "void (*desktop_size)(void *window, int *width, int *height);"])
     host = (ROOT / "host/posix/display_sdl.c").read_text(encoding="utf-8")
     need("host/posix/display_sdl.c", host, ["refresh_mhz, desktop_size};"])
+    check_deck_profile(menu, main, auto)
+
+
+def check_deck_profile(menu, main, auto):
+    """The Steam Deck profile: decided as the card is picked, before the device and its first command buffer (the recorder's
+    mode), from RX_VK_STEAM_DECK, steam_deck= and the Deck found; Auto sets its Frame generation and VRAM budget; the precompile
+    keeps no graphics pipeline ready with it, and says none were built"""
+    need("vk_menu.cpp", menu, ['if (!strcmp(line, "steam_deck")) steam_deck_saved = env_value_off(eq + 1) ? 0 : 1;',
+                               "int menu_steam_deck() { return steam_deck_saved; }"])
+    need("apply_auto", auto, ["::auto_settings::deck_settings(c.vram_auto, keep_own, auto_deck_turned);",
+                              "!(deck.restore_cap && opts.vram_budget == 0);",
+                              'if (deck.apply && c.framegen >= 0 && !getenv("RX_VK_FRAMEGEN_MULT")) opts.framegen = c.framegen;',
+                              "if (own_budget || deck.apply) {", "opts.vram_budget = own_budget ? vram_budget : 0;"])
+    chooses = body(menu, "void menu_auto_for_gpu(const VkPhysicalDeviceProperties& props, ::auto_settings::Hardware hw) {")
+    if not chooses.index("auto_deck_turned = ::auto_settings::deck_turned(auto_for, hw, props.vendorID, props.deviceID);") < \
+            chooses.index("apply_auto(!first);"):
+        raise SystemExit("menu_auto_for_gpu: whether the profile turned must be known before apply_auto")
+    pick = main[main.index("bool pick_device() {"):]
+    pick = pick[:pick.index("\n}\n")]
+    if not pick.index("menu_init();") < pick.index("vkGetPhysicalDeviceProperties(dev.physical, &dev.props);") < \
+            pick.index("deck_profile_decide();"):
+        raise SystemExit("pick_device: the Steam Deck profile must be decided once the options are read and the card known")
+    if main.index("deck_profile_decide();") > main.index("bool create_device() {"):
+        raise SystemExit("vk_main.cpp: deck_profile_decide must come before create_device (the recorder's mode, first vkCmd*)")
+    decide = body(main, "void deck_profile_decide() {")
+    need("deck_profile_decide", decide, ['const char* env = getenv("RX_VK_STEAM_DECK");',
+                                         "::auto_settings::deck_mode(env, menu_steam_deck())",
+                                         'if (!getenv("RX_VK_RECORDER"))', "recorder_profile_thread()"])
+    need("auto_profile", body(main, "void auto_profile() {"), ["hw.handheld = handheld_found(p);", "hw.deck = deck_profile_now;"])
+    # (the profile by the Deck's APU alone: SteamDeck=1 is Steam's Deck-style session, on other handhelds too)
+    found = body(main, "bool deck_found(const VkPhysicalDeviceProperties& p) {")
+    if "SteamDeck" in found or "0x163F" not in found or "0x1435" not in found:
+        raise SystemExit("deck_found: the Steam Deck by its APU (0x163F, 0x1435), not SteamDeck=1")
+    replay = (ROOT / "gpu/vk/vk_replay.cpp").read_text(encoding="utf-8")
+    need("recorder_profile_thread", body(replay, "bool recorder_profile_thread() {"), ["!::mkwvk::rec::parallel_configured() &&"])
+    recorder = (ROOT / "gpu/vk/vk_recorder.h").read_text(encoding="utf-8")
+    need("vk_recorder.h", recorder, ['if (const char* e = getenv("RX_VK_RECORDER")) return e;', "const char* e = requested();",
+                                     "requested(), getenv(\"RX_VK_PARALLEL\"));"])
+    draw = (ROOT / "gpu/vk/vk_draw.cpp").read_text(encoding="utf-8")
+    need("precompile_graphics_none", body(draw, "bool precompile_graphics_none() {"),
+         ['if (env_on("HOOKSHOT_PREPARE_ONLY")) return false;', 'getenv("RX_VK_PRECOMPILE_GRAPHICS")', "return deck_profile_on();"])
+    run = body(draw, "void precompile_run(void (*progress)(size_t done, size_t total)) {")
+    if not run.index("if (!note_file) notes_open_locked(&notes);") < run.index("notes.clear();") < \
+            run.index("for (const auto& n : notes) wanted.insert(n->prog), wanted_variants.insert(mix(n->prog, n->variant));"):
+        raise SystemExit("precompile_run: graphics none must drop the notes after they are noted and before their programs load")
+    need("precompile_run", run, ["!graphics_none) precompile_built_write(graphics_n);"])
 
 
 def main():

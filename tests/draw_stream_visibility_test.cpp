@@ -38,6 +38,9 @@ struct OwnSlot { OwnSlot() {} ~OwnSlot() {} };   // (a scope, as the real one)
 }   // namespace rec
 uint64_t rec_end_pos[64];   // (vk_replay.cpp: each slot's end in the recorder's ring)
 void logf(const char*,...) {}
+bool ub_snapshot_on() { return false; }   // (draw_begin_recording: the uniform snapshot is off here)
+void memory_gpu_write_recording_begin(bool) {}
+
 bool create_buffer(uint64_t size,VkBufferUsageFlags,bool,VkBuffer& buffer,VmaAllocation& allocation,void** mapped,bool=false) {
     if(fail_buffer) return false;
     buffer=handle<VkBuffer>(); auto& a=buffers[buffer]; a.cpu.assign((size_t)size,0x9a); a.visible.assign((size_t)size,0xc3);
@@ -54,7 +57,7 @@ std::deque<RecordingRes> res;
 thread_local RecordingRes* cur=nullptr;
 const uint64_t kStream=1024;
 constexpr VkBufferUsageFlags kStreamUse=VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_INDEX_BUFFER_BIT|VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-std::atomic<uint64_t> stream_extra{0},stream_grown{0},stream_peak{0};
+std::atomic<uint64_t> stream_extra{0},stream_grown{0},stream_peak{0},pools_extra{0};
 bool stream_grow_off() { return false; }
 struct BufferRef { VkBuffer buffer{}; uint64_t offset=0,size=0,address=0; };
 void draw_flush_recording(int slot);

@@ -55,6 +55,7 @@ struct Program {
     std::vector<Stage> stages;
     VkPipelineLayout layout = VK_NULL_HANDLE;
 };
+bool program_modules_dropped(const Program&) { return false; }
 // Plain fields model the state consumed below; NVN's packed command ABI is not under test.
 struct nvn_va_st { uint32_t fmt = 0, stream = 0, offset = 0; };
 struct nvn_blend_st { uint32_t src_rgb = 0, dst_rgb = 0, eq_rgb = 0, src_a = 0, dst_a = 0, eq_a = 0; };

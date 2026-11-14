@@ -180,9 +180,24 @@ inline bool parallel_configured() {
     const char* p = getenv("RX_VK_PARALLEL");
     return p && atoi(p) >= 2;
 }
-/// RX_VK_RECORDER: sync; defer, thread (serial only: refused, off, with RX_VK_PARALLEL); anything else, or unset, off
+/// (hookshot) The mode while RX_VK_RECORDER is unset: OFF, or what a profile asked for before the first vkCmd* (vk_main.cpp: the
+/// Steam Deck profile's THREAD), taken as the variable's value would be (refused with RX_VK_PARALLEL too)
+inline std::atomic<int> g_unset_mode{OFF};
+/// RX_VK_RECORDER's value, else the profile's mode by its name; null: neither
+inline const char* requested() {
+    if (const char* e = getenv("RX_VK_RECORDER")) return e;
+    const int m = g_unset_mode.load(std::memory_order_relaxed);
+    return m == SYNC ? "sync" : m == DEFER ? "defer" : m == THREAD ? "thread" : nullptr;
+}
+/// A profile's mode for while RX_VK_RECORDER is unset. false: too late, the mode was read already (a vkCmd* came first)
+inline bool set_unset_mode(int m) {
+    g_unset_mode.store(m, std::memory_order_relaxed);
+    return g_mode.load(std::memory_order_relaxed) < 0;
+}
+/// RX_VK_RECORDER (or the profile's mode): sync; defer, thread (serial only: refused, off, with RX_VK_PARALLEL); anything else,
+/// or unset, off
 inline int mode_from_env(bool* refused) {
-    const char* e = getenv("RX_VK_RECORDER");
+    const char* e = requested();
     *refused = false;
     if (!e) return OFF;
     if (!strcmp(e, "sync")) return SYNC;
@@ -212,7 +227,7 @@ inline int mode_init() {
     if (refused)   // (once: the thread that set the mode)
         ::mkwvk::logf("vk: RX_VK_RECORDER=%s refused: RX_VK_PARALLEL=%s records a command buffer on several threads (deferred "
                       "packets are the recording thread's own); the recorder is off",
-                      getenv("RX_VK_RECORDER"), getenv("RX_VK_PARALLEL"));
+                      requested(), getenv("RX_VK_PARALLEL"));
     else if (m == DEFER)
         ::mkwvk::logf("vk: RX_VK_RECORDER=defer: vkCmd* packed and held, drained in order at each command buffer begin, end and "
                       "reset, submit, wait, readback, destruction and replay lock release (serial replay only)%s",

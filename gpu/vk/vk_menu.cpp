@@ -1043,11 +1043,15 @@ void sync_preset_budgets(int p) {
 void env_release(const int* value);   // (below: a row the environment held, set by the menu from now on)
 // (hookshot) the Quality preset "Auto (this PC)", kAutoPreset: the profile menu_auto_for_gpu chose for this PC (auto_settings.h)
 ::auto_settings::Choice auto_choice;   // (tier 0: no profile yet, before the card is known)
+/// (hookshot) Frame generation's default is this PC's where Auto's choice sets it: the Steam Deck profile's 2x (auto_settings.h
+/// Choice::framegen; -1 elsewhere, where the row keeps its built-in default). The Bug report asks (report_default_depends_on_pc)
+bool framegen_by_pc() { return auto_choice.framegen >= 0; }
 uint64_t auto_for = 0;               // (the fingerprint of the hardware the options' Auto settings were chosen for: auto_for=)
 uint64_t auto_fp = 0;                // (this PC's, menu_auto_for_gpu)
 uint64_t auto_tuned = 0;             // (the fingerprint the measured tuning in play finished for: auto_tuned=)
 ::auto_settings::Tuning auto_tuning;   // (the measured tuning in play, menu_auto_tune; its steps kept as auto_steps=)
 void apply_auto(bool keep_own);   // (below: the Auto preset's rows)
+static bool auto_deck_turned = false;   // (the Steam Deck profile turned on or off since Auto chose last: menu_auto_for_gpu)
 void apply_preset(int p) {
     if (p == kAutoPreset) {
         apply_auto(false);   // (chosen on the row: all of its rows, as any preset)
@@ -1093,7 +1097,10 @@ void apply_preset(int p) {
 void apply_auto(bool keep_own) {
     const ::auto_settings::Choice& c = auto_choice;
     if (c.tier < 1) return;
-    const bool own_budget = keep_own && opts.preset == kAutoPreset && opts.budget == 0;
+    const ::auto_settings::DeckSettings deck = ::auto_settings::deck_settings(c.vram_auto, keep_own, auto_deck_turned);
+    // (a VRAM budget at Auto the Steam Deck profile set, now turned off, is not the player's: the tier's cap comes back)
+    const bool own_budget = keep_own && opts.preset == kAutoPreset && opts.budget == 0 &&
+                            !(deck.restore_cap && opts.vram_budget == 0);
     const int vram_budget = opts.vram_budget;
     env_release(&opts.dlss);
     opts.dlss = c.upscaler;   // (before the tier's rows: apply_preset snaps its Render resolution to this upscaler)
@@ -1101,11 +1108,16 @@ void apply_auto(bool keep_own) {
     if (c.tier == 1) opts.upscale = 0, opts.sharpness = 0;   // (the plain scale, as RX_VK_LOW_SPEC: the lightest)
     opts.handheld = 0;   // (docked: the handheld profile gave a GTX 1050 a black picture; the Render resolution lightens the card)
     if (c.resolution) opts.resolution = ur::snap_render(c.upscaler, c.resolution);
-    if (own_budget) {
+    // (the Steam Deck profile, when it is chosen (auto_settings.h deck_settings): the VRAM budget row at Auto, the integrated GPU's
+    // own rule, not Minimum's cap; a budget the player set stays theirs)
+    if (own_budget || deck.apply) {
         opts.budget = 0;
-        opts.vram_budget = vram_budget;
+        opts.vram_budget = own_budget ? vram_budget : 0;
         vram_budget_sync();
     }
+    // (Frame generation is the player's, as with every preset, but for the Steam Deck profile's 2x when the profile is chosen: not
+    // again when Auto chooses again for another screen or build. RX_VK_FRAMEGEN_MULT still wins)
+    if (deck.apply && c.framegen >= 0 && !getenv("RX_VK_FRAMEGEN_MULT")) opts.framegen = c.framegen;
     auto_tuned = 0;   // (chosen again: measured again in play)
     auto_tuning = {};
     opts.preset = kAutoPreset;   // (apply_preset set the tier's number)
@@ -1273,13 +1285,19 @@ const char* hn_filter(int v, int variant) {
     if (variant < 0) return filter_needed() ? t[std::clamp(v, 0, 2)] : none;
     return variant == 0 ? t[std::clamp(v, 0, 2)] : variant == 1 ? none : nullptr;
 }
-/// (hookshot, from Ocarina Reborn) HDR chosen while the window's picture is SDR: the display offers no HDR10 surface
-/// (vk_main.cpp: Windows' Use HDR off, or a display without HDR)
+/// (hookshot, from Ocarina Reborn) HDR chosen while the window's picture is SDR: the display offers no HDR10 surface, and why
+/// (dev.hdr_sdr_why, vk_main.cpp create_swapchain). Variants: each reason
 const char* hn_hdr(int v, int variant) {
-    static const char* const off = "Not active now: the display offers no HDR10 picture, so the game shows SDR. On Windows, "
-                                   "turn on Use HDR in the display settings.";
-    if (variant < 0) return v && dev.swap_extent.width && !dev.hdr ? off : nullptr;
-    return variant == 0 ? off : nullptr;
+    static const char* const t[] = {
+        "The picture stays SDR: the graphics driver offers no HDR output (no VK_EXT_swapchain_colorspace).",
+        "The picture stays SDR: HDR is off for this display in Windows' display settings.",
+        ("The picture stays SDR: Windows has HDR on, but the graphics driver offers the game no HDR output. Reinstall the "
+         "driver with a clean install, then restart the PC."),
+        "The picture stays SDR: the display offers no HDR output. Is HDR on in the display settings?"};
+    const int reasons = hdr_sdr_count - 1;   // (every HdrSdrWhy but hdr_sdr_none)
+    static_assert(sizeof t / sizeof *t == hdr_sdr_count - 1, "hn_hdr: a line for each HdrSdrWhy but hdr_sdr_none");
+    if (variant >= 0) return variant < reasons ? t[variant] : nullptr;
+    return v && dev.hdr_sdr_why != hdr_sdr_none ? t[std::clamp((int)dev.hdr_sdr_why, 1, reasons) - 1] : nullptr;
 }
 /// Sharpness: with DLSS or DLAA, the amount that suits them
 const char* hn_sharpness(int v, int variant) {
@@ -3593,10 +3611,12 @@ void draw_debug_rows(ui::Ctx& c, float cx0, float cx1, float top, float bottom, 
 // change the live options the renderer reads. Keep their current values, but do
 // not call them changes or invent a default. GPU 0 and microphone 1 stay stable;
 // report_default has the Aspect ratio's, the Game language's and Frame generation by's.
+// Frame generation's is this PC's where the Steam Deck profile chooses it (framegen_by_pc).
 bool report_default_depends_on_pc(const Row& r) {
     if (r.value == &opts.sharpness || r.value == &opts.pace || r.value == &opts.realtime ||
         r.value == &opts.handheld || r.value == &opts.vram_budget)
         return opts.preset != 0 || auto_for != 0;
+    if (r.value == &opts.framegen) return framegen_by_pc();
     return r.value == &opts.output_res || r.value == &opts.resolution || r.value == &opts.dlss ||
            r.value == &opts.preset || r.value == &opts.upscale ||
            (r.value == &opts.dlss_model && dlss_preset_env());
@@ -5019,6 +5039,8 @@ void startup_screen(const StartupView* view) {
 }
 
 static bool first_start = false;   // (menu_init: no options file yet. menu_first_start_for_gpu picks the preset for the card)
+static int steam_deck_saved = -1;   // (steam_deck= in the options file: the Steam Deck profile, auto_settings.h deck_mode)
+int menu_steam_deck() { return steam_deck_saved; }
 /// (hookshot fork) An options file from before two of the fork's rows moved, as menu_init read it: a scene upscaler saved
 /// on the old Upscaling row (3 FSR 3.1, 4 DLSS) goes to the Upscaler, unless the file has that row too, and the filter
 /// back to the plain copy; the Frame generation method row's value goes to upstream's Frame generation by
@@ -5096,6 +5118,7 @@ void menu_init() {
             if (!strcmp(line, "menu_size") && atoi(eq + 1) == 0) menu_auto = true;
             if (!strcmp(line, "auto_for")) auto_for = strtoull(eq + 1, nullptr, 16);
             if (!strcmp(line, "auto_tuned")) auto_tuned = strtoull(eq + 1, nullptr, 16);
+            if (!strcmp(line, "steam_deck")) steam_deck_saved = env_value_off(eq + 1) ? 0 : 1;
             if (!strcmp(line, "auto_steps")) {
                 int steps = 0, down = 0;
                 if (sscanf(eq + 1, "%d,%d", &steps, &down) == 2)
@@ -5216,6 +5239,7 @@ void menu_auto_for_gpu(const VkPhysicalDeviceProperties& props, ::auto_settings:
         logf("vk: Auto (this PC): the settings chosen for this PC before (%s)", hw_line);
         return;
     }
+    auto_deck_turned = ::auto_settings::deck_turned(auto_for, hw, props.vendorID, props.deviceID);
     apply_auto(!first);   // (the hardware changed: the VRAM budget the player set stays theirs)
     // (a row that takes a restart Auto sets, the Profile (docked), applies at the next start, a first start's too: host/hos_main.c
     // read it at boot, before the device, and this run keeps what menu_init recorded. It is Auto's, not the player's: closing the

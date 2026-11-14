@@ -14,11 +14,15 @@ def check_source():
     needles = {
         "gpu/vk/vk_progcache.cpp": ['#include "fallback_size_policy.h"',
                                     "p.stages[k].phis = fallback_size::spirv_phis(spirv[k].data(), spirv[k].size());",
-                                    "st.phis = fallback_size::spirv_phis(spirv.data(), spirv.size());"],
+                                    "st.phis = fallback_size::spirv_phis(spirv.data(), spirv.size());",
+                                    "p.stages[k].calls = fallback_size::spirv_calls(spirv[k].data(), spirv[k].size());",
+                                    "st.calls = fallback_size::spirv_calls(spirv.data(), spirv.size());"],
         "gpu/vk/vk_main.cpp": ["dev.radv_gcn = drv.driverID == VK_DRIVER_ID_MESA_RADV && !f11.storageInputOutput16;"],
         "gpu/vk/vk_draw.cpp": ['#include "fallback_size_policy.h"',
-                               "fallback_size::too_big(dev.radv_gcn, st.phis, phi_limit)", "RX_VK_FALLBACK_PHI_LIMIT",
-                               "fallback_size::parse_limit(e, limit)"],
+                               "fallback_size::too_big(dev.radv_gcn || mesa_intel, st.phis, phi_limit)", "RX_VK_FALLBACK_PHI_LIMIT",
+                               "fallback_size::parse_limit(e, limit)",
+                               "fallback_size::too_many_calls(dev.driver_id == VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA, st.calls, call_limit)",
+                               "RX_VK_FALLBACK_CALL_LIMIT"],
         "gpu/vk/vk_main.cpp#log": ['RADV on GCN 1-4: %s', 'dev.radv_gcn ? "yes" : "no"'],
     }
     for path, wanted in needles.items():
@@ -30,6 +34,8 @@ def check_source():
     fn = draw[draw.index("bool fallback_compute_pipelines(Program& p) {"):]
     if fn.index("fallback_size::too_big") > fn.index("cached_compute(&ci, &made[i])"):
         raise SystemExit("vk_draw.cpp: the size check must come before any fallback compute pipeline is built")
+    if fn.index("fallback_size::too_many_calls") > fn.index("cached_compute(&ci, &made[i])"):
+        raise SystemExit("vk_draw.cpp: the call check must come before any fallback compute pipeline is built")
 
 
 def main():

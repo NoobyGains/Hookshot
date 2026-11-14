@@ -116,6 +116,10 @@ Row rows[] = {
 int ultrawide_read = 1;
 ''' + definition(menu, "void outputs_sync") + r'''
 static bool pending_restart;
+// (the Steam Deck profile's Frame generation, framegen_by_pc: Auto's choice sets it in the auto-profile case, as on a Deck; the
+// framegen-off-deck case is another PC, where the row's change from its built-in default is reported as one)
+static bool deck_profile;
+bool framegen_by_pc() { return deck_profile; }
 bool restart_changed(const Row& r) { return pending_restart && r.value == &opts.output_res; }
 ''' + policy + "\n" + known + "\n" + formatter + r'''
 int failures;
@@ -172,7 +176,11 @@ int main(int argc, char** argv) {
         fresh_default = tx_upscaler(opts.dlss);
         opts.dlss = ur::DLSS;
         expected_current = tx_upscaler(opts.dlss);
+    } else if (which == "framegen-off-deck") {
+        opts.framegen = 2;
+        known = {"''' + names["framegen"] + r''': 2 (default: 0)"};
     } else if (which == "auto-profile") {
+        deck_profile = true;   // (every row apply_auto can set is Auto's here: the Steam Deck profile's Frame generation too)
         opts.preset = 6; opts.dlss = ur::DLSS; opts.resolution = 3;
         opts.output_res = parse_output("1920x1080"); opts.upscale = 2;
         opts.sharpness = 50; opts.pace = 1; opts.handheld = 0; opts.vram_budget = 7;
@@ -240,7 +248,7 @@ def main():
     args = parser.parse_args()
     cases = ("aspect-default", "reordered-shapes", "aspect-changed", "aspect-changed-wide", "output-context", "render-context",
              "upscaler-context", "auto-profile", "custom-never-auto", "custom-after-auto", "framegen-by", "lang-saved",
-             "lang-changed", "stable-sentinels", "model-env", "model-fixed")
+             "lang-changed", "stable-sentinels", "model-env", "model-fixed", "framegen-off-deck")
     failed = []
     with tempfile.TemporaryDirectory(prefix="report-defaults-") as tmp:
         cpp = Path(tmp) / "defaults.cpp"

@@ -197,6 +197,8 @@ static int parse_output(const char*) { return 0; }
 static std::string mic_want;
 [[maybe_unused]] static uint64_t auto_for = 0, auto_tuned = 0;   // (the Quality preset Auto (this PC)'s fingerprints, which save() writes)
 static struct { int steps = 0; bool went_down = false; } auto_tuning;   // (and its tuning's steps)
+[[maybe_unused]] static int steam_deck_saved = -1;   // (steam_deck= in the options file: the Steam Deck profile)
+static bool env_value_off(const char* v) { return !*v || !strcmp(v, "0"); }
 static std::string mic_key(const char* name) { return name; }
 static void mic_tell_host() {}
 static int rumble_step(int v) { return v; }

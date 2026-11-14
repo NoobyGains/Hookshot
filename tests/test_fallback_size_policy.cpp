@@ -59,6 +59,24 @@ int main() {
     expect(!too_big(true, 79947, 0), "limit 0: no limit");
     expect(too_big(true, 101, 100) && !too_big(true, 100, 100), "over the limit, not at it");
 
+    // OpLabel, two OpFunctionCall (type, result, function, an argument), OpReturn
+    const std::vector<uint32_t> calls = module({{248, 1}, {57, 7, 10, 20, 3}, {57, 7, 11, 20, 4}, {253}});
+    expect(spirv_calls(calls.data(), calls.size()) == 2 && spirv_calls(two.data(), two.size()) == 0, "two calls counted, phis not");
+    expect(spirv_phis(calls.data(), calls.size()) == 0, "calls are not phis");
+    std::vector<uint32_t> cut_calls = calls;
+    cut_calls.resize(cut_calls.size() - 2);
+    expect(spirv_calls(cut_calls.data(), cut_calls.size()) == 0 && spirv_calls(bad.data(), bad.size()) == 0,
+           "a module cut short, or not SPIR-V: 0");
+    expect(!too_many_calls(true, 153, kIntelCallLimit), "the most calls of the mesh programs Mesa's Intel compiler builds: built");
+    expect(too_many_calls(true, 251, kIntelCallLimit) && too_many_calls(true, 263, kIntelCallLimit),
+           "the four it never finished (251-263 calls): left out");
+    expect(!too_many_calls(false, 263, kIntelCallLimit), "another driver: built whatever the calls");
+    expect(!too_many_calls(true, 263, 0), "limit 0: no limit");
+    expect(too_many_calls(true, 101, 100) && !too_many_calls(true, 100, 100), "over the limit, not at it");
+    expect(!too_big(true, 17242, kIntelPhiLimit) && too_big(true, 28506, kIntelPhiLimit) && too_big(true, 79947, kIntelPhiLimit),
+           "Mesa's Intel limit: the 17,242-phi stages built, the 28,506 and up left out");
+    expect(kIntelPhiLimit < kRadvGcnPhiLimit, "Intel's limit is the lower one");
+
     if (failures) return 1;
     std::printf("fallback_size_policy: ok\n");
     return 0;

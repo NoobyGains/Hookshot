@@ -4,6 +4,7 @@
 #include "vk_paths.h"
 #include "vk_loader.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 
@@ -12,6 +13,8 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <cwchar>
+#include <ctime>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -136,6 +139,10 @@ void logf_at(LogLevel level, const char* fmt, ...) {
     va_end(a);
 }
 
+/// (hookshot) The Steam Deck profile (auto_settings.h deck_mode): decided once, as the card is picked (deck_profile_decide)
+static bool deck_profile_now = false;
+bool deck_profile_on() { return deck_profile_now; }
+
 namespace {
 
 bool has_extension(const std::vector<VkExtensionProperties>& all, const char* name) {
@@ -192,6 +199,16 @@ bool create_instance() {
                 logf("vk: streamline wants the instance extension %s: enabled", sl_want[i]);
         }
     }
+#ifndef _WIN32
+    // (hookshot) Mesa's Intel compiler (driconf shader_spilling_rate, read when the driver loads, ignored by the others): when a
+    // program does not fit its registers it spills some and allocates the whole program again, rounds of one at first and then
+    // of (spilled so far / rate). Held to 32 lanes an Iris Xe has 32 registers a lane, and MKW's large compute programs spill
+    // thousands: at Mesa 26.2's default abccf81b45c5eb50, which play dispatches, was not built after 20 minutes and 13 GB, at 2
+    // in 32 s and 1.7 GB; 7a548525c239b91b 531 s and 7.6 GB, at 2 87 s and 4 GB (i9-13900H, 2026-11-14). The programs that do
+    // not spill are built as before; the driver's estimate of those that do moved from 12% better to 53% worse (3 was 165 s for
+    // abccf81b45c5eb50, 4 not built in 8 minutes). A value the player set is kept
+    setenv("shader_spilling_rate", "2", 0);
+#endif
     VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};
     app.pApplicationName = "mkw-recomp";
     app.apiVersion = VK_API_VERSION_1_3;
@@ -219,6 +236,45 @@ bool create_instance() {
     }
     load_instance(dev.instance);
     return true;
+}
+
+/// (hookshot) A Steam Deck, LCD or OLED, by its APU: AMD's 0x163F (LCD) or 0x1435 (OLED), or as RADV names them. Not SteamOS's
+/// SteamDeck=1, which Steam's Deck-style session sets on other handhelds too (a ROG Ally or Legion Go on Bazzite or ChimeraOS)
+bool deck_found(const VkPhysicalDeviceProperties& p) {
+    return (p.vendorID == 0x1002 && (p.deviceID == 0x163F || p.deviceID == 0x1435)) || strstr(p.deviceName, "Custom GPU 0405") ||
+           strstr(p.deviceName, "Custom GPU 0932");
+}
+/// (hookshot) A handheld for Auto's tier (Hardware::handheld): a Steam Deck, or a PC in Steam's Deck-style session (SteamDeck=1)
+bool handheld_found(const VkPhysicalDeviceProperties& p) {
+    const char* deck = getenv("SteamDeck");
+    return (deck && atoi(deck) == 1) || deck_found(p);
+}
+/// (hookshot) The Steam Deck profile (auto_settings.h): decided as the card is picked, before the device and its first command
+/// buffer, so the recorder's mode holds from the first vkCmd*. Its settings are Auto (this PC)'s (auto_profile,
+/// menu_auto_for_gpu); its renderer parts, here and in the precompile (vk_draw.cpp precompile_graphics_none), each only while
+/// its own switch is unset
+void deck_profile_decide() {
+    const char* env = getenv("RX_VK_STEAM_DECK");
+    const int mode = ::auto_settings::deck_mode(env, menu_steam_deck());
+    const bool found = deck_found(dev.props);
+    deck_profile_now = ::auto_settings::deck_on(mode, found);
+    const char* why = env ? "RX_VK_STEAM_DECK" : mode != ::auto_settings::DECK_AUTO ? "steam_deck= in hookshot_options.ini"
+                    : found ? "a Steam Deck" : nullptr;
+    if (!deck_profile_now) {
+        if (why) logf("vk: Steam Deck profile: off (%s)", why);
+        return;
+    }
+    const char* recorder = "the recorder as RX_VK_RECORDER says";
+    if (!getenv("RX_VK_RECORDER")) {
+        const char* par = getenv("RX_VK_PARALLEL");
+        recorder = par && atoi(par) >= 2 ? "the recorder off, as RX_VK_PARALLEL records on several threads"
+                   : recorder_profile_thread() ? "the command recorder on a thread of its own (RX_VK_RECORDER=thread)"
+                                               : "the recorder's mode was read already, so as before";
+    }
+    logf("vk: Steam Deck profile: on (%s): %s; %s; with the Quality preset Auto (this PC), Frame generation 2x and the VRAM "
+         "budget Auto (RX_VK_STEAM_DECK=0 turns the profile off)", why, recorder,
+         getenv("RX_VK_PRECOMPILE_GRAPHICS") ? "graphics pipelines precompiled as RX_VK_PRECOMPILE_GRAPHICS says"
+                                             : "no graphics pipelines kept ready before the title (RX_VK_PRECOMPILE_GRAPHICS=none)");
 }
 
 bool pick_device() {
@@ -287,21 +343,26 @@ bool pick_device() {
     dev.physical = all[best];
     vkGetPhysicalDeviceProperties(dev.physical, &dev.props);
     vkGetPhysicalDeviceMemoryProperties(dev.physical, &dev.memory);
+    deck_profile_decide();   // (before the device: the recorder's mode from the first vkCmd*)
     return true;
 }
 
 /// (hookshot) Whether the shaders' float adds to storage buffers are asked to be the GPU's own atomic (create_device):
 /// RX_VK_NATIVE_FADD by the switches' rule (hookshot_env.h env_value_off: 0, false, off, no or empty is off, any other
 /// value on); unset, with NVIDIA's driver (an RTX 4090 in Kakariko and on Death Mountain Trail) and with Intel's Windows
-/// driver on the GPU family it was run on: the Xe-LPG iGPUs of Meteor Lake and Arrow Lake (PCI device 0x7Dxx; run on a
+/// driver on the GPU families it was run on: the Xe-LPG iGPUs of Meteor Lake and Arrow Lake (PCI device 0x7Dxx; run on a
 /// 0x7D55 in Kokiri Forest, Kakariko and on Death Mountain Trail), from that driver, 101.9175, on (Intel's Windows
-/// driverVersion is 101 << 14 | 9175). Intel's other GPUs on Windows (Iris Xe and UHD, Arc discrete, Lunar Lake), older
+/// driverVersion is 101 << 14 | 9175); and the Arc B-series cards, Battlemage (PCI device 0xE2xx; run on a B580, 0xE20B,
+/// in Kokiri Forest: the loop lost the device in the sky's light sums, 499dbfd0, on entering it in every run), from the
+/// driver that was run, 101.9154, on. Intel's other GPUs on Windows (Iris Xe and UHD, Arc A-series, Lunar Lake), older
 /// drivers, AMD's RDNA 3 and later and Mesa's Intel driver report the feature too but were not tried: they keep the loop
 /// unless the switch asks, until runs on them say otherwise
 static bool native_fadd_wanted(const char* env, VkDriverId driver, uint32_t device, uint32_t version) {
     if (env) return !env_value_off(env);
     if (driver == VK_DRIVER_ID_NVIDIA_PROPRIETARY) return true;
-    return driver == VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS && (device & 0xFF00u) == 0x7D00u && version >= (101u << 14 | 9175u);
+    if (driver != VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS) return false;
+    return ((device & 0xFF00u) == 0x7D00u && version >= (101u << 14 | 9175u)) ||
+           ((device & 0xFF00u) == 0xE200u && version >= (101u << 14 | 9154u));
 }
 
 bool create_device() {
@@ -610,10 +671,10 @@ bool create_device() {
                                                      : "compare-exchange loop (no VK_EXT_shader_atomic_float)";
         if (fadd_env) logf("vk: float atomic add on storage buffers: %s, RX_VK_NATIVE_FADD=%s", how, fadd_env);
         else logf("vk: float atomic add on storage buffers: %s, %s", how,
-                  !fadd_wanted ? "by default only with NVIDIA's driver and Intel's Windows driver on Meteor Lake and Arrow Lake "
+                  !fadd_wanted ? "by default only with NVIDIA's driver and Intel's Windows driver on Meteor Lake, Arrow Lake and Battlemage "
                                  "(RX_VK_NATIVE_FADD=1: native where the GPU has it)"
                   : fadd_driver.driverID == VK_DRIVER_ID_NVIDIA_PROPRIETARY ? "NVIDIA's driver"
-                                                                            : "Intel's Windows driver, Meteor Lake or Arrow Lake");
+                                                                            : "Intel's Windows driver, Meteor Lake, Arrow Lake or Battlemage");
     }
     // (bounds-checked buffer access: an out-of-range access dropped instead of faulting the device. On by default: the GPU
     // culling pass 53caac5f faulted the device while a save loaded, about one start in three, and the scene's lighting read garbage
@@ -702,6 +763,8 @@ bool create_device() {
         dev.radv_gcn = drv.driverID == VK_DRIVER_ID_MESA_RADV && !f11.storageInputOutput16;
         logf("vk: subgroups: default %u lanes, %u-%u, pinned to 32 on stages %#x; RADV on GCN 1-4: %s", sg.subgroupSize, sc.minSubgroupSize,
              sc.maxSubgroupSize, (unsigned)dev.sg32_stages, dev.radv_gcn ? "yes" : "no");
+        if (drv.driverID == VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA && getenv("shader_spilling_rate"))
+            logf("vk: Mesa's Intel compiler spills at rate %s (driconf shader_spilling_rate: 2 unless set)", getenv("shader_spilling_rate"));
     }
     if (!f13.dynamicRendering || !f13.synchronization2 || !f12.timelineSemaphore) {
         logf("vk: the GPU lacks dynamic rendering, synchronization2 or timeline semaphores");
@@ -875,6 +938,7 @@ bool invalidate_lost_surface(VkResult result) {
 namespace {
 bool open_window_surface(bool log_failure);
 void window_size(uint32_t* width, uint32_t* height);
+int system_hdr_on(std::string* display);
 }
 
 bool create_swapchain(uint32_t width, uint32_t height) {
@@ -926,22 +990,41 @@ bool create_swapchain(uint32_t width, uint32_t height) {
             f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
             fmt = f;
     // (hookshot) the Insert menu's HDR: a 10-bit HDR10 surface when the display lists one (Windows: "Use HDR" on in its display
-    // settings), the picture then written by framegen_hdr. Otherwise the SDR one above, said once
+    // settings), the picture then written by framegen_hdr. Otherwise the SDR one above, and why (dev.hdr_sdr_why: Windows'
+    // own setting tells "HDR off" from "the driver lists none with HDR on", as NVIDIA's can), said
+    // again when the reason or the display asked about changes, and when the menu's HDR was turned off in between
     dev.hdr = false;
+    dev.hdr_sdr_why = hdr_sdr_none;
+    static int told = -1;   // (the HdrSdrWhy last said, hdr_sdr_none an HDR10 surface; -1 nothing yet, or HDR off since)
+    static std::string told_display;
+    if (!opts.hdr) told = -1;
     if (opts.hdr) {
         for (const auto& f : formats)
             if ((f.format == VK_FORMAT_A2B10G10R10_UNORM_PACK32 || f.format == VK_FORMAT_A2R10G10B10_UNORM_PACK32) &&
                 f.colorSpace == VK_COLOR_SPACE_HDR10_ST2084_EXT)
                 fmt = f, dev.hdr = true;
-        static int told = -1;   // (said again when it changes: Windows' Use HDR turned on or off while the game runs)
-        if (told != (int)dev.hdr) {
-            told = (int)dev.hdr;
+        std::string display;   // (the display Windows was asked about, named in the line: a PC can have several)
+        if (!dev.hdr) {
+            const int system_hdr = dev.swapchain_colorspace ? system_hdr_on(&display) : -1;
+            dev.hdr_sdr_why = !dev.swapchain_colorspace ? hdr_sdr_no_extension
+                              : system_hdr == 0     ? hdr_sdr_os_off
+                              : system_hdr == 1     ? hdr_sdr_driver
+                                                    : hdr_sdr_unknown;
+            if (!display.empty()) display = " (" + display + ")";
+        }
+        if ((int)dev.hdr_sdr_why != told || display != told_display) {
+            told = dev.hdr_sdr_why, told_display = display;
+            static const char* const why[] = {
+                "", " (no VK_EXT_swapchain_colorspace)", " (HDR is off for this display in Windows' display settings)",
+                (" though Windows has HDR on for this display: the graphics driver offers the game none (a clean reinstall of "
+                 "the driver, then a restart)"),
+                " (is HDR on in the display settings?)"};
+            static_assert(sizeof why / sizeof *why == hdr_sdr_count, "create_swapchain: a line for each HdrSdrWhy");
             if (dev.hdr)
                 logf("vk: HDR: an HDR10 surface (format %d), paper white %d nits, peak %d nits", (int)fmt.format, opts.hdr_white,
                      opts.hdr_peak);
             else
-                logf("vk: HDR: the display lists no HDR10 surface%s: SDR",
-                     dev.swapchain_colorspace ? " (is HDR on in the display settings?)" : " (no VK_EXT_swapchain_colorspace)");
+                logf("vk: HDR: the display%s lists no HDR10 surface%s: SDR", display.c_str(), why[dev.hdr_sdr_why]);
         }
     }
     // mailbox when the driver has it (latest frame, no tear). The game paces itself (nn_vi.c).
@@ -1091,6 +1174,70 @@ bool create_swapchain(uint32_t width, uint32_t height) {
 namespace {
 
 HWND main_window = nullptr;
+#ifdef _WIN32
+// (hookshot) Windows 11 24H2's advanced colour info (DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2 and the names of its numbers in
+// the Windows SDK), written out for headers that lack it or keep it behind NTDDI_VERSION. tests/test_hdr_sdr_why.py holds
+// the layout and the numbers against the SDK's own
+struct AdvancedColorInfo2 {
+    DISPLAYCONFIG_DEVICE_INFO_HEADER header;
+    UINT32 flags, color_encoding, bits_per_color_channel, active_color_mode;
+};
+enum : UINT32 {
+    kGetAdvancedColorInfo2 = 15,   // (DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO_2)
+    kAdvancedColorModeHdr = 2      // (DISPLAYCONFIG_ADVANCED_COLOR_MODE_HDR; 0 SDR, 1 wide colour)
+};
+#endif
+// (hookshot) whether the system has HDR on for the window's display: 1 on, 0 off, -1 not known. Windows' own setting ("Use
+// HDR"), as its display settings show it: create_swapchain's word on why the swapchain is SDR. *display is given the
+// display's name (the monitor's, else Windows' "\.\DISPLAYn") once it is found, for the log. Windows 11 24H2 tells the mode
+// (activeColorMode). An older one only tells "advanced colour", which is HDR or the wide colour an SDR display is given:
+// off is off, on without "wide colour enforced" is HDR, and on with it is not told apart here (not known, so the old
+// question and no wrong word). Elsewhere not known (a Linux compositor lists HDR10 when it has HDR on).
+// Asked at each swapchain while HDR is on and the surface SDR: a few hundredths of a millisecond (tests/test_hdr_sdr_why.py
+// prints it), beside a swapchain's tens, and an answer kept could outlive Windows' setting
+int system_hdr_on(std::string* display) {
+#ifdef _WIN32
+    MONITORINFOEXW mi{};
+    mi.cbSize = sizeof mi;
+    if (!main_window || !GetMonitorInfoW(MonitorFromWindow(main_window, MONITOR_DEFAULTTONEAREST), &mi)) return -1;
+    std::vector<DISPLAYCONFIG_PATH_INFO> paths;
+    std::vector<DISPLAYCONFIG_MODE_INFO> modes;
+    LONG r = ERROR_INSUFFICIENT_BUFFER;
+    for (int tries = 0; r == ERROR_INSUFFICIENT_BUFFER && tries < 4; tries++) {   // (the displays can change in between)
+        UINT32 np = 0, nm = 0;
+        if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &np, &nm) != ERROR_SUCCESS) return -1;
+        paths.resize(np), modes.resize(nm);
+        r = QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &np, paths.data(), &nm, modes.data(), nullptr);
+        paths.resize(np), modes.resize(nm);
+    }
+    if (r != ERROR_SUCCESS) return -1;
+    for (const DISPLAYCONFIG_PATH_INFO& p : paths) {
+        DISPLAYCONFIG_SOURCE_DEVICE_NAME source{};
+        source.header = {DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME, sizeof source, p.sourceInfo.adapterId, p.sourceInfo.id};
+        if (DisplayConfigGetDeviceInfo(&source.header) != ERROR_SUCCESS || wcscmp(source.viewGdiDeviceName, mi.szDevice)) continue;
+        if (display) {
+            DISPLAYCONFIG_TARGET_DEVICE_NAME target{};
+            target.header = {DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME, sizeof target, p.targetInfo.adapterId, p.targetInfo.id};
+            const bool named = DisplayConfigGetDeviceInfo(&target.header) == ERROR_SUCCESS && target.monitorFriendlyDeviceName[0];
+            char utf8[256] = "";
+            WideCharToMultiByte(CP_UTF8, 0, named ? target.monitorFriendlyDeviceName : mi.szDevice, -1, utf8, sizeof utf8 - 1,
+                                nullptr, nullptr);
+            *display = utf8;
+        }
+        AdvancedColorInfo2 info2{};
+        info2.header = {(DISPLAYCONFIG_DEVICE_INFO_TYPE)kGetAdvancedColorInfo2, sizeof info2, p.targetInfo.adapterId,
+                        p.targetInfo.id};
+        if (DisplayConfigGetDeviceInfo(&info2.header) == ERROR_SUCCESS) return info2.active_color_mode == kAdvancedColorModeHdr;
+        DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO info{};
+        info.header = {DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO, sizeof info, p.targetInfo.adapterId, p.targetInfo.id};
+        if (DisplayConfigGetDeviceInfo(&info.header) != ERROR_SUCCESS) return -1;
+        return !info.advancedColorEnabled ? 0 : info.wideColorEnforced ? -1 : 1;
+    }
+#else
+    (void)display;
+#endif
+    return -1;
+}
 // (hookshot) hookshot --prepare-shaders (a builder, after a build): the same work with no game, its progress as
 // "@@progress" lines on stdout. A skip there leaves hookshot_prepare_skipped beside the game: its own starts then
 // leave the work out too (what was not prepared is built when first drawn), until a --prepare-shaders run ends it
@@ -1110,8 +1257,11 @@ std::string skipped_path() {
 //   compiling", above) can leave that compile unfinished inside it, and builds behind it then wait for ever (on AMD, any build of
 //   the same program: #1823's dump of issue 996): builds stuck on players' cards of all kinds, AMD and NVIDIA (#2107). Whatever
 //   the cause, a part that needs the stuck driver cannot go on. So when nothing has moved for RX_VK_PREPARE_STALL_S seconds
-//   (300; 0: never stopped. Long: some steps read the caches or
-//   decide the predictions for a while with no count, on a slow disk or CPU too), the run says where it stopped and why, leaves
+//   (300; 0: never stopped. Long: some steps read the caches or decide the predictions for a while with no count, on a slow
+//   disk or CPU too. While a driver compile is under way, three times that; and twelve times while the process also keeps
+//   half a CPU or more busy, the compiler at work: on an Iris Xe one variant of abccf81b45c5eb50, a program MKW dispatches in
+//   play, was not done after 15 minutes held to 32 lanes, where a stuck compile uses no CPU and still stops at three times),
+//   the run says where it stopped and why, leaves
 //   hookshot_prepare_skipped so the game's own starts do not stop in the same place (what was not prepared is built when first
 //   drawn), and ends at once with exit status 4 (make_game.py: "the GPU driver stopped responding"). Not through exit(): that
 //   unloads the driver, which can wait on the same lock. Before, it waited until make_game.py stopped it after 15 minutes with no
@@ -1137,6 +1287,14 @@ void prepare_moved(int part, size_t done, size_t total) {
     if (part != prepare_seen.part || done != prepare_seen.done || !prepare_seen.moved_ms)
         prepare_seen = {part, done, total, steady_ms()};
 }
+/// (hookshot) A driver compile that ended (vk_draw.cpp ComputeTurn): the driver answers, so the watchdog's clock starts again though
+/// the part's count has not moved. The compute warm's count moves when a program's variants are all done, up to 64 of them,
+/// not as each one ends: on an Iris Xe one held to 32 lanes can take minutes, and the watchdog stopped a preparation whose
+/// driver was compiling all along
+void prepare_compiled_seen() {
+    std::lock_guard lk(prepare_seen_mu);
+    if (prepare_seen.moved_ms) prepare_seen.moved_ms = steady_ms();
+}
 /// The run ends now: the log written out, then TerminateProcess, not exit(), which unloads a driver that can still hold workers
 /// (@@done first for a run that finished: the line the game prints after the preparation, host/hos_main.c)
 [[noreturn]] void prepare_end(int code) {
@@ -1150,6 +1308,20 @@ void prepare_moved(int part, size_t done, size_t total) {
     std::_Exit(code);
 }
 std::atomic<int> driver_faults_seen{0};
+/// (hookshot) The CPU time this process has used, in ms (-1: the system does not say): a driver compile that is working keeps a CPU
+/// busy, one that is stuck on a lock uses none
+int64_t process_cpu_ms() {
+#ifdef _WIN32
+    FILETIME created, ended, kernel, user;
+    if (!GetProcessTimes(GetCurrentProcess(), &created, &ended, &kernel, &user)) return -1;
+    const auto ms = [](const FILETIME& f) { return (int64_t)((((uint64_t)f.dwHighDateTime << 32) | f.dwLowDateTime) / 10000); };
+    return ms(kernel) + ms(user);
+#else
+    timespec t;
+    if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t)) return -1;
+    return (int64_t)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+#endif
+}
 void prepare_watchdog() {
     static const int stall_s = getenv("RX_VK_PREPARE_STALL_S") ? atoi(getenv("RX_VK_PREPARE_STALL_S")) : 300;
     // (a status line after this long with no other line; RX_VK_PREPARE_STATUS_S=<s>, for the tests)
@@ -1160,9 +1332,20 @@ void prepare_watchdog() {
                                             "the pipeline cache's save"};
         const int64_t limit_s = stall_s > 0 ? stall_s : 300;   // (the save's lines stop after this, whatever RX_VK_PREPARE_STALL_S)
         const int save_stall_s = stall_s * 2;   // (a risky save's stop: twice the parts', above)
+        const int64_t compile_stall_s = stall_s * 3;   // (a slow compute compile: three times, 900 s by default; a stuck one still stops)
+        const int64_t busy_compile_stall_s = stall_s * 12;   // (one with a CPU at work: an hour by default)
+        // (the CPU the process used over the last window, 30 s by default: half a CPU or more is a compiler at work)
+        const int64_t busy_window_ms = std::clamp<int64_t>((int64_t)stall_s * 100, 1000, 30000);
+        int64_t cpu_then = process_cpu_ms(), cpu_then_ms = steady_ms();
+        bool cpu_busy = false;
         for (;;) {
             Sleep(1000);
             const int64_t now = steady_ms();
+            if (now - cpu_then_ms >= busy_window_ms) {
+                const int64_t cpu = process_cpu_ms();
+                cpu_busy = cpu >= 0 && cpu_then >= 0 && (cpu - cpu_then) * 2 >= now - cpu_then_ms;
+                cpu_then = cpu, cpu_then_ms = now;
+            }
             PrepareSeen at;
             {
                 std::lock_guard lk(prepare_seen_mu);
@@ -1173,19 +1356,22 @@ void prepare_watchdog() {
             const int faults = driver_faults();
             const bool left = prepare_left_workers();
             const bool risky = faults > 0 || left;   // (the driver may be stuck: the save too can wait for ever)
+            const bool compiling = at.part < 3 && prepare_compiling();
+            const int64_t part_stall_s = compiling ? (cpu_busy ? busy_compile_stall_s : compile_stall_s) : stall_s;
             // (what it waits on: after a fault in the driver, most likely the driver; else the driver or the disk, a slow one
             // reading the caches)
             const char* waiting_on = faults ? "waiting on the GPU driver, which faulted (above)"
                                      : left ? "waiting on the GPU driver, which still has pipelines it did not finish"
-                                            : "waiting on the GPU driver or the disk";
+                                     : compiling && cpu_busy ? "waiting on the GPU driver, which is compiling (a CPU busy)"
+                                                             : "waiting on the GPU driver or the disk";
             if (faults != driver_faults_seen.exchange(faults))
                 logf("vk: preparation: the GPU driver faulted %d time%s so far (above): a driver can stop responding after one, so a "
                      "stop here would be why", faults, faults == 1 ? "" : "s");
-            if (stall_s > 0 && (at.part < 3 ? still >= stall_s : risky && still >= save_stall_s)) {
+            if (stall_s > 0 && (at.part < 3 ? still >= part_stall_s : risky && still >= save_stall_s)) {
                 if (at.part < 3)
-                    logf("vk: preparation: STOPPED: nothing moved for %d s in %s (%zu of %zu): the GPU driver stopped responding%s. "
-                         "The rest is built in play, when first drawn; updating the GPU driver may help", stall_s, what, at.done,
-                         at.total, faults ? " after it faulted (above)" : "");
+                    logf("vk: preparation: STOPPED: nothing moved for %lld s in %s (%zu of %zu): the GPU driver stopped responding%s. "
+                         "The rest is built in play, when first drawn; updating the GPU driver may help", (long long)part_stall_s, what,
+                         at.done, at.total, faults ? " after it faulted (above)" : "");
                 else
                     logf("vk: preparation: STOPPED: %s waited %d s on the GPU driver, %s. The pipelines are made; only this "
                          "file is left out. Updating the GPU driver may help", what, save_stall_s,
@@ -1212,8 +1398,8 @@ void prepare_watchdog() {
                     continue;   // (silent from here: make_game.py's 15 minutes with no line stop a save that never ends)
             } else if (still >= quiet_s) {
                 if (stall_s > 0)
-                    logf("vk: preparation: waiting: nothing in %s has finished for %lld s (%zu of %zu), %s. Stopped at %d s if "
-                         "nothing moves", what, (long long)still, at.done, at.total, waiting_on, stall_s);
+                    logf("vk: preparation: waiting: nothing in %s has finished for %lld s (%zu of %zu), %s. Stopped at %lld s if "
+                         "nothing moves", what, (long long)still, at.done, at.total, waiting_on, (long long)part_stall_s);
                 else
                     logf("vk: preparation: waiting: nothing in %s has finished for %lld s (%zu of %zu), %s", what,
                          (long long)still, at.done, at.total, waiting_on);
@@ -1559,9 +1745,9 @@ void auto_profile() {
     hw.rtx = hw.vendor == ::auto_settings::NVIDIA && strstr(p.deviceName, "RTX");
     // (RDNA 4: "AMD Radeon RX 9070 XT", RADV's "(RADV GFX1201)")
     hw.rdna4 = hw.vendor == ::auto_settings::AMD && (strstr(p.deviceName, "RX 9") || strstr(p.deviceName, "GFX12"));
-    // (the Steam Deck's APU, LCD and OLED, or SteamOS's own flag)
-    const char* deck = getenv("SteamDeck");
-    hw.handheld = (deck && atoi(deck) == 1) || strstr(p.deviceName, "Custom GPU 0405") || strstr(p.deviceName, "Custom GPU 0932");
+    // (the Steam Deck's APU, LCD and OLED, or SteamOS's own flag; and whether its profile is on, as pick_device decided)
+    hw.handheld = handheld_found(p);
+    hw.deck = deck_profile_now;
     hw.dlss_built = dlss_built();
     hw.fsr4_built = fsr4_built();
     hw.threads = (int)std::thread::hardware_concurrency();
@@ -1651,6 +1837,8 @@ const char* describe() {
 MkwVkRenderer table;
 
 } // namespace
+/// (vk_internal.h: the driver compile that ended, for the watchdog above)
+void prepare_compiled() { prepare_compiled_seen(); }
 } // namespace mkwvk
 
 // (hookshot) The window is being closed (host/display.c, host/posix/display_sdl.c, before they end the process), or the game quit

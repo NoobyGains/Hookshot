@@ -18,9 +18,11 @@ ROOT = Path(__file__).resolve().parents[1]
 CXX = "g++"
 
 FIXTURE = r'''
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
-struct { struct { unsigned width = 0; } swap_extent; bool hdr = false; } dev;
+enum HdrSdrWhy : int { hdr_sdr_none, hdr_sdr_no_extension, hdr_sdr_os_off, hdr_sdr_driver, hdr_sdr_unknown, hdr_sdr_count };
+struct { struct { unsigned width = 0; } swap_extent; bool hdr = false; HdrSdrWhy hdr_sdr_why = hdr_sdr_none; } dev;
 /* HINT */
 int main() {
     int bad = 0;
@@ -28,10 +30,18 @@ int main() {
     CHECK(!hn_hdr(1, -1));                                    // (no swapchain yet)
     dev.swap_extent.width = 1920;
     CHECK(!hn_hdr(0, -1));                                    // (HDR Off)
-    CHECK(hn_hdr(1, -1) && std::strstr(hn_hdr(2, -1), "Use HDR"));
-    dev.hdr = true;
+    CHECK(!hn_hdr(1, -1));                                    // (SDR, but no reason given yet)
+    dev.hdr_sdr_why = hdr_sdr_os_off;                         // (SDR with a reason: the line says it, whatever HDR's value)
+    CHECK(hn_hdr(1, -1) && std::strstr(hn_hdr(2, -1), "HDR is off for this display"));
+    dev.hdr_sdr_why = hdr_sdr_driver;
+    CHECK(std::strstr(hn_hdr(1, -1), "clean install"));
+    dev.hdr_sdr_why = hdr_sdr_no_extension;
+    CHECK(std::strstr(hn_hdr(1, -1), "VK_EXT_swapchain_colorspace"));
+    dev.hdr_sdr_why = hdr_sdr_unknown;
+    CHECK(std::strstr(hn_hdr(1, -1), "Is HDR on in the display settings"));
+    dev.hdr = true, dev.hdr_sdr_why = hdr_sdr_none;
     CHECK(!hn_hdr(1, -1) && !hn_hdr(2, -1));                  // (an HDR10 swapchain: active)
-    CHECK(hn_hdr(0, 0) && !hn_hdr(0, 1));                     // (one variant, for the help's height)
+    CHECK(hn_hdr(0, 0) && hn_hdr(0, 3) && !hn_hdr(0, 4));     // (a variant for each reason, for the help's height)
     std::printf("%s\n", bad ? "FAILED" : "hint checked");
     return bad != 0;
 }
@@ -66,9 +76,9 @@ class HdrHintTests(unittest.TestCase):
     def test_log_on_change(self):
         main = (ROOT / "gpu/vk/vk_main.cpp").read_text(encoding="utf-8")
         at = main.index("// (hookshot) the Insert menu's HDR: a 10-bit HDR10 surface")
-        part = main[at:at + 1600]
+        part = main[at:at + 3000]
         self.assertIn("static int told = -1;", part)
-        self.assertIn("if (told != (int)dev.hdr) {", part)
+        self.assertIn("if ((int)dev.hdr_sdr_why != told || display != told_display) {", part)   # (again when the reason or display changes)
         self.assertNotRegex(part, r"static bool told;\s*if \(!told\)")
 
 
