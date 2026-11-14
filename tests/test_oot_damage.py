@@ -1,4 +1,5 @@
-"""Damage taken: real arithmetic and life-write guards without a game dump."""
+"""Damage taken: real arithmetic and life-write guards without a game dump; and Hero mode's double damage on top of it (the
+Gameplay row, HOS_OPT_HERO_MODE: twice what Damage taken leaves; its drops are tests/test_hero_mode.py)."""
 import argparse
 from pathlib import Path
 import subprocess
@@ -44,9 +45,12 @@ def main():
 #include <stdint.h>
 #include <assert.h>
 #include <stdio.h>
-enum { HOS_OPT_DAMAGE_TAKEN = 56 };
-static int setting = 1, protection, player = 1;
-int rx_option(int id, int otherwise) { assert(id == 56 && otherwise == 1); return setting; }
+enum { HOS_OPT_DAMAGE_TAKEN = 56, HOS_OPT_HERO_MODE = 62 };
+static int setting = 1, hero, protection, player = 1;
+int rx_option(int id, int otherwise) {
+    if (id == 62) { assert(otherwise == 0); return hero; }
+    assert(id == 56 && otherwise == 1); return setting;
+}
 int hos_oot_hearts_enabled(void) { return protection; }
 typedef struct { uint64_t x[32]; } Ctx;
 static int hos_oot_is_player(Ctx *c, uint64_t actor) { (void)c; return player && actor == 100; }
@@ -58,6 +62,7 @@ static void hos_oot_life_seen(uint32_t old, uint32_t next) { seen++, seen_old = 
 '''
     main_c = r'''
 int main(void) {
+  for (hero = 0; hero < 3; hero++) {   /* (Off, On, and an unknown value: Off) */
     for (setting = 0; setting < 4; setting++) {
         for (uint32_t old = 0; old <= 80; old++) {
             for (uint32_t next = 0; next <= 80; next++) {
@@ -65,6 +70,7 @@ int main(void) {
                 if (next < old) {
                     uint32_t damage = old - next;
                     damage = setting == 0 ? (damage + 1) / 2 : damage * (1u << (setting - 1));
+                    if (hero == 1) damage *= 2;   /* (Hero mode: twice what Damage taken leaves) */
                     expected = damage >= old ? 0 : old - damage;
                 }
                 protection = 0;
@@ -75,7 +81,7 @@ int main(void) {
         }
         protection = 0;
         assert(hos_oot_damage(1, 0) == 0); /* Even Half keeps a one-quarter hit. */
-        assert(hos_oot_damage(UINT32_MAX, 0) == (setting == 0 ? UINT32_MAX / 2 : 0));
+        assert(hos_oot_damage(UINT32_MAX, 0) == (setting == 0 && hero != 1 ? UINT32_MAX / 2 : 0));
         for (int which = 0; which < 2; which++) {
             Ctx c = {{0}}; c.x[11] = 12; c.x[12] = 8; c.x[19] = 100; c.x[13] = 208;
             seen = 0; site(&c, which); assert(c.x[12] == hos_oot_damage(12, 8));
@@ -87,10 +93,18 @@ int main(void) {
             c.x[12] = 16; site(&c, which); assert(c.x[12] == 16);
         }
     }
+  }
     protection = 0;
+    hero = 0;
     setting = -1; assert(hos_oot_damage(12, 8) == 8);
     setting = 4; assert(hos_oot_damage(12, 8) == 8);
-    puts("PASS: damage arithmetic, lethal/quarter hits, healing, protection, both player guards and option wiring");
+    hero = 1;   /* (Hero mode with an unknown Damage taken: Normal, doubled) */
+    setting = -1; assert(hos_oot_damage(12, 8) == 4);
+    setting = 4; assert(hos_oot_damage(12, 8) == 4);
+    setting = 1; assert(hos_oot_damage(12, 8) == 4 && hos_oot_damage(12, 11) == 10 && hos_oot_damage(3, 1) == 0);
+    assert(hos_oot_damage(8, 12) == 12);   /* (healing as it is) */
+    protection = 1; assert(hos_oot_damage(12, 8) == 12);   /* (Heart protection still wins) */
+    puts("PASS: damage arithmetic, lethal/quarter hits, healing, protection, both player guards, Hero mode and option wiring");
 }
 '''
     site = 'static void site(Ctx *c, int which) { if (which) {\n' + guards[0] + '\n} else {\n' + guards[1] + '\n} }\n'

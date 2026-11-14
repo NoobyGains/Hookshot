@@ -549,6 +549,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Classic counters | Off, On (as on the N64: no count over Link at a pick-up, the rupees always in the bottom left corner once a save is loaded; changes at once) | Off |
 | | Speedrun timer | Off, On (real time at the top of the screen, in the middle, paused while the menu is open; off and on again starts it from zero) | Off |
 | | Death counter | Off, On (how often Link's hearts ran out since the game started, a fairy's revive not counted; at the top, in the middle) | Off |
+| | Hero mode | Off, On (double damage, and no recovery hearts from grass, pots, rocks or enemies; fairies, Pieces of Heart and Heart Containers stay; changes at once) | Off |
 | | Menu size | Small, Medium, Large | Medium |
 | | Game speed | Per frame, Real time | Real time |
 | | Field of view | 50% to 150%, in steps of 5; applies immediately during gameplay | 100% (original) |

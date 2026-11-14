@@ -1462,6 +1462,10 @@ Row rows[] = {
     {TAB_GAMEPLAY, "Death counter", &opts.death_counter, 0, 1, 1, tx_onoff,
      "How often Link's hearts ran out since the game started, at the top of the screen, in the middle. A fairy's revive does not count.",
      nullptr, false, true},
+    // (hookshot: the remake has no Hero mode of its own; host/oot_damage.c, host/oot_hero.c)
+    {TAB_GAMEPLAY, "Hero mode", &opts.hero_mode, 0, 1, 1, tx_onoff,
+     "A harder game: Link takes double damage, and grass, pots, rocks and enemies drop no recovery hearts. Fairies, Pieces of "
+     "Heart and Heart Containers stay. Changes at once.", nullptr, false, true},
     {TAB_GAMEPLAY, "Menu size", &opts.menu_size, 1, 3, 1, tx_menu_size,
      "How large this menu, the FPS counter and the start-up screen are drawn.", hn_menu_size, false, true},
     {TAB_GAMEPLAY, "Game speed", &opts.realtime, 0, 1, 1, tx_speed, "How the game keeps time when it runs below 60 fps.",
