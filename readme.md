@@ -493,7 +493,12 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | FXAA | Off, On (on the finished picture, in the Window scaling filter's place; not with HDR set to Native; changes at once) | Off |
 | | Bloom | Off, Low, Medium, High (a glow around bright light; not with HDR set to Native; changes at once) | Off |
 | | Colour grade | Off, Rich, Vivid, Warm, Cool, Cinematic (not with HDR set to Native; changes at once) | Off |
-| | Retro look | Off, N64 (the picture at the Nintendo 64's 240 lines, soft, its colours cut to 16 bits with the console's dither), N64 + CRT (with faint scanlines and darker corners); in the Window scaling filter's, FXAA's and Sharpness's place, the menu left sharp; not with HDR set to Native; changes at once | Off |
+| | Retro look | Off, N64 (the picture at the Nintendo 64's 240 lines, soft, its colours cut to 16 bits with the console's dither), N64 + CRT (that picture on a CRT, after Timothy Lottes' CRT shader, set by the five CRT rows below); in the Window scaling filter's, FXAA's and Sharpness's place, the menu left sharp; not with HDR set to Native; changes at once | Off |
+| | CRT scanlines | Off, Light, Medium, Strong (the dark between the lines of light; bright parts fill out; with Retro look N64 + CRT) | Medium |
+| | CRT mask | Off, Aperture grille, Slot mask, Shadow mask (the screen's red, green and blue on your screen's pixels; with N64 + CRT) | Aperture grille |
+| | CRT mask strength | 10% to 100% (the picture keeps its brightness; with N64 + CRT) | 30% |
+| | CRT glow | Off, Low, Medium, High (light spreading in the glass around bright parts; with N64 + CRT) | Medium |
+| | CRT curvature | Off, Subtle, Strong (a curved screen with darker corners; Strong as Lottes' shader; with N64 + CRT) | Subtle |
 | | Texture detail | Auto, Full, Medium, Low | Auto |
 | | Anisotropic filtering | Game's, 2x, 4x, 8x, 16x | 16x |
 | | View distance | Short, Original, Far, Very far, Max (how far trees, bushes and detailed models reach; changes at once) | Original |
@@ -1360,6 +1365,9 @@ Hookshot exists thanks to the work of many people:
 - **hotoni** (the Graphics-Menu mod): where the game keeps its view, grass and shadow distances.
 - **[angrylion-rdp-plus](https://github.com/ata4/angrylion-rdp-plus)**: the Nintendo 64's colour dither (its magic square),
   which the Retro look uses.
+- **Timothy Lottes**: his public-domain CRT shader
+  ([crt-lottes](https://github.com/libretro/glsl-shaders/blob/master/crt/shaders/crt-lottes.glsl)), the model of the Retro
+  look's N64 + CRT: its scanline beams, horizontal softness, glow, masks and curvature.
 - **Mesa (NAK)**: the reference for Ampere's instruction encoding.
 - Everyone who sent fixes: SkippySteve (Linux and the AppImage, and many more), monsterlag, klimovich008, hckrman101 (NVIDIA
   DLSS, DLAA and Reflex, the exposure flicker and fog fixes, build speed, CI), madebyjordan (AMD FSR 4.1), N3oTraX (FSR 4 on

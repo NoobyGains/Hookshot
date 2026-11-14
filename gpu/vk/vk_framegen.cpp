@@ -726,7 +726,16 @@ VkImage framegen_scale(VkCommandBuffer cmd, VkImageView src, VkImage image, uint
     }
     // (the Retro look is not sharpened: the sharpen's neighbours are the full picture's, which would show through it)
     ScalePush pc{window_filter(), retro ? 0.0f : opts.sharpness / 100.0f, wide.x0, 1.0f - wide.x0, wide.side, wide.cover / 65535.0f,
-                 kGradeLooks[look][0], kGradeLooks[look][1], kGradeLooks[look][2], kGradeLooks[look][3], look, bloom, fxaa, retro};
+                 kGradeLooks[look][0], kGradeLooks[look][1], kGradeLooks[look][2], kGradeLooks[look][3], look, bloom, fxaa, retro,
+                 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    if (retro == 2) {   // (N64 + CRT's rows, each cut to its range as an options file may hold any number)
+        const int curve = std::clamp(opts.crt_curvature, 0, kCrtCurves - 1);
+        pc.scan = kCrtScan[std::clamp(opts.crt_scanlines, 0, kCrtScans - 1)];
+        pc.mask = std::clamp(opts.crt_mask, 0, kCrtMasks - 1);
+        pc.mask_str = std::clamp(opts.crt_mask_strength, 10, 100) / 100.0f;
+        pc.glow = kCrtGlow[std::clamp(opts.crt_glow, 0, kCrtGlows - 1)];
+        pc.warp_x = kCrtCurve[curve][0], pc.warp_y = kCrtCurve[curve][1], pc.corner = kCrtCurve[curve][2];
+    }
     // (the blurred sides and the Bloom read the picture at 1/8, the Retro look its picture of kRetroLines)
     const bool small_wanted = wide.side == 1 || bloom > 0.0f || retro;
     if (small_wanted) {   // (the blurred sides: first the picture at 1/8, each pixel the mean of its 8 x 8, which they blur)

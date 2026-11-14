@@ -13,7 +13,8 @@
 #include <mutex>
 #include "fg_scale_post.h"   // (framegen_scale's push constants and the FXAA, Bloom, Colour grade and Retro look rows' tables)
 using mkwvk::ScalePush, mkwvk::kGrades, mkwvk::kBloomSteps, mkwvk::kGradeLooks, mkwvk::kBloomLevels, mkwvk::kRetroLooks,
-    mkwvk::kRetroLines;
+    mkwvk::kRetroLines, mkwvk::kCrtScans, mkwvk::kCrtMasks, mkwvk::kCrtGlows, mkwvk::kCrtCurves, mkwvk::kCrtScan, mkwvk::kCrtGlow,
+    mkwvk::kCrtCurve;
 #include <utility>
 #include "vk_present_rect.h"
 using mkwvk::PresentSourceRect;
@@ -46,7 +47,10 @@ struct Layers { int aspect = 0, level = 0, first = 0, count = 0; };
 struct VkImageBlit { Layers srcSubresource, dstSubresource; Offset srcOffsets[2], dstOffsets[2]; };
 struct Extent { uint32_t width = 0, height = 0, depth = 0; };
 struct VkImageCopy { Layers srcSubresource; Offset srcOffset; Layers dstSubresource; Offset dstOffset; Extent extent; };
-struct { int upscale = 0, sharpness = 0, framegen = 0, fxaa = 0, bloom = 0, grade = 0, retro = 0; } opts;
+struct {
+    int upscale = 0, sharpness = 0, framegen = 0, fxaa = 0, bloom = 0, grade = 0, retro = 0;
+    int crt_scanlines = 2, crt_mask = 1, crt_mask_strength = 30, crt_glow = 2, crt_curvature = 1;   // (vk_menu.h's defaults)
+} opts;
 // (hookshot) The Upscaling row carries two things: 0-2 filter the finished picture and 3-4 name a
 // scene upscaler. framegen_scale wants only the first half, exactly as the inline in vk_menu.h
 // gives it, so the spy mirrors that rather than reading opts.upscale raw.
@@ -79,6 +83,7 @@ float dispatched_cover = -1.0f;
 int dispatched_look = -1, dispatched_fxaa = -1;   // (the Colour grade, Bloom and FXAA rows)
 float dispatched_bloom = -1.0f, dispatched_sat = -1.0f;
 int dispatched_retro = -1;   // (the Retro look row)
+ScalePush dispatched_pc{};   // (the last dispatch's push constants whole: N64 + CRT's rows)
 VkImageView small_bound = 0;   // (binding 2 of the last dispatch: the small picture, or the picture itself)
 VkImageView sampled_view = 0;
 VkImageBlit last_blit;
@@ -132,7 +137,7 @@ void pass(int, const Pipe& p, std::initializer_list<std::pair<VkImageView, VkSam
     ScalePush pc;
     std::memcpy(&pc, data, sizeof pc);
     dispatched_look = pc.look, dispatched_bloom = pc.bloom, dispatched_fxaa = pc.fxaa, dispatched_sat = pc.sat;
-    dispatched_retro = pc.retro, small_bound = (b.begin() + 2)->first;
+    dispatched_retro = pc.retro, small_bound = (b.begin() + 2)->first, dispatched_pc = pc;
     ++dispatches; dispatched_mode = pc.mode; dispatched_sharp = pc.sharp;
     dispatched_side = pc.side; dispatched_x0 = pc.x0; dispatched_x1 = pc.x1; dispatched_cover = pc.cover;
     dispatched_w = w; dispatched_h = h; sampled_view = b.begin()->first; dispatched_pipe = p.pipe;
@@ -187,6 +192,20 @@ int main() {
     reset(); opts.retro = 2; opts.fxaa = 1; CHECK(draw(nullptr, 3440, 1440));   // (an ultrawide window: 573 x 240)
     CHECK(dispatched_retro == 2 && made_w == 573 && made_h == 240 && dispatched_fxaa == 1);   // (the shader puts it before FXAA)
     reset(); opts.retro = kRetroLooks + 2; CHECK(draw()); CHECK(dispatched_retro == kRetroLooks - 1);
+    // (N64 + CRT pushes its rows: the defaults Lottes' hardScan -8, an aperture grille at 30%, his bloom 0.15, a subtle curve;
+    // each cut to its range. N64 and Off push none of them)
+    reset(); opts.retro = 2; CHECK(draw());
+    CHECK(dispatched_pc.scan == -8.0f && dispatched_pc.mask == 1 && dispatched_pc.mask_str == 0.3f && dispatched_pc.glow == 0.15f);
+    CHECK(dispatched_pc.warp_x == kCrtCurve[1][0] && dispatched_pc.warp_y == kCrtCurve[1][1] && dispatched_pc.corner == kCrtCurve[1][2]);
+    reset(); opts.retro = 2; opts.crt_scanlines = 9; opts.crt_mask = -1; opts.crt_mask_strength = 400; opts.crt_glow = -5;
+    opts.crt_curvature = 7; CHECK(draw());
+    CHECK(dispatched_pc.scan == kCrtScan[kCrtScans - 1] && dispatched_pc.mask == 0 && dispatched_pc.mask_str == 1.0f &&
+          dispatched_pc.glow == 0.0f && dispatched_pc.warp_x == 0.031f && dispatched_pc.corner == kCrtCurve[kCrtCurves - 1][2]);
+    reset(); opts.retro = 2; opts.crt_mask = 3; opts.crt_mask_strength = 0; opts.crt_scanlines = 0; CHECK(draw());
+    CHECK(dispatched_pc.mask == 3 && dispatched_pc.mask_str == 0.1f && dispatched_pc.scan == 0.0f);
+    reset(); opts.retro = 1; CHECK(draw());
+    CHECK(dispatched_pc.scan == 0.0f && dispatched_pc.mask == 0 && dispatched_pc.glow == 0.0f && dispatched_pc.warp_x == 0.0f);
+    reset(); opts.retro = 2; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
     reset(); opts.retro = -3; CHECK(!draw()); CHECK(dispatches == 0);
     reset(); opts.retro = 2; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
     // (a picture under 240 lines: its own size, never more pixels than it has, however wide the window)

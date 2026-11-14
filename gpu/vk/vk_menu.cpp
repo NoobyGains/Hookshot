@@ -841,6 +841,23 @@ const char* tx_retro(int v) {   // (the Retro look row)
     static const char* t[kRetroLooks] = {"Off", "N64", "N64 + CRT"};
     return (unsigned)v < kRetroLooks ? t[v] : t[0];
 }
+// (N64 + CRT's rows: fg_scale_post.h's kCrtScan, the masks, kCrtGlow, kCrtCurve)
+const char* tx_crt_scanlines(int v) {
+    static const char* t[kCrtScans] = {"Off", "Light", "Medium", "Strong"};
+    return (unsigned)v < kCrtScans ? t[v] : t[0];
+}
+const char* tx_crt_mask(int v) {
+    static const char* t[kCrtMasks] = {"Off", "Aperture grille", "Slot mask", "Shadow mask"};
+    return (unsigned)v < kCrtMasks ? t[v] : t[0];
+}
+const char* tx_crt_glow(int v) {
+    static const char* t[kCrtGlows] = {"Off", "Low", "Medium", "High"};
+    return (unsigned)v < kCrtGlows ? t[v] : t[0];
+}
+const char* tx_crt_curvature(int v) {
+    static const char* t[kCrtCurves] = {"Off", "Subtle", "Strong"};
+    return (unsigned)v < kCrtCurves ? t[v] : t[0];
+}
 const char* tx_text_speed(int v) {
     static const char* t[] = {"Normal", "2x", "4x", "Instant"};
     if ((unsigned)v >= sizeof t / sizeof t[0]) return t[0];
@@ -1411,9 +1428,26 @@ Row rows[] = {
      "game's own colours. Not with HDR set to Native. Changes at once.", nullptr, false, true},
     // (hookshot: in the same pass, after the three above)
     {TAB_GRAPHICS, "Retro look", &opts.retro, 0, kRetroLooks - 1, 1, tx_retro,
-     "The picture as a Nintendo 64 showed it on the TVs of its day: 240 lines, soft, its colours cut to the console's 16 bits "
-     "with its dither. N64 + CRT adds faint scanlines and darker corners. While on, it takes the place of the Window scaling "
-     "filter, FXAA and Sharpness; this menu stays sharp. Not with HDR set to Native. Changes at once.", nullptr, false, true},
+     "The picture as a Nintendo 64 made it: 240 lines, soft, its colours cut to the console's 16 bits with its dither. N64 + "
+     "CRT shows it on a CRT of the day, its lines of light, its phosphors and its glow, set by the CRT rows below. While on, it "
+     "takes the place of the Window scaling filter, FXAA and Sharpness; this menu stays sharp. Not with HDR set to Native. "
+     "Changes at once.", nullptr, false, true},
+    // (N64 + CRT's, shown only with it (row_shown): after Timothy Lottes' public-domain CRT shader, fg_scale.comp crt())
+    {TAB_GRAPHICS, "CRT scanlines", &opts.crt_scanlines, 0, kCrtScans - 1, 1, tx_crt_scanlines,
+     "How much the dark between the CRT's lines of light shows. Each line is a beam of light, wider where the picture is bright, "
+     "so bright parts fill out and dark parts show the lines most. Off runs the lines together.", nullptr, false, true},
+    {TAB_GRAPHICS, "CRT mask", &opts.crt_mask, 0, kCrtMasks - 1, 1, tx_crt_mask,
+     "The red, green and blue a CRT's screen is made of, drawn on your screen's own pixels: an aperture grille's stripes "
+     "(Trinitron), a TV's slot mask or a monitor's shadow mask. Finest at 4K; at 1080p it shows more.", nullptr, false, true},
+    {TAB_GRAPHICS, "CRT mask strength", &opts.crt_mask_strength, 10, 100, 10, tx_percent,
+     "How strongly the mask shows. The picture keeps its brightness; at high strength its brightest parts lose a little.",
+     nullptr, false, true},
+    {TAB_GRAPHICS, "CRT glow", &opts.crt_glow, 0, kCrtGlows - 1, 1, tx_crt_glow,
+     "Light spreading in the CRT's glass: a soft glow around bright parts that brightens the picture a little.", nullptr, false,
+     true},
+    {TAB_GRAPHICS, "CRT curvature", &opts.crt_curvature, 0, kCrtCurves - 1, 1, tx_crt_curvature,
+     "A curved screen with darker corners, the picture's own corners just outside it. Strong is as Lottes' shader has it.",
+     nullptr, false, true},
     {TAB_GRAPHICS, "Texture detail", &opts.texture_detail, 0, 3, 1, tx_texture_detail,
      "How much of the big textures (ground, walls, buildings) is kept in video memory. Lower uses less, for a softer "
      "picture up close: for 6 and 8 GB cards that slow down after a while. Applies to textures made after the change; "
@@ -1913,7 +1947,8 @@ int ask_sel = 0;   // (the restart question's choice: 0 Later, 1 Restart now)
 
 /// A row on its tab: the debug tools only with them on; a row for what this PC cannot run not at all (Reflex and Anti-Lag 2
 /// only where the driver has them, the Upscaler only where more than the game's own runs, the DLSS model only where DLSS
-/// runs); HDR's paper white, peak brightness and contrast only with HDR on. A row that comes or goes moves those after it: the
+/// runs); HDR's paper white, peak brightness and contrast only with HDR on; the CRT rows only with the Retro look's N64 + CRT
+/// (they keep their values meanwhile). A row that comes or goes moves those after it: the
 /// selection is a place on its tab (tab_selected), so a row hidden after the selected one leaves the selection where it is,
 /// and menu_tick brings back one past the end
 bool row_shown(int i) {
@@ -1923,7 +1958,9 @@ bool row_shown(int i) {
            (v != &opts.dlss || ur::upscaler_shown(upscalers_available())) &&
            (v != &opts.dlss_model || ur::model_shown(dlss_why() == DLSS_OK)) &&
            ((v != &opts.hdr_white && v != &opts.hdr_peak && v != &opts.hdr_contrast) || opts.hdr != 0) &&
-           (v != &opts.hdr_tonemap || opts.hdr == 2);
+           (v != &opts.hdr_tonemap || opts.hdr == 2) &&
+           ((v != &opts.crt_scanlines && v != &opts.crt_mask && v != &opts.crt_mask_strength && v != &opts.crt_glow &&
+             v != &opts.crt_curvature) || opts.retro == 2);
 }
 int tab_row_count(int t) {
     int c = 0;
