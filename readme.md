@@ -88,6 +88,12 @@ Everything below is on `main` in this repository, tested in the game on a GeForc
   </tr>
 </table>
 
+<p align="center">
+  <img src="docs/images/features/loading-screen.webp" alt="The start-up screen: the Hookshot turning above the HOOKSHOT wordmark while the pipeline bar fills" width="520">
+</p>
+
+**The loading screen's Hookshot turns** while the game starts, as the shaders and pipelines load.
+
 <img src="docs/images/features/field-of-view.jpg" alt="Kakariko Village at field of view 60 percent, the game's 100 percent and 140 percent">
 
 **Field of view** (Gameplay tab, 50% to 150%): from a close, cinematic 60% to a wide 140%, where Kakariko's whole gate

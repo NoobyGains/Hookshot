@@ -35,7 +35,13 @@ def main():
     tail = draw[draw.rindex("startup_fade.load"):]
     need(tail, r"AddRectFilled\(ImVec2\(0, 0\), ImVec2\(w, h\), ui::rgba\(0, 0, 0,", "the fade is not drawn over the whole screen")
     need(menu, r"startup_on\.store\(false, std::memory_order_release\);\s*startup_fade\.store\(0", "the fade is not reset when the screen goes")
-    print("PASS: the start-up screen fades to black at its end, and only after a screen worth fading")
+    # (the logo turns while the screen shows: drawn as a quad whose width follows the turn's cosine, not a fixed AddImage)
+    need(draw, r"AddImageQuad\(logo->GetTexRef\(\)", "the logo is not drawn as a turning quad")
+    need(draw, r"std::cos\(turn\)", "the logo's width does not follow its turn")
+    need(menu, r"constexpr double kLogoTurnSeconds = [0-9.]+;", "no turn length for the logo")
+    if re.search(r"AddImage\(logo->GetTexRef\(\)", draw):
+        raise SystemExit("FAIL: the logo is also drawn flat")
+    print("PASS: the start-up screen fades to black at its end, and only after a screen worth fading; its logo turns")
 
 
 if __name__ == "__main__":

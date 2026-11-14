@@ -4295,6 +4295,8 @@ void draw_corner(ui::Ctx& c, bool timer, bool deaths) {
     }
 }
 
+constexpr double kLogoTurnSeconds = 2.4;   // (the start-up screen's logo: one whole turn in this long)
+
 /// The start-up screen: the logo, the wordmark, what the start is doing, a bar, on a warm dark. A little below the middle; what
 /// is under the logo at 0.86 of the logo's scale. startup_fade, 0 to 1, darkens it all to black as it ends
 void draw_startup(ui::Ctx& c) {
@@ -4309,7 +4311,18 @@ void draw_startup(ui::Ctx& c) {
     for (int i = 40; i >= 1; i--) c.d->AddCircleFilled(ImVec2(cx, top + lh * 0.5f + 70 * s), h * 0.021f * i, ui::rgba(46, 33, 18, 4), 128);
     float aspect = 1;
     ImTextureData* logo = ui::logo(&aspect);
-    if (logo) c.d->AddImage(logo->GetTexRef(), ImVec2(cx - lh * aspect * 0.5f, top), ImVec2(cx + lh * aspect * 0.5f, top + lh));
+    if (logo) {
+        // (the logo turns about its upright axis while the screen shows, one turn every kLogoTurnSeconds, as a coin does: its
+        // width goes with the turn's cosine, from behind it is its mirror image, and edge-on it darkens a little. The painter
+        // draws the screen every 33 ms, vk_main.cpp, so the turn runs at about 30 steps a second)
+        const double t = (double)prof_now() * 1e-9;
+        const float turn = (float)std::fmod(t / kLogoTurnSeconds, 1.0) * 6.2831853f;
+        const float across = std::cos(turn), half = lh * aspect * 0.5f * across;
+        const int shade = 160 + (int)(95.0f * std::fabs(across));
+        c.d->AddImageQuad(logo->GetTexRef(), ImVec2(cx - half, top), ImVec2(cx + half, top), ImVec2(cx + half, top + lh),
+                          ImVec2(cx - half, top + lh), ImVec2(0, 0), ImVec2(1, 0), ImVec2(1, 1), ImVec2(0, 1),
+                          ui::rgba(shade, shade, shade));
+    }
     float y = top + lh + 16 * s;
     ui::spaced(c, c.f.heading, 42 * k, ImVec2(cx, y), ui::rgba(246, 232, 204), "HOOKSHOT", 6 * k);
     ui::flourish(c, cx - 190 * k, cx + 190 * k, y + 66 * k, ui::kAccent);
