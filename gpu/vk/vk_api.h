@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define MKWVK_API_VERSION 22
+#define MKWVK_API_VERSION 23
 enum { HOS_OPT_CHEAT_HEARTS = 32, HOS_OPT_CHEAT_FLIGHT, HOS_OPT_CHEAT_ACTION, HOS_OPT_CHEAT_CAMERA, HOS_OPT_CHEAT_SPEED };
 /* (hookshot) the Gameplay tab's Text size (host/oot_text_size.c): 0 the game's, 1 110%, 2 125%, 3 150%, 4 175% */
 enum { HOS_OPT_TEXT_SIZE = 10 };
@@ -130,6 +130,15 @@ typedef struct MkwVkSetting {
     int restart, fixed;   /* the change applies at the next start; nothing to choose on this PC (the menu shows it greyed) */
 } MkwVkSetting;
 
+/* (version 23, hookshot) a mod in the game's mods folder (host/mods.c), for the Insert menu's Mods page (Gameplay, Mods) */
+typedef struct MkwVkMod {
+    char name[260];     /* its folder in the mods folder, '/' between folders (UTF-8): its line in mods/hookshot-mods.ini */
+    int32_t on;         /* loaded in this run */
+    int32_t files;      /* its RomFS files */
+    int32_t renamed;    /* off by its folder's name ('-' or '_' first, its own or a folder's it is in): not the menu's to turn on */
+    int32_t exefs;      /* it has an exefs folder (left out: the game's code is compiled ahead of time) */
+} MkwVkMod;
+
 /* what the executable gives the back end */
 typedef struct MkwVkHost {
     uint32_t version;   /* MKWVK_API_VERSION */
@@ -227,6 +236,15 @@ typedef struct MkwVkHost {
        while the game draws it in the middle 16:9 with the menus (wide_menus's keep_mask) and so leaves the sides open
        (host/hos_main.c hos_wide_cover); 0 when it covers the whole picture itself. Asked at each present */
     float (*wide_cover)(void);
+    /* (version 23, hookshot) the mods (host/mods.c), for the Insert menu's Mods page: the index-th (MkwVkMod) in this run's
+       load order (a later mod wins a file both have), those off by their folder's name last; 1, or 0 past the last */
+    int (*mod)(int index, MkwVkMod *out);
+    /* how many RomFS files the a-th and the b-th mods both have, on or off (the Mods page's conflicts, for any choice) */
+    int (*mod_shared)(int a, int b);
+    /* the mods for the next start, kept in mods/hookshot-mods.ini: order holds the index of every mod not off by its folder's
+       name, each once, in the load order wanted (order[0] loads first); on[i] whether order[i] loads. 1 written, 0 not (the
+       file as it was) */
+    int (*mods_save)(const int *order, const int *on, int n);
 } MkwVkHost;
 
 /* One completed temporal-upscale sample; all zero while inactive. */

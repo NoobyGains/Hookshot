@@ -18,26 +18,32 @@ mod does not undo progress already saved with it, and this loader does not creat
 
 ## Discovery, ordering and disabling
 
-`host/mods.c` implements these rules in `hos_mods_init`, `find_mods`, `mod_cmp` and `index_romfs`:
+`host/mods.c` implements these rules in `hos_mods_init`, `find_mods`, `mod_cmp` and `index_romfs`; the Insert menu's
+Mods page (Gameplay, Mods) writes the player's choice to `hookshot-mods.ini` in the root (`hos_mods_save`):
 
 - The default root is `mods` beside the game executable. `HOS_MODS` selects another root; it points at the folder
   **containing mods**, not a mod's `romfs` folder. Nothing is downloaded or unpacked.
 - A directory with `romfs` or `exefs`, from one to four levels below that root, is a mod. For example,
   `mods/contents/<title id>/<name>/romfs` works. Discovery stops below a directory recognized as a mod. A `romfs`
   folder directly in the root is not itself the usual `<name>/romfs` layout.
-- During discovery a directory starting with `.`, `-` or `_` is skipped, including all mods below it. Rename
-  `02-example` to `_02-example` while the game is stopped to disable it. These prefixes do not disable files or
-  folders *inside* an already discovered `romfs` tree.
-- Mods are sorted by their **whole path relative to the root**, ignoring case, not just by their last folder name.
-  The last mod supplying a path wins. Use distinct numbered names at the same level (`01-...`, `02-...`) when you
-  need an obvious order. Avoid names that differ only by case: their order is not defined.
+- During discovery a directory starting with `.` is skipped. One starting with `-` or `_` is off, and so are all
+  mods below it, whatever `hookshot-mods.ini` says: the Mods page lists them greyed, and none of their files is
+  served. Rename `02-example` to `_02-example` while the game is stopped to disable it, or turn it off on the Mods
+  page. These prefixes do not disable files or folders *inside* an already discovered `romfs` tree.
+- The load order is `hookshot-mods.ini`'s lines, in its order (a line: the mod's path relative to the root, `/`
+  between folders, then `= on` or `= off`); a mod it turns off is not loaded. The mods it does not name load after
+  them, sorted by their **whole path relative to the root**, ignoring case, not just by their last folder name.
+  With no file, that is every mod. The last mod supplying a path wins. Use distinct numbered names at the same
+  level (`01-...`, `02-...`) when you need an obvious order without the file. Avoid names that differ only by
+  case: the file does not tell them apart.
 - RomFS lookup normalizes slashes and case. Do not ship two file paths that differ only by case; which is indexed
   last within one mod is not defined. Use the game's exact spelling for portable files and directory listings.
 - Directory links inside a mod's RomFS, including a linked `romfs` root, are not followed. File links are supported;
   they are not a containment boundary. Keep paths short and the tree shallow: the loader has fixed path buffers and
   stops descending beyond 32 RomFS directory levels. These limits are not a package-validation service.
-- Discovery and indexing happen once at startup. Stop the game before adding, removing, renaming or editing a mod,
-  then restart; there is no hot-reload contract.
+- Discovery and indexing happen once at startup. Stop the game before adding, removing, renaming or editing a mod
+  or `hookshot-mods.ini`, then restart; there is no hot-reload contract. The Mods page's changes apply at the next
+  start too.
 
 `hos_mods_romfs` selects the winning file; `host/nn_fs.c` uses it for read-only mounts and adds mod-only directory
 entries through `hos_mods_dir_extras`. A missing replacement falls back to the game's file. A directory cannot be
@@ -59,9 +65,10 @@ orders, two versions and malformed tables. A successful fixture does not certify
 ## An example exercised without the game
 
 The JSON block is a readable recipe: each key is a relative file path and each value is its UTF-8 contents. It is
-**test input, not a manifest understood by Hookshot**. `tests/test_mods_size_table.py` copies these exact authored
-files into a temporary folder, runs the real `host/mods.c` and `host/prompts.c` through the existing Linux filesystem
-fixture, and reads the selected files. The fixture never starts the game or touches a player's folders.
+**test input, not a manifest understood by Hookshot**. It has no `hookshot-mods.ini`, so the order is the paths'.
+`tests/test_mods_size_table.py` copies these exact authored files into a temporary folder, runs the real `host/mods.c`
+and `host/prompts.c` through the existing Linux filesystem fixture, and reads the selected files. The fixture never
+starts the game or touches a player's folders.
 
 <!-- romfs-example -->
 ```json
@@ -108,7 +115,8 @@ Clawshot seed with controller prompts still need their own tests.
 
 ## What this does not decide
 
-There is no compatibility/version field, dependency solver, catalog, per-seed profile, Mods tab, chest-table format,
-item/check service or loadable native-module ABI in this contract. Those are separate decisions. In
+There is no compatibility/version field, dependency solver, catalog, per-seed profile, chest-table format,
+item/check service or loadable native-module ABI in this contract. The Mods page turns installed mods on and off and
+orders them; it does not find, download or check them. Those are separate decisions. In
 particular a checked location must not be treated as a successful local item grant. Co-op's internal session hooks
 are not a mod-loading interface.

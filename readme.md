@@ -539,7 +539,7 @@ The menu has six tabs, Graphics, Audio, Gameplay, Controls, Neural and Debug:
 a controller (or the triggers). <kbd>Up</kbd> and <kbd>Down</kbd> choose a row, <kbd>Left</kbd> and <kbd>Right</kbd>
 change it (<kbd>Enter</kbd> changes it too); beside the rows, the help says what the row is and, on a line of its own,
 what the value chosen does. On a controller the D-pad chooses and changes, A changes too and opens a page (Motion,
-Controls, the Teleport list, the inventory), and B goes back or closes the menu: A and B are the buttons your layout puts the Switch's A and B
+Controls, Mods, the Teleport list, the inventory), and B goes back or closes the menu: A and B are the buttons your layout puts the Switch's A and B
 on (with the Nintendo layout, A is the right face button). The mouse is free while the menu is open: click a tab, click a row's name to choose it (its
 value stays), click the left or right half of a value to lower or raise it, drag a slider, turn the wheel to scroll the rows (it never changes a value), and right-click to go back. The
 button prompts at the bottom show the keys or the controller's buttons, whichever you used last. Your choices are saved
@@ -631,6 +631,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Menu language | Auto (the game's language), or English, Português (Brasil), Español (Latinoamérica), Español (España), Français, Deutsch, Italiano, Nederlands, Polski, Русский, 日本語, 한국어, 简体中文, 繁體中文 | Auto |
 | | Discord status | Off, On ("Playing Hookshot" and the time played in your Discord status, while Discord runs on this PC) | On |
 | | Skip opening | Off, On (skips the new-game opening: the story movie and Navi waking Link; later cutscenes and the title screen stay) | Off |
+| | Mods | Opens the Mods page: each mod in the `mods` folder on or off, and the order they load in (after a restart; [Mods](#mods)) | |
 | | Bug report | Saves a report into a new folder in `bug-reports` (below) | |
 | Controls | Controller in background | Off, On | Off |
 | | Mouse camera | As the stick, Native, Off | As the stick |
@@ -1075,20 +1076,43 @@ measured and what is not.
 
 Put mods in a `mods` folder in the game folder, beside `hookshot.exe` (or point `HOS_MODS` at another folder), in the
 layout emulators use: `mods/<name>/romfs/...` holds files that replace or add to the game's own. Deeper layouts such as
-`mods/contents/<title id>/<name>/romfs` work too. A folder whose name starts with `-` or `_` is off. When two mods
-have the same file, the one whose whole path relative to `mods` sorts last (ignoring case) wins. Use `01-...`, `02-...`
-at the same level to set the order. Stop the game before changing mods, then restart.
+`mods/contents/<title id>/<name>/romfs` work too. Hookshot reads the folder as the game starts.
+
+**Turning mods on and off: Gameplay → Mods.** The menu's Mods page lists every mod it found, in load order, each with its
+number of files and Off or On. <kbd>Up</kbd> and <kbd>Down</kbd> choose a mod; <kbd>Left</kbd>, <kbd>Right</kbd> or
+<kbd>Enter</kbd> turn it on or off; <kbd>Q</kbd> and <kbd>E</kbd> (or <kbd>Tab</kbd>, LB and RB on a controller) move it
+up or down the order. With the mouse, click Off or On, or the arrows beside the chosen mod. When two mods have the same
+file, the one lower in the list wins it: a mod's line names the mod on that shares files with it and which of the two
+wins, and the help beside the list names every one. Changes apply after a restart (closing the menu asks, as for the
+other settings that need one). Your folders are never renamed: the page keeps its choice in `mods/hookshot-mods.ini`, a
+text file you can also edit, with the game closed:
+
+```ini
+; Hookshot's mod list. The Insert menu's Mods page (Gameplay, Mods) writes it; edit it with the game closed.
+HD Textures = on
+Classic Voice = off
+contents/0100000000000000/Retro Models = on
+```
+
+A line a mod: its folder in the `mods` folder (`/` between folders, in any case), then `= on` or `= off` (a name alone
+is on); lines starting with `;` are comments. The lines are the load order, the first loading first. Mods the file does
+not name load after them, on, in name order; with no file at all that is every mod, so the one whose path in `mods`
+sorts last (ignoring case) wins (name them `01-...`, `02-...` to set the order without the file). A folder whose name
+starts with `-` or `_` is off whatever the file says, and so are the mods in it: the page lists them greyed; rename the
+folder to manage them there.
+A line for a folder that is not there is kept, for when it is back.
 
 Only RomFS mods are loaded. `exefs` patches (`.pchtxt`, `.ips`) are left out: Hookshot compiles the game's code ahead
-of time, so patching its instructions would need a rebuild. The log (`hookshot_log.txt`) names each mod and the files
-read from it.
+of time, so patching its instructions would need a rebuild. The log (`hookshot_log.txt`) has a line for each mod as the
+game starts (`mods: #1 HD Textures: on, 1234 RomFS files`), one for each two mods on that have files in common and which
+of them loads, and names the files read from the mods.
 
 A mod file larger than the game's own does not load unless the resource size table allows for it:
 `System/Resource/ResourceSizeTable.Product.111.Nin_Ounce_NVN2.rsizetable.zs` gives each file the memory the game sets
 aside for it (by the CRC32 of its path without `.zs`; for a texture, its decompressed size + 280). Past that, the game
 goes on without the mod's file, or a loading screen waits for good. A mod that makes files bigger (HD
 textures, longer parameter files) ships the table with its entries grown. Since only one mod's table is used, mods that
-each grow files need one table with all their entries, in the mod that sorts last. Hookshot merges the button prompts'
+each grow files need one table with all their entries, in the mod that loads last. Hookshot merges the button prompts'
 entries into that table (each file gets the larger of the two), so your controller's icons stay in texts; the log says
 `(with the button prompts' sizes merged in)` after the table's line. A table it cannot read that way (not the game's
 format, or a zstd frame that does not give its size) is used as it is, with the Switch's icons.

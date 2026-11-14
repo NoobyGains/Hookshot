@@ -5,7 +5,8 @@
     nothing else from the game folder (saves, caches, the options file and the log stay out), from both the C++ and the Python;
   - the report is the issue's template filled in: every field in order, the version, the OS, the GPU and its driver from the
     game's log, the output, the upscaler and the 3D's size, frame generation and HDR from hookshot_options.ini, the mods the game
-    loads (host/mods.c's rule), "where you played" left empty, and no path of the player's;
+    loads (host/mods.c's rule: not those mods/hookshot-mods.ini turns off), "where you played" left empty, and no path of the
+    player's;
   - a list that is missing, not a list, cut short or empty is refused with the reason, and no zip is written;
   - the C++ and the Python agree: the same fields, the same checks; the Python's names for the options are the menu's;
   - the list holds only pipelines the game drew: state_record() is reached only from draw() (never the precompile, predicted
@@ -111,8 +112,10 @@ def game_folder(root, list_bytes=None):
         "[hos host] vk: driver: SomeDriver 1.2.3\n", encoding="utf-8")
     (g / "hookshot_version.txt").write_text("version=v2.1.0\n", encoding="utf-8")
     for d in ("mods/a/romfs", "mods/_off/romfs", "mods/-off2/romfs", "mods/contents/deep/b/romfs", "mods/notamod/x",
-              "user/save/1/slot_00"):
+              "mods/c/romfs", "mods/e/romfs", "user/save/1/slot_00"):
         (g / d).mkdir(parents=True)
+    # (the Mods page's list, mods/hookshot-mods.ini: c and e off, by any case and a value of either form; b named and on)
+    (g / "mods/hookshot-mods.ini").write_bytes(b"\xef\xbb\xbf; the menu's\r\nC = off\r\ncontents\\deep\\b = on\r\ne=0\r\n")
     (g / "user/save/1/slot_00/save.bin").write_bytes(b"save")
     return g
 
