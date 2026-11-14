@@ -3072,6 +3072,35 @@ void set_row(Row& r, int v, int dir, bool keep = true) {
 }
 
 // ---- (hookshot) the Controls page: what presses each of the Switch's buttons, a gamepad input and up to two keys ----
+/// A symbol key as the player's keyboard layout prints it, with its name: "' (Apostrophe)"; null when the layout has none
+const char* symbol_key_name(int vk) {
+    static char b[48];
+#ifdef _WIN32
+    const UINT m = MapVirtualKeyW((UINT)vk, MAPVK_VK_TO_CHAR);
+    const wchar_t ch = (wchar_t)(m & 0xffff);   // (a dead key's flag is the top bit: the accent itself)
+#else   // (Linux: the US layout's, as the key codes are)
+    static const char us[] = ";=,-./`";   // (VK_OEM_1 0xBA to VK_OEM_3 0xC0)
+    static const char us2[] = "[\\]'";    // (VK_OEM_4 0xDB to VK_OEM_7 0xDE)
+    const wchar_t ch = vk >= 0xBA && vk <= 0xC0 ? (wchar_t)us[vk - 0xBA] : vk >= 0xDB && vk <= 0xDE ? (wchar_t)us2[vk - 0xDB] : 0;
+#endif
+    if (!ch || ch < 0x21) return nullptr;
+    static const struct { wchar_t c; const char* name; } names[] = {
+        {L'`', "Backtick"}, {L'\'', "Apostrophe"}, {L'"', "Quote"}, {L';', "Semicolon"}, {L':', "Colon"},
+        {L'=', "Equals"}, {L'+', "Plus"}, {L',', "Comma"}, {L'-', "Minus"}, {L'.', "Period"}, {L'/', "Slash"},
+        {L'\\', "Backslash"}, {L'[', "Left bracket"}, {L']', "Right bracket"}, {L'~', "Tilde"}, {L'^', "Caret"},
+        {L'<', "Less than"}, {L'>', "Greater than"}, {L'#', "Hash"}, {0x00b4, "Acute"}, {0x00a8, "Diaeresis"},
+        {0x00e7, "C cedilla"}, {0x00b0, "Degree"}, {0x00a7, "Section"}, {0x00f1, "N tilde"},
+    };
+    char c8[8] = {};
+#ifdef _WIN32
+    WideCharToMultiByte(CP_UTF8, 0, &ch, 1, c8, sizeof c8 - 1, nullptr, nullptr);
+#else
+    c8[0] = (char)ch;   // (ASCII, the table above)
+#endif
+    for (const auto& n : names)
+        if (n.c == ch) return snprintf(b, sizeof b, "%s (%s)", c8, n.name), b;
+    return snprintf(b, sizeof b, "%s", c8), b;
+}
 struct Control {
     int button;   // HOS_SW_*, or HOS_KEY_* (the stick's and camera's: keys only)
     const char* name;
@@ -3127,35 +3156,6 @@ const char* pad_name(int p) {
          "D-pad right", "L2", "R2"}};
     const int face = opts.prompts ? opts.prompts - 1 : host && host->prompt_face ? host->prompt_face() : -1;
     return t[face >= 0 && face < HOS_PROMPT_KEYBOARD ? face + 1 : 0][p];
-}
-/// A symbol key as the player's keyboard layout prints it, with its name: "' (Apostrophe)"; null when the layout has none
-const char* symbol_key_name(int vk) {
-    static char b[48];
-#ifdef _WIN32
-    const UINT m = MapVirtualKeyW((UINT)vk, MAPVK_VK_TO_CHAR);
-    const wchar_t ch = (wchar_t)(m & 0xffff);   // (a dead key's flag is the top bit: the accent itself)
-#else   // (Linux: the US layout's, as the key codes are)
-    static const char us[] = ";=,-./`";   // (VK_OEM_1 0xBA to VK_OEM_3 0xC0)
-    static const char us2[] = "[\\]'";    // (VK_OEM_4 0xDB to VK_OEM_7 0xDE)
-    const wchar_t ch = vk >= 0xBA && vk <= 0xC0 ? (wchar_t)us[vk - 0xBA] : vk >= 0xDB && vk <= 0xDE ? (wchar_t)us2[vk - 0xDB] : 0;
-#endif
-    if (!ch || ch < 0x21) return nullptr;
-    static const struct { wchar_t c; const char* name; } names[] = {
-        {L'`', "Backtick"}, {L'\'', "Apostrophe"}, {L'"', "Quote"}, {L';', "Semicolon"}, {L':', "Colon"},
-        {L'=', "Equals"}, {L'+', "Plus"}, {L',', "Comma"}, {L'-', "Minus"}, {L'.', "Period"}, {L'/', "Slash"},
-        {L'\\', "Backslash"}, {L'[', "Left bracket"}, {L']', "Right bracket"}, {L'~', "Tilde"}, {L'^', "Caret"},
-        {L'<', "Less than"}, {L'>', "Greater than"}, {L'#', "Hash"}, {0x00b4, "Acute"}, {0x00a8, "Diaeresis"},
-        {0x00e7, "C cedilla"}, {0x00b0, "Degree"}, {0x00a7, "Section"}, {0x00f1, "N tilde"},
-    };
-    char c8[8] = {};
-#ifdef _WIN32
-    WideCharToMultiByte(CP_UTF8, 0, &ch, 1, c8, sizeof c8 - 1, nullptr, nullptr);
-#else
-    c8[0] = (char)ch;   // (ASCII, the table above)
-#endif
-    for (const auto& n : names)
-        if (n.c == ch) return snprintf(b, sizeof b, "%s (%s)", c8, n.name), b;
-    return snprintf(b, sizeof b, "%s", c8), b;
 }
 const char* key_name(int vk) {
     static char b[16];
