@@ -10,7 +10,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import make_setup_parts  # noqa: E402
 
-GONE = "https://github.com/NotRexed/Hookshot/releases/download/builder-parts/HookshotBuilder-emsdk-b4c8fc476654.zip"
+GONE = "https://github.com/a-deleted-owner/Hookshot/releases/download/builder-parts/HookshotBuilder-emsdk-b4c8fc476654.zip"
 UP = "https://github.com/notquiteog/Hookshot/releases/download/builder-parts/HookshotBuilder-cpm-6f93a2427b13.zip"
 BASE = "https://github.com/NoobyGains/Hookshot/releases/download/builder-parts"
 SHA = "b4c8fc476654d7657806180039b3a96050c104cf6a93dab1cc5c027277ece368"

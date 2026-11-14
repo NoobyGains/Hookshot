@@ -16,7 +16,7 @@ release lacks). Scripts the build does not use (.ps1, .bat, .js,
 package made in CI (.github/workflows/windows-builder.yml) carries the Python, emsdk, CPM and wgpu-native parts the maintainer
 made. Without the folder and without the part in that list it is an error. A reused part is served from --base when that
 release has the same file (served_from): a list from another repository's release may name a release that is gone (the
-deleted NotRexed/Hookshot's builder-parts, whose emsdk and wgpu-native zips every list since v2.1.0 carried), and a part this
+builder-parts of a repository that was deleted, whose emsdk and wgpu-native zips every list since v2.1.0 carried), and a part this
 repository serves itself does not depend on it. A part found in neither place is an error that names the file to upload.
 """
 import argparse
