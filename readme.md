@@ -1523,11 +1523,11 @@ The total stays between 0 and what his wallet holds (200, 500 with the Adult's W
 
 The Teleport list shows a picture of the chosen destination above its help, taken from your own game: while Debug tools is
 on, the first time Link stays a few seconds in a place, with no map loading and no cutscene, Hookshot keeps a screenshot of
-it, one file a place, in the `teleport_pictures` folder in the game folder (nothing is shipped or sent anywhere). It shows the picture for Link's current age, or the other age's when there is
-only that one. To replace a picture, choose a button in **Retake picture** (a key, a mouse button or a controller button
-the game and Hookshot don't already use; `retake_key` in `hookshot_options.ini`), then press it in play: the screenshot is
-taken again where you are. **Free camera** with a retake gets views Link can't reach. Delete the `teleport_pictures` folder
-to start over.
+it, one file a place, in the `teleport_pictures` folder in the game folder (nothing is shipped or sent anywhere). It shows
+the picture for Link's current age, or the other age's when there is only that one. To replace a picture, choose a button in
+**Retake picture** (a key, a mouse button or a controller button the game and Hookshot don't already use; `retake_key` in
+`hookshot_options.ini`), then press it in play: the screenshot is taken again where you are. **Free camera** with a retake
+gets views Link can't reach. Delete the `teleport_pictures` folder to start over.
 
 `RX_VK_UI_GAME_FONT=0` draws the menu with the included font (Libertinus) even when the game's files have the game's own
 menu font. `RX_VK_UI_PROMPTS=pad` (or `keys`) shows the controller's (or the keyboard's) prompts whatever was used last,
