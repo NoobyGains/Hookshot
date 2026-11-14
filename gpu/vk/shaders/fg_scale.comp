@@ -20,10 +20,11 @@ layout(binding = 2) uniform sampler2D small;
 // (and the FXAA, Bloom and Colour grade rows, last on the picture before the sides: vk_framegen.cpp framegen_scale. From Ocarina
 // Reborn. Look 0 is the picture untouched; the grade's saturation and contrast are around mid grey, warm (+) or cool (-) its
 // white balance, and the vignette a soft darkening of the corners. Bloom 0 is none, 1 the glow at its strongest. And the Retro
-// look row, retro: 0 Off, 1 N64, 2 N64 + CRT, in the filter's place: retro() below)
+// look row, retro: 0 Off, 1 N64, 2 N64 + CRT, in the filter's place: retro() and crt() below, N64 + CRT's rows with it)
 layout(push_constant) uniform P { int mode; float sharp; float x0; float x1; int side; float cover;
                                   float sat; float contrast; float warm; float vignette; int look; float bloom; int fxaa;
-                                  int retro; } pc;
+                                  int retro; float scan; int mask; float mask_str; float glow; float warp_x; float warp_y;
+                                  float corner; } pc;
 // (and the loading cover between two areas, which the game draws in that middle too: pc.cover, 0 open to 1 closed, closes the
 // sides by as much. The game blends its cover over the picture's light, before the picture is coded for the screen (measured:
 // under a half-open cover a pixel's light is the same fraction of its light without it at every brightness, its code is
@@ -203,9 +204,8 @@ vec3 fxaa(vec2 uv) {
 }
 // the Retro look row: the picture as the Nintendo 64 made it, 240 lines (small: side 3's dispatch makes each of its pixels the
 // mean of its block of the picture), each pixel's colour cut to the 5 bits a channel of the console's 16-bit picture with the
-// console's own ordered dither, then drawn at the window's size with the linear filter: N64, its dither showing in smooth
-// light such as the sky. Retro 2, N64 + CRT, as a TV of the day showed it: softer side to side (its analog picture), which
-// hides most of the dither, with faint scanlines and darker corners.
+// console's own ordered dither. N64 (retro()) draws it at the window's size with the linear filter, its dither showing in smooth
+// light such as the sky; N64 + CRT (crt()) shows it on a CRT.
 // The dither is the RDP's magic square (angrylion-rdp-plus, rdp/dither.c): a channel goes up a step when the part of a step it
 // loses is more than the square's value, in eighths, at that pixel; the square repeats every 4 x 4 pixels, fixed to the screen
 const int kMagic[16] = int[](0, 6, 1, 7, 4, 2, 5, 3, 3, 5, 2, 4, 7, 1, 6, 0);
@@ -223,38 +223,77 @@ vec3 retro_pixel(ivec2 t, ivec2 size) {
     }
     return n64_colour(c, t);
 }
-// N64 + CRT's scanlines: each line of the small picture brightest in its middle (t 0.5) and darker between lines, by k, its mean
-// light kept. Under 3 of the window's pixels to a line cannot show them: less from 3 down to none at 2
-float crt_lines(float t, float lines) {
-    const float k = 0.25 * clamp(lines - 2.0, 0.0, 1.0);
-    return (1.0 - k * (0.5 + 0.5 * cos(6.28318531 * t))) / (1.0 - 0.5 * k);
-}
-vec3 retro(vec2 uv, ivec2 d) {
+vec3 retro(vec2 uv) {
     const ivec2 size = textureSize(small, 0);
     const vec2 p = uv * vec2(size) - 0.5;
     const ivec2 b = ivec2(floor(p));
     const vec2 f = p - vec2(b);
-    // (across, a tent of the linear filter's 1 pixel to each side, or for the CRT 1.5: a fifth to each neighbour)
-    const float across = pc.retro == 2 ? 1.5 : 1.0;
-    vec3 line[2];
-    for (int y = 0; y < 2; y++) {
-        vec3 sum = vec3(0.0);
-        float weight = 0.0;
-        for (int x = -1; x <= 2; x++) {
-            const float w = max(1.0 - abs(float(x) - f.x) / across, 0.0);
-            if (w <= 0.0) continue;   // (the outer two with the linear filter's 1)
-            sum += w * retro_pixel(b + ivec2(x, y), size);
-            weight += w;
-        }
-        line[y] = sum / weight;
+    return mix(mix(retro_pixel(b, size), retro_pixel(b + ivec2(1, 0), size), f.x),
+               mix(retro_pixel(b + ivec2(0, 1), size), retro_pixel(b + ivec2(1, 1), size), f.x), f.y);
+}
+// N64 + CRT, after Timothy Lottes' CRT shader (public domain: libretro glsl-shaders crt/shaders/crt-lottes.glsl, "Please take
+// and use, change, or whatever"), worked in light, not in the picture's codes. Each of the 240 lines' pixels is a spot softened
+// across by his Gaussian (hardPix, kHardPix); each line a beam of light (crt_beam), the three nearest adding up; his small bloom
+// as a glow, from 4 linear taps of the small picture; the mask (crt_mask) on the window's own pixels; his curvature (warpX,
+// warpY) with darker corners. The rows: pc.scan, mask, mask_str, glow, warp_x, warp_y, corner (vk_framegen.cpp framegen_scale).
+// Never on the game's own HDR10 picture (framegen_scale's retro is 0 there)
+const float kHardPix = -3.0;
+// the picture's code to light as gamma 2.0, and back by its square root (crt_code): crt-pi's "fake gamma", near sRGB's ~2.2 and
+// an exact pair, so a flat colour comes back as it went in, for a multiply where the 13 reads a window pixel makes would each
+// cost a pow
+vec3 crt_lin(vec3 c) { return c * c; }
+vec3 crt_code(vec3 l) { return sqrt(clamp(l, 0.0, 1.0)); }
+// a line's light at distance d from its middle, in lines: Lottes' Gaussian exp2(scan * d * d), each channel's beam wider as the
+// channel is brighter (by up to kWiden: bright parts fill out, dark parts show the lines, as a CRT's beams did), scaled to keep
+// the line's light (the beam's integral 1: times sqrt(-scan ln 2 / pi)), so scanlines never darken the picture. scan 0: none,
+// the lines' light shared linearly between them
+const float kWiden = 0.35;
+vec3 crt_beam(vec3 line, float d, float scan) {
+    if (scan >= 0.0) return line * max(1.0 - abs(d), 0.0);
+    const vec3 s = scan * (1.0 - kWiden * clamp(line, 0.0, 1.0));
+    return line * exp2(s * (d * d)) * sqrt(-s * 0.2206356);
+}
+// the mask, on the window's pixel g: Lottes' masks (1 his aperture grille, red, green and blue stripes; 2 his "very compressed
+// TV style" slot mask, the stripes' rows lit in turn, a step apart every 3 columns; 3 his "stretched VGA" shadow mask, 2-pixel
+// phosphors a third of a triad along each row). A phosphor is 1 + strength where lit, 1 - strength where not (his maskLight and
+// maskDark: strength 0.5), over the mask's mean, 1 - strength / 3, so the picture keeps its light. Type 0: none
+vec3 crt_mask(ivec2 g, int type, float strength) {
+    if (type == 0) return vec3(1.0);
+    const float dark = 1.0 - strength, light = 1.0 + strength;
+    const int lit = type == 3 ? (g.x + 3 * g.y + 2) % 6 / 2 : g.x % 3;
+    vec3 m = vec3(lit == 0 ? light : dark, lit == 1 ? light : dark, lit == 2 ? light : dark);
+    if (type == 2) m *= ((g.y + (g.x % 6 < 3 ? 1 : 0)) & 1) == 0 ? dark : light;
+    return m / (1.0 - strength / 3.0);
+}
+vec3 crt(vec2 uv, ivec2 g, ivec2 d) {
+    vec2 w = uv * 2.0 - 1.0;   // (Lottes' Warp: each side bowed by the square of the other axis)
+    w *= vec2(1.0 + w.y * w.y * pc.warp_x, 1.0 + w.x * w.x * pc.warp_y);
+    const vec2 cuv = w * 0.5 + 0.5;
+    const vec2 edge = min(cuv, 1.0 - cuv) * vec2(d);   // (the screen's edge, a window pixel soft)
+    const float inside = clamp(min(edge.x, edge.y) + 0.5, 0.0, 1.0);
+    if (inside <= 0.0) return vec3(0.0);
+    const ivec2 size = textureSize(small, 0);
+    const vec2 q = cuv * vec2(size);
+    const ivec2 t = ivec2(floor(q));
+    const vec2 f = q - vec2(t) - 0.5;   // (from the middle of pixel t, in its pixels)
+    const vec3 dx = f.x - vec3(-1.0, 0.0, 1.0);
+    const vec3 wx = exp2(kHardPix * dx * dx);
+    vec3 c = vec3(0.0);
+    for (int j = -1; j <= 1; j++) {
+        const vec3 line = (crt_lin(retro_pixel(t + ivec2(-1, j), size)) * wx.x + crt_lin(retro_pixel(t + ivec2(0, j), size)) * wx.y +
+                           crt_lin(retro_pixel(t + ivec2(1, j), size)) * wx.z) / (wx.x + wx.y + wx.z);
+        c += crt_beam(line, f.y - float(j), pc.scan);
     }
-    vec3 c = mix(line[0], line[1], f.y);
-    if (pc.retro == 2) {
-        c *= crt_lines(fract(p.y + 0.5), float(d.y) / float(size.y));
-        const float r = length((uv - 0.5) * vec2(1.0, 0.75)) * 1.6;   // (0 in the middle, about 1 in the corners, as grade())
-        c *= 1.0 - 0.22 * smoothstep(0.5, 1.1, r);
+    if (pc.glow > 0.0) {   // (dimmed with the loading cover outside the middle as the pixels are)
+        const vec2 o = 0.6 / vec2(size);
+        vec3 glow = crt_lin(textureLod(small, cuv - o, 0.0).rgb) + crt_lin(textureLod(small, cuv + vec2(o.x, -o.y), 0.0).rgb) +
+                    crt_lin(textureLod(small, cuv + vec2(-o.x, o.y), 0.0).rgb) + crt_lin(textureLod(small, cuv + o, 0.0).rgb);
+        if (pc.cover > 0.0 && (cuv.x < pc.x0 || cuv.x > pc.x1)) glow *= 1.0 - pc.cover;
+        c += glow * (0.25 * pc.glow);
     }
-    return clamp(c, 0.0, 1.0);
+    c *= crt_mask(g, pc.mask, pc.mask_str);
+    const float r = length((uv - 0.5) * vec2(1.0, 0.75)) * 1.6;   // (0 in the middle, about 1 in the corners, as grade())
+    return crt_code(c * ((1.0 - pc.corner * smoothstep(0.5, 1.1, r)) * inside));
 }
 // (and less than one of the destination's steps of noise over it, kSteps: the dim, smooth sides showed 8-bit steps as contour lines)
 float dither(ivec2 g) { return (fract(52.9829189 * fract(0.06711056 * float(g.x) + 0.00583715 * float(g.y))) - 0.5) / kSteps; }
@@ -285,7 +324,7 @@ void main() {
     }
     // (FXAA in the window filter's place; not while the loading cover dims the sides, which only the filter's taps do. The Retro
     // look in the place of both, from its own small picture, which it dims under the cover itself; framegen_scale's sharp is 0)
-    vec3 c = pc.retro != 0 ? retro(uv, d) : pc.fxaa != 0 && pc.cover <= 0.0 ? fxaa(uv) : filtered(uv);
+    vec3 c = pc.retro == 2 ? crt(uv, g, d) : pc.retro != 0 ? retro(uv) : pc.fxaa != 0 && pc.cover <= 0.0 ? fxaa(uv) : filtered(uv);
     if (pc.sharp > 0.0) {
         // The neighbours one picture pixel away (one window pixel when the window is the smaller). They were one window
         // pixel away, a fraction of a picture pixel when the window is larger (0.53 for 2048 x 1152 on a 3840 x 2160

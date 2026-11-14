@@ -3932,7 +3932,8 @@ void do_present(const nvn_tex* t, const int crop[4], float cover) {
                                                                                         : "the SDR picture expanded to HDR10");
             }
         }
-        if (tex && !dev.offscreen && (window_filter() || opts.sharpness || dev.hdr || wide_sides_possible())) {   // (and ultrawide's menu sides)
+        // (and ultrawide's menu sides, and the window pass's own rows: scale_post_wanted)
+        if (tex && !dev.offscreen && (window_filter() || opts.sharpness || dev.hdr || wide_sides_possible() || scale_post_wanted())) {
             // Keep the sampled view with the same cached image as the direct present, before advancing its age.
             direct_view = texture_view(tex, t, nullptr, VK_IMAGE_VIEW_TYPE_2D, ViewUse::Sample);
             tex->last_frame = texture_frame_no();
