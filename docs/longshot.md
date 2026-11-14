@@ -41,6 +41,8 @@ upstream #3004 here), #329, #357, #358, #369, #400. Where a pick met this tree's
   Longshot holds all of Navi 24 out.
 - #248 (the late pages' fix): this tree's mirror-sync pass (upstream #3023) keeps the write-back shadow following the
   sync too.
+- #172 (below) changes the first start's Output resolution: the game's 2048x1152, or a smaller screen's own size, and
+  Auto (this PC) no longer chooses it (upstream #2566's choice by tier is gone, as on NotRexed's Hookshot).
 - New runs Longshot keeps as `docs/tested/*.md` files (#96, which is not taken: this tree keeps one table) are rows of
   [tested configurations](tested-configurations.md), unchanged.
 
@@ -52,7 +54,7 @@ Not taken yet:
 | Longshot | What | Why not yet |
 |---|---|---|
 | #321 | The shader caches and button prompts in the game folder's `cache`, the logs in its `logs` | Moves files players and this tree's scripts read beside the game (`hookshot_log.txt` above all): needs every reader here (75 files) and the owner's go-ahead, in a pull request of its own |
-| #292 | A new install draws 2560x1440, not 2048x1152 | Rests on #172 (not taken: upstream #2566 has Auto choose the Output resolution here) |
+| #292 | A new install draws 2560x1440, not 2048x1152 | A new default: not taken, the main session's decision (2026-11-14) |
 | #151 | The setup copies the Builder from a zip deeper than MAX_PATH | This tree's setup does not copy a Builder from its zip (Longshot #171, #181) |
 
 Left out on purpose: #96 (its process: run files and a frozen table, with its website), #273 (the stale keys it removes
@@ -67,16 +69,15 @@ Already here from upstream, under other hashes: #49 (= upstream #2929), #77 (= #
 #4 (`third_party/zbic` is carried whole), #63 (`host/rx_backend.c` already steps over 256 clear marks at a time), #174
 (this tree compiles the Linux back end itself, and the AppImage carries `third_party/fidelityfx`).
 
-Not taken yet, each worth its own pull request:
+Taken since, from this list: #15 (the segment heap), #159 (the fog and exposure docs), #172 (a new install's Output
+resolution, and Auto no longer choosing it) and #234 (quick pipelines, off by default as in Longshot).
+
+Not taken yet:
 
 | Longshot | What | Why not yet |
 |---|---|---|
-| #234 | Quick pipelines for draws whose full build is not done | A feature with its own performance measurement |
-| #107 | OoT's clustered lights sample their own shadow maps | Changes the shader translator, so every cache is prepared again; needs a visual check |
-| #15 | The segment heap, so the driver's compiles run side by side (Windows) | Windows only: measure on Windows |
+| #107 | OoT's clustered lights sample their own shadow maps (Lichii's descriptor arrays) | This tree has its own implementation of the same mechanism (upstream #3047, `ac77296e`: `HandleOp::Index`, `RX_VK_HANDLE_TABLE`), for the water's squares (#2509). The two rewrite the same texture pass; whether ours also clears #52's blocks (Zora's Domain ice, the snow) is to be seen in the game first |
 | #158, #164, #167 | Compile shaders All / Most / None | In the Builders, which differ here |
-| #172 | A new install starts at its screen's size | Overlaps upstream #2566's choice of the output by tier, which this tree has |
-| #159 | Fog and exposure docs | Check against this tree's renderer first |
 
 Left out on purpose: the rename (`e2a4d453`), Discord as Longshot's (#10, #194), its README, website and docs (#9,
 #11, #104, #114, #168, #192, #193, #210, #214, #257, #258, #274), its nightly version display (#170), its Forgejo forge
