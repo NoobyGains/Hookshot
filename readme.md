@@ -1,68 +1,91 @@
-<h1 align="center">
-  <br>
-  <a>
-  <img src="assets/hookshot.png" alt="Hookshot" width="200">
-</a>
-
-  <br>
-  <b>Hookshot</b>
-  <br>
-</h1>
-
-<h4 align="center">The Legend of Zelda: Ocarina of Time (Nintendo Switch 2) running natively on Windows & Linux, with no emulator.
-</h4>
-
-> **About this copy (NoobyGains/Hookshot).** The original repository, `NotRexed/Hookshot`, is no longer on GitHub.
-> This fork now follows [**notquiteog/Hookshot**](https://github.com/notquiteog/Hookshot), the active continuation:
-> releases, updates and new work come from there, and this fork's `main` is kept in step with it. GitHub still shows
-> "forked from NotRexed/Hookshot" above, because a fork's parent cannot be changed.
->
-> What this fork adds, from getting the game running in HDR on an RTX 5090 at 4K:
->
-> - [`scripts/windows/launch-hdr.ps1`](scripts/windows/launch-hdr.ps1): copy it beside `hookshot.exe` and start the
->   game with it. It turns Windows' "Use HDR" on for one display, sets the HDR rows (and DLAA and frame generation when
->   asked), starts the game, and puts Windows back when the game closes. `-List` shows your displays. It includes the
->   Windows 11 24H2 fix, where the older switch turns on wide colour instead of HDR.
-> - The RTX 5090 run in [docs/tested-configurations.md](docs/tested-configurations.md): 4K, HDR Native, DLAA, frame
->   generation 2x to 4x with V-Sync on and off.
->
-> Both are offered upstream in [notquiteog/Hookshot#36](https://github.com/notquiteog/Hookshot/pull/36). Links below to
-> `NotRexed/Hookshot` issues and pull requests are from before the removal and no longer open.
-
-
 <p align="center">
-  <a href="#project-status">Status</a> |
-  <a href="#install-and-play">Install and play</a> |
-  <a href="#in-game-menu">In-game menu</a> |
-  <a href="#if-something-goes-wrong">Problems</a> |
-  <a href="#build-from-source">Build from source</a> |
-  <a href="#how-it-works">How it works</a> |
-  <a href="#want-to-help">Want to help?</a> |
-  <a href="#credits">Credits</a> |
-  <a href="#license">License</a>
+  <img src="assets/brand/hero.gif" alt="Hookshot: Ocarina of Time running natively on Windows and Linux, with no emulator" width="800">
 </p>
 
-Hookshot is a static recompilation. The game's code is translated to C and compiled into a Windows or Linux program,
-the console's system software is reimplemented, and the Switch 2 graphics are rebuilt on Vulkan. All of this happens
-**on your PC, from your own copy of the game**.
-<br>
+<p align="center">
+  <strong>The Legend of Zelda: Ocarina of Time (Nintendo Switch 2) running natively on Windows and Linux. No emulator: the game is rebuilt on your PC, from your own copy.</strong>
+</p>
 
-> [!WARNING]
-> Some users report the file in releases to be a Trojan - it is not. Feel free to run it through any antivirus software
+<p align="center">
+  <a href="https://github.com/NoobyGains/Hookshot/stargazers"><img src="https://img.shields.io/github/stars/NoobyGains/Hookshot?style=flat-square&color=f59e0b" alt="GitHub stars"></a>
+  <a href="https://github.com/notquiteog/Hookshot/releases"><img src="https://img.shields.io/github/v/release/notquiteog/Hookshot?include_prereleases&style=flat-square&label=release&color=34d399" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/Windows%20%7C%20Linux-64--bit-64748b?style=flat-square" alt="Windows and Linux, 64-bit">
+  <img src="https://img.shields.io/badge/Vulkan-1.3%20%2B%20mesh%20shaders-ac162c?style=flat-square&logo=vulkan&logoColor=white" alt="Vulkan 1.3 with mesh shaders">
+  <img src="https://img.shields.io/badge/DLSS%20%7C%20FSR%204%20%7C%20HDR-22d3ee?style=flat-square" alt="DLSS, FSR 4 and HDR">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-0ea5e9?style=flat-square" alt="License: GPL-3.0-or-later"></a>
+</p>
 
-
-Discord: https://discord.gg/rexed
-<br>
+<p align="center">
+  <a href="#project-status">Status</a> •
+  <a href="#install-and-play">Install and play</a> •
+  <a href="#in-game-menu">In-game menu</a> •
+  <a href="#if-something-goes-wrong">Problems</a> •
+  <a href="#build-from-source">Build from source</a> •
+  <a href="#how-it-works">How it works</a> •
+  <a href="#roadmap">Roadmap</a> •
+  <a href="#want-to-help">Want to help?</a> •
+  <a href="#credits">Credits</a> •
+  <a href="#license">License</a>
+</p>
 
 > [!IMPORTANT]
 > This repository **does not contain the game, keys or an executable**, and it does not explain how to get them. You
 > need your own copy. Everything the build creates (`hookshot.exe`, the generated code, the shader caches and your
 > saves) comes from your game and stays on your PC. Never share those files.
 
+## Why Hookshot
+
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>⚙️ Native, not emulated</h3>
+      A static recompilation: the game's code is translated to C and compiled into a Windows or Linux program, and its Switch 2 graphics are rebuilt on Vulkan.
+    </td>
+    <td width="33%" valign="top">
+      <h3>🔭 Sharper than the console</h3>
+      Your monitor's resolution, with NVIDIA DLSS and DLAA, AMD FSR 3.1 and FSR 4, ultrawide and 4:3, and HDR10 out.
+    </td>
+    <td width="33%" valign="top">
+      <h3>🚀 Faster than the console</h3>
+      Frame rate caps from 60 to 240 FPS or uncapped, frame generation from 2x to 8x, NVIDIA Reflex and AMD Anti-Lag 2.
+    </td>
+  </tr>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>🧰 One Builder, one button</h3>
+      Hookshot Builder brings its own compiler and tools, builds the game in about 10 to 45 minutes, and its launcher keeps it up to date.
+    </td>
+    <td width="33%" valign="top">
+      <h3>🎮 Made for PC play</h3>
+      An in-game menu for every setting, controller, keyboard and mouse camera, motion controls, layout presets and button prompts.
+    </td>
+    <td width="33%" valign="top">
+      <h3>🧩 Mods and saves</h3>
+      A <code>mods</code> folder in the layout emulators use, and saves that stay on your PC.
+    </td>
+  </tr>
+</table>
+
+## Quick start
+
+1. Download `HookshotBuilder.exe` (Windows) or the AppImage (Linux) from the
+   [latest release](https://github.com/notquiteog/Hookshot/releases/latest).
+2. Run it and pick your game copy: a `.nup` file, or the `romfs` and `exefs` folders.
+3. Press **Build the game** and wait about 10 to 45 minutes.
+4. Press **Play**. The first start prepares the game's shaders; later starts are faster.
+
+You need a graphics card with Vulkan 1.3 and mesh shaders (GeForce RTX 20 or newer, Radeon RX 6000 or newer, Intel
+Arc), 16 GB of RAM and about 60 GB free while building. The [full guide](#install-and-play) has every step.
+
 ## Project status
 
 Experimental. Players have reported on many PCs, from Kokiri Forest to the dungeons: the table says what works and
 what does not yet. Open problems are collected in tracking issues, linked below.
+
+This repository is developed and play-tested on a GeForce RTX 5090 and a Ryzen 9 9950X3D (Windows 11, 4K at 240 Hz, HDR); every run, on this PC and on others' hardware, is in [docs/tested-configurations.md](docs/tested-configurations.md).
+
+<details>
+<summary><b>The full status table</b></summary>
 
 | What | Status |
 |---|---|
@@ -82,7 +105,42 @@ what does not yet. Open problems are collected in tracking issues, linked below.
 | Cards without mesh shaders (such as AMD RX 5000 and older) | ❌ Not supported: parts of the picture are missing. Since v2.0.6 a fallback runs the mesh programs as compute shaders on cards with buffer device addresses ([#640](https://github.com/NotRexed/Hookshot/issues/640)); it leaves out the mesh draws that take their count from a buffer |
 | Linux | ✅ Works with the AppImage. Tested on several distributions (CachyOS, Fedora, Bazzite, SteamOS) and cards, with open problems on some AMD cards ([#1000](https://github.com/NotRexed/Hookshot/issues/1000)) |
 
+</details>
+
+## Roadmap
+
+Where the work is going. The order follows the scored [worklist](docs/worklist.md) (how bad a problem is, times how
+many players it reaches), so it changes as reports come in. Nothing here is a promise or a date.
+
+**Merged in this repository, ahead of the release**
+
+- Fixes brought over from the Longshot fork, and the game's occlusion queries answered with the GPU's real counts.
+- A moving floor carries Link above 100 FPS as it does at 60.
+- As many users as a game asks for, with a user selector, and each game in its own game, work and save folders.
+- Smaller fixes: service sessions answered properly, a headless run that ends on Ctrl+C again, a benchmark that never
+  leaves its game running, a cheaper texture upload path, and FSR's shared images kept until the GPU has finished
+  with them.
+
+**Next**
+
+- Memory that fills up over a long play session until the game slows or stops: the most reported problem.
+- Game logic that misbehaves above a 60 FPS cap (the Scarecrow's Song, looping animations in dialogue).
+- The Builder stalling or taking very long at "Preparing shaders".
+- Crashes and lost devices on AMD cards on Windows.
+- Low frame rates with an idle GPU in Castle Town and Hyrule Field, and stutter on camera turns in Kokiri Forest.
+- Objects, walls and doors that turn invisible.
+
+**Later**
+
+- A signed Builder, so antivirus programs stop flagging it.
+- Intel cards, which have few reports and many black screens.
+- Cards without mesh shaders, which today miss parts of the picture.
+- More games on the same engine ([one engine](docs/one-engine.md)).
+
 ## Install and play
+
+<details>
+<summary><b>The full install guide: what you need, Windows, Linux, updating, where the files go, problems</b></summary>
 
 The game does not come ready-made: Hookshot Builder builds it on your PC from your copy. You do this once. After that
 you start the game from its launcher, which also updates it.
@@ -304,7 +362,12 @@ use and cause stalls when the card runs out of headroom. To undo it, turn the ro
 is the same; BC7's mode 6 keeps the colours' gradients and alpha much better, and the textures look cleaner where BC3
 shows bands or blocks. Off unless set; `RX_VK_ASTC_RGBA8=1` above still wins when both are set.
 
+</details>
+
 ## In-game menu
+
+<details>
+<summary><b>Every row of the menu, the controls and what each setting does</b></summary>
 
 By default, press <kbd>Insert</kbd>, <kbd>F1</kbd> or <kbd>Esc</kbd> in game. On a controller, press Home or Select and
 Start together; on a DualShock 4 or DualSense, clicking the touchpad does the same as <kbd>F1</kbd>, unless a row of
@@ -793,7 +856,12 @@ combination. Streamline **2.14.1 or newer** -- older releases do not have the fe
 [docs/neural-rendering.md](docs/neural-rendering.md) has the whole picture, including what is
 measured and what is not.
 
+</details>
+
 ## Mods
+
+<details>
+<summary><b>Where mods go and how they load</b></summary>
 
 Put mods in a `mods` folder in the game folder, beside `hookshot.exe` (or point `HOS_MODS` at another folder), in the
 layout emulators use: `mods/<name>/romfs/...` holds files that replace or add to the game's own. Deeper layouts such as
@@ -816,7 +884,12 @@ format, or a zstd frame that does not give its size) is used as it is, with the 
 If a mod includes tables for several game versions, the prompts use the table name from the game's own RomFS,
 not the first table found in the mod. Other versions' tables do not change the prompts' font or its size entries.
 
+</details>
+
 ## Build from source
+
+<details>
+<summary><b>Building it yourself, and running the game from the command line</b></summary>
 
 For developers, and for players who prefer the command line. The builder windows run the same script,
 `nx2/make_game.py`. [CONTRIBUTING.md](CONTRIBUTING.md) has more.
@@ -1138,6 +1211,8 @@ compressed with zstd and unpacked when it is read. The uncompressed cache is abo
 
 </details>
 
+</details>
+
 ## How it works
 
 1. `nx2/lift.py` translates the game's ARM64 code to C.
@@ -1152,6 +1227,9 @@ More detail is in the [development guide](docs/development.md) and the [design n
 
 Testing on other graphics cards and reporting the result already helps a lot, and so does playing further into the
 game than anyone has yet.
+
+<details>
+<summary><b>Send your pipeline list, and other ways to help</b></summary>
 
 ### Send your pipeline list
 
@@ -1180,7 +1258,12 @@ Bigger ways to help:
 [CONTRIBUTING.md](CONTRIBUTING.md) has the setup, the test commands, the code conventions and what a good pull request
 looks like.
 
+</details>
+
 ## Credits
+
+<details>
+<summary><b>Everyone whose work Hookshot stands on</b></summary>
 
 Hookshot exists thanks to the work of many people:
 
@@ -1211,6 +1294,8 @@ Hookshot exists thanks to the work of many people:
   DLSS, DLAA and Reflex, the exposure flicker and fog fixes, build speed, CI), madebyjordan (AMD FSR 4.1), N3oTraX (FSR 4 on
   Linux), shayderrr, gab9281, Wpaif, nicholasgower, ZurielAtr, Joey-Magnus, Zorkats,
   d3zessete, chrispository, vzeol, leonidasmark, Segmentree, ShyVortex, hiKareeem and i900gaming, among others.
+
+</details>
 
 ## License
 
