@@ -136,7 +136,7 @@ when the game closes.
 ## Roadmap
 
 <p align="center">
-  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 5 done, 3 in progress, 6 coming next, 5 feature requests, each as a card. The same items are listed as text below." width="820">
+  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 5 done, 5 in progress, 6 coming next, 5 feature requests, each as a card. The same items are listed as text below." width="820">
 </p>
 
 **Done** is on `main` now. **In progress** is being worked on at the moment. **Coming next** is planned but not
@@ -165,6 +165,8 @@ reaches.
   the menu (after Timothy Lottes' public-domain CRT shader)
 - **Mod manager:** your own mods listed in the menu, on and off, their load order and conflicts
 - **Hero mode and quiet Navi:** double damage and no recovery hearts; Navi's callouts off
+- **Screenshot key:** F12 saves the picture as you see it (with the Retro look or Colour grade), as a PNG beside the game
+- **Brightness and colour vision:** a brightness slider for non-HDR displays and colour-blind modes (next after the CRT look)
 
 **⚪ Coming next**: planned, not started
 

@@ -34,6 +34,8 @@ STAGES = [
         ("panel:name:CRT", "A better CRT look", "Soft scanlines, phosphor mask, glow and curvature, each adjustable in the menu."),
         ("panel:name:Mods", "Mod manager", "Your own mods listed in the menu: on and off, load order, conflicts."),
         ("panel:name:Hero", "Hero mode, quiet Navi", "Double damage and no recovery hearts; Navi's callouts off."),
+        ("panel:name:F12", "Screenshot key", "F12 saves the picture as you see it, as a PNG beside the game."),
+        ("panel:name:Eyes", "Brightness, colour vision", "A brightness slider and colour-blind modes, after the CRT look."),
     ]),
     ("next", "COMING NEXT", "planned, not started", BLUE, [
         ("chart:memory", "Memory in long sessions", "Levels off at about 33 GB on a 96 GB PC; next, held to 16 GB."),
