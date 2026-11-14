@@ -6,7 +6,7 @@ using HookshotLauncher.Core;
 /// Hookshot save without the player's yes, and backing that save up first when it does.
 static partial class Program
 {
-    const string Id1 = "0123456789abcdef0123456789abcdef", Id2 = "fedcba9876543210fedcba9876543210";
+    const string Id1 = "0123456789abcdef0123456789abcdef", Id2 = "fedcba9876543210fedcba9876543210", Id3 = "00112233445566778899aabbccddeeff";
 
     static void CopyDir(string from, string to)
     {
@@ -81,12 +81,21 @@ static partial class Program
         Require(third.Target == target && Tree(stray) == strayBefore && Tree(Path.Combine(linuxData, "longshot")) == longshotBefore,
                 "An import beside another Hookshot profile goes into the fixed user and changes neither that profile nor Longshot.");
 
-        // (Windows: the default game folder, and a version folder in it; the import goes into the save every build shares)
+        // (Windows: the Longshot Launcher's shared %APPDATA%\Longshot first, then the default game folder and a version folder in
+        // it; the import goes into the save every build shares)
         var home = Path.Combine(root, "windows");
         var windows = new SaveEnvironment(Platform.Windows, k => k switch { "HOME" => home, "USERPROFILE" => home, "APPDATA" => Path.Combine(home, "Roaming"), _ => null });
         var win = LongshotSaves.Find(windows);
-        Require(win.Count == 2 && win.Select(s => s.Profile).SequenceEqual(new[] { Id1, Id2 }) && win.All(s => s.Valid)
-                && win[1].Slots.Single().Name == "slot_02", "Windows: Games\\Longshot and its version folders.");
+        Require(win.Count == 3 && win.Select(s => s.Profile).SequenceEqual(new[] { Id3, Id1, Id2 }) && win.All(s => s.Valid)
+                && win[0].Where == Path.GetFullPath(Path.Combine(home, "Roaming", "Longshot")) && win[0].Slots.Single().Name == "slot_03"
+                && win[2].Slots.Single().Name == "slot_02", "Windows: %APPDATA%\\Longshot, Games\\Longshot and its version folders.");
+        var shared = Saves.ImportTarget(windows);
+        var sharedBefore = Tree(Path.Combine(home, "Roaming", "Longshot"));
+        var winCopy = LongshotSaves.Import(win[0], shared, backups, overwrite: false, none, when);
+        Require(winCopy.Slots.SequenceEqual(new[] { "slot_03" }) && File.Exists(Path.Combine(shared, "slot_03", "progress.sav"))
+                && Tree(Path.Combine(home, "Roaming", "Longshot")) == sharedBefore,
+                "Windows: Longshot's shared save copied into Hookshot's, the original left as it was.");
+        Directory.Delete(Path.Combine(home, "Roaming", "Hookshot"), recursive: true);
         Require(Saves.ImportTarget(windows) == Path.Combine(home, "Roaming", "Hookshot", "save", Saves.UserId),
                 "Windows: into the shared save, %APPDATA%\\Hookshot\\save, with no build needed.");
 
