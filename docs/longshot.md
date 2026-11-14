@@ -31,7 +31,7 @@ run). `tests/test_option_ids.py` catches it.
 
 Taken (Longshot PR): #34, #58, #59, #103, #136, #137, #162, #189, #190, #191, #216, #219, #237, #238, #245, #248, #250,
 #252, #255 (its `nx2/test_nup_paths.py` only), #269, #277, #281, #307, #323, #324, #325 (its measured rows: the fix is
-upstream #3004 here), #329, #357, #358, #369, #400. Where a pick met this tree's own work, its commit's
+upstream #3004 here), #329, #357, #358, #369, #400, and #292 (after #172, below). Where a pick met this tree's own work, its commit's
 "Hookshot port:" line says how they were joined; the main ones:
 
 - #137 (hold-to-toggle): the Toggle column comes after this tree's two key columns; `HOS_OPT_HOLD_TOGGLE` is 54, as in
@@ -41,7 +41,7 @@ upstream #3004 here), #329, #357, #358, #369, #400. Where a pick met this tree's
   Longshot holds all of Navi 24 out.
 - #248 (the late pages' fix): this tree's mirror-sync pass (upstream #3023) keeps the write-back shadow following the
   sync too.
-- #172 (below) changes the first start's Output resolution: the game's 2048x1152, or a smaller screen's own size, and
+- #292 and #172 (below) change the first start's Output resolution: 2560x1440, or a smaller screen's own size, and
   Auto (this PC) no longer chooses it (upstream #2566's choice by tier is gone, as on NotRexed's Hookshot).
 - New runs Longshot keeps as `docs/tested/*.md` files (#96, which is not taken: this tree keeps one table) are rows of
   [tested configurations](tested-configurations.md), unchanged.
@@ -54,7 +54,6 @@ Not taken yet:
 | Longshot | What | Why not yet |
 |---|---|---|
 | #321 | The shader caches and button prompts in the game folder's `cache`, the logs in its `logs` | Moves files players and this tree's scripts read beside the game (`hookshot_log.txt` above all): needs every reader here (75 files) and the owner's go-ahead, in a pull request of its own |
-| #292 | A new install draws 2560x1440, not 2048x1152 | A new default: not taken, the main session's decision (2026-11-14) |
 | #151 | The setup copies the Builder from a zip deeper than MAX_PATH | This tree's setup does not copy a Builder from its zip (Longshot #171, #181) |
 
 Left out on purpose: #96 (its process: run files and a frozen table, with its website), #273 (the stale keys it removes

@@ -572,7 +572,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 |---|---|---|---|
 | Graphics | Quality preset | Custom, Minimum (4GB), Low (6GB), Balanced (8GB), High (12GB), Ultra (16GB+), Auto (this PC) | Auto (this PC) on a first start; Custom in an options file from before it |
 | | Aspect ratio | The shapes your screen's resolutions have, narrowest first (5:4, 4:3, 16:10, 16:9, 21:9, 32:9, ...), your monitor's own marked "(monitor's)" (after a restart) | Your monitor's |
-| | Output resolution | The Aspect ratio's sizes: your screen's resolutions and the common ones (1440p, 4K, 5K at 16:9; 1920x1200, 2560x1600 at 16:10; 3440x1440 at 21:9; ...), and 2048x1152 (the game's own) at 16:9 (after a restart) | 2048x1152 |
+| | Output resolution | The Aspect ratio's sizes: your screen's resolutions and the common ones (1440p, 4K, 5K at 16:9; 1920x1200, 2560x1600 at 16:10; 3440x1440 at 21:9; ...), and 2048x1152 (the game's own reduced size, 80% of its 2560x1440, marked "(reduced)") at 16:9 (after a restart) | 2560x1440, the game's own picture, or your screen's size where it is smaller (a Steam Deck's 1280x800, a 1080p monitor), at its own shape; Auto (this PC) leaves it as it is |
 | | Profile | Docked, Handheld (after a restart) | Docked |
 | | Upscaler | Game's own, NVIDIA DLSS, NVIDIA DLAA (only in builds with NVIDIA's DLSS SDK, below; DLSS and DLAA on RTX GPUs), AMD FSR 3.1 (every build, on GPUs it runs on, below), AMD FSR 4, AMD FSR 4 Native AA (only in builds with FSR 4, below), Off (no upscaling) | Game's own |
 | | DLSS model | Transformer (K), Transformer 2 (M), Transformer 2 (L), NVIDIA default (shown where DLSS runs; used by DLSS and DLAA) | Transformer (K) |
@@ -666,8 +666,8 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 - **Auto (this PC)**, which a first start begins on, chooses for the PC it runs on: the memory tier from the card's
   video memory (an integrated GPU, a Steam Deck or a card without mesh shaders at Minimum), DLSS on an NVIDIA RTX card
   or FSR 4 on an AMD RX 9000 where the build has them (else the game's own upscaler). It leaves the Output resolution as
-  it is: on a first start the game's own 2048x1152, or the screen's size where that is smaller (a Steam Deck's 1280x800, a
-  1080p monitor), applied from the first start with no restart. In the first minute of play it then measures the GPU: while
+  it is: on a first start the game's own 2560x1440, or the screen's size where that is smaller (a Steam Deck's 1280x800,
+  a 1080p monitor), applied from the first start with no restart. In the first minute of play it then measures the GPU: while
   frames are missed with the GPU over 90% busy it lowers the Render resolution a step, and while the frame rate cap holds
   with the GPU under half busy it raises it a step, up to the best mode that still upscales (DLSS or FSR Quality, or 100%
   with the game's own; never DLAA or native AA). At most two steps; a PC that holds its cap keeps its picture. It chooses again when the card or the screen changes. `hookshot_log.txt`'s
@@ -747,7 +747,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   targets get a bigger GPU pool, so a full-size 3D fits. Where the screen's modes are not known (Linux), the menu offers
   1920x1080, 2560x1440, 3840x2160, 5120x1440 and 5120x2880. For a size the menu does not offer, set
   `output_res=<width>x<height>` in `hookshot_options.ini`: each side a multiple of 8, at least 640x360, at most 5120x2880's
-  pixels, and between 5:4 and 48:9 in shape; anything else uses the game's 2048x1152. The menu then offers it as its own
+  pixels, and between 5:4 and 48:9 in shape; anything else uses the game's reduced 2048x1152. The menu then offers it as its own
   choice. A picture wider or narrower than 16:9 is kept to 5120x2160's pixels, so above that a size of another shape is
   not a native frame. A size's own shape sets the camera's, even when the OS reports a single 16:9 primary monitor. For
   three 16:9 monitors, use `5760x1080` or `7680x1440` and a window or logical display
