@@ -472,6 +472,8 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | Gameplay | FPS counter | Off, FPS, Frame time, Graph, Breakdown, Dev | Off |
 | | FPS counter position | Top right, Top left, Bottom right, Bottom left | Top right |
 | | Classic counters | Off, On (as on the N64: no count over Link at a pick-up, the rupees always in the bottom left corner once a save is loaded; changes at once) | Off |
+| | Speedrun timer | Off, On (real time in the top left corner, paused while the menu is open; off and on again starts it from zero) | Off |
+| | Death counter | Off, On (how often Link's hearts ran out since the game started, a fairy's revive not counted; top left corner) | Off |
 | | Menu size | Small, Medium, Large | Medium |
 | | Game speed | Per frame, Real time | Real time |
 | | Field of view | 50% to 150%, in steps of 5; applies immediately during gameplay | 100% (original) |
@@ -1318,7 +1320,8 @@ Hookshot exists thanks to the work of many people:
 - **[MythosOfs/Orchid](https://github.com/MythosOfs/Orchid)**: the fog and exposure workaround Ocarina of Time used before
   its fog and lighting were fixed.
 - **[Ocarina Reborn](https://github.com/misterrageguy-cyber/OoT2026-PC-Recomp)** (misterrageguy-cyber): the View distance,
-  Grass and Shadow distance rows, FXAA, Bloom, the Colour grade and Classic counters.
+  Grass and Shadow distance rows, FXAA, Bloom, the Colour grade, Classic counters, the Speedrun timer and the
+  Death counter.
 - **hotoni** (the Graphics-Menu mod): where the game keeps its view, grass and shadow distances.
 - **Mesa (NAK)**: the reference for Ampere's instruction encoding.
 - Everyone who sent fixes: SkippySteve (Linux and the AppImage, and many more), monsterlag, klimovich008, hckrman101 (NVIDIA

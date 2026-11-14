@@ -30,7 +30,7 @@ def main():
 #include <string>
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "FAIL:%d %s\n", __LINE__, #x); std::exit(1); } } while (0)
 using VkCommandBuffer = int;
-struct { bool show_fps = false; int classic_counters = 0; } opts;
+struct { bool show_fps = false; int classic_counters = 0, speedrun_timer = 0, death_counter = 0; } opts;
 std::atomic<int> hud_rupees{-1};   // (Classic counters' wallet, drawn as "$")
 std::atomic<bool> open_now{false}, startup_on{false};
 std::string calls;
@@ -55,19 +55,23 @@ void draw_startup(ui::Ctx&) { calls += "s"; }
 void draw_menu(ui::Ctx&) { calls += "m"; }
 void draw_fps(ui::Ctx&, bool under_banner) { calls += under_banner ? "F" : "f"; }
 void draw_rupees(ui::Ctx&, int v) { CHECK(v == 42); calls += "$"; }
+void timer_tick(bool, bool) {}
+void draw_corner(ui::Ctx&, bool timer, bool deaths) { CHECK(timer && deaths); calls += "c"; }   // (the Speedrun timer, the Death counter)
 ''' + fn + r'''
 int main() {
     for (bool startup : {false, true}) for (bool fps : {false, true}) for (bool menu : {false, true}) for (bool can : {true, false})
-    for (bool wallet : {false, true}) {
+    for (bool wallet : {false, true}) for (bool corner : {false, true}) {
         opts.show_fps = fps;
         opts.classic_counters = wallet, hud_rupees = wallet ? 42 : -1;
+        opts.speedrun_timer = opts.death_counter = corner;
         const bool rupees = wallet && !menu && !startup;   // (Classic counters: not over the menu or the start-up screen)
+        const bool corner_shown = corner && !menu && !startup;   // (and so the timer and the deaths)
         open_now = menu;
         startup_on = startup;
         can_draw = can;
         calls.clear();
         menu_record(1, 2, 640, 360);
-        if (!startup && !fps && !menu && !rupees) {   // (nothing shows: no ImGui frame at all, only the reaping; after a resize, one bake)
+        if (!startup && !fps && !menu && !rupees && !corner_shown) {   // (nothing shows: no ImGui frame at all, only the reaping; after a resize, one bake)
             CHECK(calls == "i");
             calls.clear(), resized = true;
             menu_record(1, 2, 640, 360);
@@ -81,6 +85,7 @@ int main() {
         if (menu) want += "m";
         if (fps && !startup) want += menu ? "F" : "f";
         if (rupees) want += "$";
+        if (corner_shown) want += "c";
         want += "dr";   // (the recorder boundary right before the recording)
         CHECK(calls == want);
     }

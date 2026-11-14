@@ -159,8 +159,8 @@ class OotCountersTests(unittest.TestCase):
                       "        hud_rupees.store(value, std::memory_order_relaxed);", menu)
         # (both overlays draw it while the menu is closed, and a frame with only the rupees still records one)
         self.assertEqual(menu.count("if (rupees >= 0) draw_rupees(c, rupees);   // (Classic counters)"), 2)
-        self.assertIn("if (!start && !fps && !open && rupees < 0) {", menu)
-        self.assertIn("if (!open && !fps && rupees < 0) return;", menu)
+        self.assertIn("if (!start && !fps && !open && rupees < 0 && !timer && !deaths) {", menu)
+        self.assertIn("if (!open && !fps && rupees < 0 && !timer && !deaths) return;", menu)
 
     def test_c_behaviour(self):
         with tempfile.TemporaryDirectory(prefix="hookshot-oot-counters-") as tmp:

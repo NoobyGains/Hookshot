@@ -91,9 +91,15 @@ def patch_life(source):
              "        hos_oot_is_player(c, c->x[19]) &&\n"
              "        c->x[13] == recomp_load64(c,c->x[19] + 7184) + 8)\n"
              "        c->x[12] = hos_oot_damage((uint32_t)c->x[11], (uint32_t)c->x[12]);\n")
+    # (and then the change as it will be written, either way, for the Death counter: host/oot_deaths.c)
+    guard += ("    if ((uint32_t)c->x[12] != (uint32_t)c->x[11] &&\n"
+              "        hos_oot_is_player(c, c->x[19]) &&\n"
+              "        c->x[13] == recomp_load64(c,c->x[19] + 7184) + 8)\n"
+              "        hos_oot_life_seen((uint32_t)c->x[11], (uint32_t)c->x[12]);\n")
     body = source[start:end].replace(LIFE_CAS, guard + LIFE_CAS)
     return (source[:start] + body + source[end:]).replace(
         '#include "a64.h"\n', '#include "a64.h"\nextern uint32_t hos_oot_damage(uint32_t old, uint32_t next);\n'
+        'extern void hos_oot_life_seen(uint32_t old, uint32_t next);\n'
         'extern int hos_oot_is_player(Ctx *c, uint64_t actor);\n', 1)
 
 

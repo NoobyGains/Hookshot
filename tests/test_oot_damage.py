@@ -51,6 +51,10 @@ int hos_oot_hearts_enabled(void) { return protection; }
 typedef struct { uint64_t x[32]; } Ctx;
 static int hos_oot_is_player(Ctx *c, uint64_t actor) { (void)c; return player && actor == 100; }
 static uint64_t recomp_load64(Ctx *c, uint64_t address) { (void)c; assert(address == 100 + 7184); return 200; }
+/* (the Death counter's guard after it: host/oot_deaths.c sees the change as it will be written) */
+static int seen;
+static uint32_t seen_old, seen_next;
+static void hos_oot_life_seen(uint32_t old, uint32_t next) { seen++, seen_old = old, seen_next = next; }
 '''
     main_c = r'''
 int main(void) {
@@ -74,7 +78,9 @@ int main(void) {
         assert(hos_oot_damage(UINT32_MAX, 0) == (setting == 0 ? UINT32_MAX / 2 : 0));
         for (int which = 0; which < 2; which++) {
             Ctx c = {{0}}; c.x[11] = 12; c.x[12] = 8; c.x[19] = 100; c.x[13] = 208;
-            site(&c, which); assert(c.x[12] == hos_oot_damage(12, 8));
+            seen = 0; site(&c, which); assert(c.x[12] == hos_oot_damage(12, 8));
+            assert(seen == 1 && seen_old == 12 && seen_next == c.x[12]);
+            seen = 0; c.x[12] = 12; site(&c, which); assert(seen == 0); c.x[12] = 8;   /* (no change: nothing seen) */
             c.x[12] = 8; player = 0; site(&c, which); assert(c.x[12] == 8); player = 1;
             c.x[13] = 209; site(&c, which); assert(c.x[12] == 8); c.x[13] = 208;
             protection = 1; site(&c, which); assert(c.x[12] == 12); protection = 0;

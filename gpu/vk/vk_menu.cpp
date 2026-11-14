@@ -1439,6 +1439,12 @@ Row rows[] = {
     {TAB_GAMEPLAY, "Classic counters", &opts.classic_counters, 0, 1, 1, tx_onoff,
      "As on the N64: no count over Link when he picks something up, and the rupees always shown in the bottom left corner "
      "once a save is loaded. Changes at once.", nullptr, false, true},
+    {TAB_GAMEPLAY, "Speedrun timer", &opts.speedrun_timer, 0, 1, 1, tx_onoff,
+     "Real time in the top left corner, paused while this menu is open. Turn it off and on again to start from zero.", nullptr,
+     false, true},
+    {TAB_GAMEPLAY, "Death counter", &opts.death_counter, 0, 1, 1, tx_onoff,
+     "How often Link's hearts ran out since the game started, in the top left corner. A fairy's revive does not count.",
+     nullptr, false, true},
     {TAB_GAMEPLAY, "Menu size", &opts.menu_size, 1, 3, 1, tx_menu_size,
      "How large this menu, the FPS counter and the start-up screen are drawn.", hn_menu_size, false, true},
     {TAB_GAMEPLAY, "Game speed", &opts.realtime, 0, 1, 1, tx_speed, "How the game keeps time when it runs below 60 fps.",
@@ -1654,6 +1660,7 @@ std::atomic<int> protect_hearts{-1};
 std::atomic<int> player_flight{-1};
 std::atomic<int> free_camera{0};
 std::atomic<int> cheat_action{0};
+std::atomic<int> hud_deaths{0};   // (the game side's deaths this session for the Death counter, OOT_HUD_DEATHS_ID)
 std::atomic<int> hud_rupees{-1};   // (the game side's wallet for Classic counters, OOT_HUD_RUPEES_ID: -1 none)
 std::atomic<int> link_age{-1};
 // (Movement speed: the choice, an index of link_speeds; the game side reads it in percent, HOS_OPT_CHEAT_SPEED)
@@ -4245,6 +4252,40 @@ void draw_rupees(ui::Ctx& c, int v) {
     outlined_right(c, c.f.strong, px, x + iw + 10 * c.s + tw, cy - px * 0.62f, ui::rgba(255, 255, 255), std::to_string(v).c_str());
 }
 
+/// (hookshot, from Ocarina Reborn) The Speedrun timer: real time since its row went on, paused while this menu is open. Counted
+/// at each present (timer_tick, menu_record), drawn by draw_corner
+int64_t timer_ns = 0, timer_last = 0;   // (the time counted, and the clock at the last present; both 0 while the row is off)
+void timer_tick(bool on, bool paused) {
+    if (!on) {
+        timer_ns = timer_last = 0;
+        return;
+    }
+    const int64_t now = prof_now();
+    if (timer_last && !paused && now > timer_last) timer_ns += now - timer_last;
+    timer_last = now;
+}
+/// The timer (h:mm:ss.t) and the Death counter under it, outlined, in the top left corner (the top right while the FPS
+/// counter is at the top left)
+void draw_corner(ui::Ctx& c, bool timer, bool deaths) {
+    const bool right = opts.show_fps && opts.fps_corner == 1;
+    float top = c.safe;
+    auto line = [&](float px, ImU32 col, const char* text) {
+        const float tw = ui::size_of(c.f.strong, px, text).x;
+        outlined_right(c, c.f.strong, px, right ? c.w - c.safe : c.safe + tw, top, col, text);
+        top += px * 1.25f;
+    };
+    char text[48];
+    if (timer) {
+        const long long t = (long long)(timer_ns / 100000000);   // (tenths of a second)
+        snprintf(text, sizeof text, "%lld:%02lld:%02lld.%lld", t / 36000, t / 600 % 60, t / 10 % 60, t % 10);
+        line(24 * c.s, ui::rgba(255, 255, 255), text);
+    }
+    if (deaths) {
+        snprintf(text, sizeof text, "Deaths %d", hud_deaths.load(std::memory_order_relaxed));
+        line(18 * c.s, ui::rgba(255, 140, 130), text);
+    }
+}
+
 /// The start-up screen: the logo, the wordmark, what the start is doing, a bar, on a warm dark. A little below the middle; what
 /// is under the logo at 0.86 of the logo's scale. startup_fade, 0 to 1, darkens it all to black as it ends
 void draw_startup(ui::Ctx& c) {
@@ -4662,6 +4703,10 @@ bool fps_take(int64_t now, int64_t shown, int64_t game, int64_t* next, int64_t* 
 // inside menu_tick's frame on the same thread does not lock itself out
 std::recursive_mutex menu_mu;
 void menu_option_set(int id, int value) {
+    if (id == OOT_HUD_DEATHS_ID) {   // (the Death counter: draw_corner reads it)
+        hud_deaths.store(value, std::memory_order_relaxed);
+        return;
+    }
     if (id == OOT_HUD_RUPEES_ID) {   // (Classic counters: draw_rupees reads it)
         hud_rupees.store(value, std::memory_order_relaxed);
         return;
@@ -5481,7 +5526,9 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     const bool fps = opts.show_fps && !start;   // (no game frames yet: not "0 FPS" over the start-up screen)
     const bool open = open_now.load(std::memory_order_relaxed);
     const int rupees = opts.classic_counters && !start && !open ? hud_rupees.load(std::memory_order_relaxed) : -1;
-    if (!start && !fps && !open && rupees < 0) {   // (nothing shows: no ImGui frame, no render pass)
+    timer_tick(opts.speedrun_timer && !start, open);   // (the Speedrun timer counts at every present, shown or not)
+    const bool timer = opts.speedrun_timer && !start && !open, deaths = opts.death_counter && !start && !open;
+    if (!start && !fps && !open && rupees < 0 && !timer && !deaths) {   // (nothing shows: no ImGui frame, no render pass)
         // (but a new window size or Menu size since the last bake: one frame with nothing drawn that bakes the menu's glyphs
         // and measures its page for the new size, so the next open has no hitch whatever was resized while nothing showed)
         if (prebake_needed(w, h) && ui::begin(w, h)) {
@@ -5507,6 +5554,7 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     if (open) draw_menu(c);
     if (fps) draw_fps(c, open);
     if (rupees >= 0) draw_rupees(c, rupees);   // (Classic counters)
+    if (timer || deaths) draw_corner(c, timer, deaths);
     ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
     ui::record(cmd, index, w, h);
 }
@@ -5516,7 +5564,9 @@ void menu_record_image(VkCommandBuffer cmd, VkImage image, VkImageView view, uin
     const bool fps = opts.show_fps && !startup_on.load(std::memory_order_acquire);
     const int rupees = opts.classic_counters && !open && !startup_on.load(std::memory_order_acquire)
                            ? hud_rupees.load(std::memory_order_relaxed) : -1;
-    if (!open && !fps && rupees < 0) return;
+    const bool started = !startup_on.load(std::memory_order_acquire);
+    const bool timer = opts.speedrun_timer && started && !open, deaths = opts.death_counter && started && !open;
+    if (!open && !fps && rupees < 0 && !timer && !deaths) return;
     if (!ui::begin(w, h)) return;
     // (a still picture, drawn once in many presents: the lists where their selections are, not a step of the way there.
     // Without it the step stayed 0 here and a picture never showed a row past the first page)
@@ -5525,6 +5575,7 @@ void menu_record_image(VkCommandBuffer cmd, VkImage image, VkImageView view, uin
     if (open) draw_menu(c);
     if (fps) draw_fps(c, open);
     if (rupees >= 0) draw_rupees(c, rupees);   // (Classic counters)
+    if (timer || deaths) draw_corner(c, timer, deaths);
     ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
     ui::record_to(cmd, image, view, w, h);
 }
