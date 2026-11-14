@@ -59,7 +59,8 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(len(option_ids), 3)
         self.assertEqual(len(set(option_ids.values())), 3, "FOV must not alias prompts or camera speed")
         self.assertIn("int fov = 100;", options)
-        self.assertIn('"Field of view", &opts.fov, 50, 150, 5, tx_fov', menu)
+        self.assertIn('{TAB_GRAPHICS, "Field of view", &opts.fov, 50, 300, 5, tx_fov', menu)
+        self.assertEqual(menu.count('"Field of view", &opts.fov,'), 1)
         self.assertIn("if (id == HOS_OPT_FOV) return opts.fov;", replay)
         self.assertIn("if (id == HOS_OPT_PROMPTS) return opts.prompts;", replay)
         self.assertIn("if (id == HOS_OPT_CAMERA_SPEED) return opts.camera_speed;", replay)
@@ -126,7 +127,7 @@ static void setup(void) {
 int main(void) {
     /* Original and unsupported choices touch no camera memory, preserve all bits. */
     unchanged(1.0f); unchanged(NAN); CHECK(reads == 0);
-    for (int i = 0; i < 3; i++) { menu = (int[]){0, 49, 151}[i]; unchanged(1.0f); }
+    for (int i = 0; i < 3; i++) { menu = (int[]){0, 49, 301}[i]; unchanged(1.0f); }
     CHECK(reads == 0);
     setup(); menu = 150;
     unsigned char before_objects[sizeof objects], before_globals[sizeof globals];
@@ -147,6 +148,9 @@ int main(void) {
     }
     menu = 50; c = input(1.0f); site(&c); CHECK(near(output(&c), 0.5f));
     menu = 125; c = input(0.4f); site(&c); CHECK(near(output(&c), 0.5f));   /* a zoom, from its current angle */
+    menu = 200; c = input(1.0f); site(&c); CHECK(near(output(&c), 2.0f));
+    menu = 300; c = input(0.4f); site(&c); CHECK(near(output(&c), 1.2f));
+    c = input(1.0f); site(&c); CHECK(near(output(&c), 2.443460953f));   /* 3x still respects 140 degrees */
     menu = 100; unchanged(0.4f);   /* live reset, no cached scaled value */
     menu = 150;
     CHECK(!memcmp(objects, before_objects, sizeof objects) && !memcmp(globals, before_globals, sizeof globals));

@@ -14,7 +14,7 @@ int rx_option(int id, int otherwise);
 
 void hos_oot_fov(Ctx *c, uint64_t camera) {
     const int percent = rx_option(HOS_OPT_FOV, 100);
-    if (percent == 100 || percent < 50 || percent > 150 || !camera) return;
+    if (percent == 100 || percent < 50 || percent > 300 || !camera) return;
 
     const uint64_t views = recomp_load64(c, camera + 0x18);
     const uint64_t view = views ? recomp_load64(c, views + 8) : 0;

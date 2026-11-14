@@ -659,7 +659,7 @@ separately verified in play. Insert always releases the latch.
 | `upscaling` | 0 Off, 1 Catmull-Rom, 2 Lanczos |
 | `sharpness`, `rumble_strength`, `motion_sensitivity_x`, `motion_sensitivity_y`, `walk_speed` | percent |
 | `mouse_sensitivity` | hundredths: 100 is 1.00 |
-| `field_of_view` | 50 to 150 percent of the current vertical gameplay FOV; 100 is the original. Applies immediately, before projection and culling. The resulting vertical angle stays within 5 to 140 degrees |
+| `field_of_view` | 50 to 300 percent of the current vertical gameplay FOV, in Graphics; 100 is the original. Applies immediately, before projection and culling. The resulting vertical angle stays within 5 to 140 degrees |
 | `robust_buffers` | 0 Auto (on), 1 Off, 2 On |
 | `damage_taken` | 0 Half, 1 Normal (default), 2 Double, 3 Quadruple; Debug tools Off uses Normal without changing the saved choice. Half rounds the full hit up to a quarter heart, even on lethal hits; Heart protection wins |
 | `game_speed` | 0 Per frame, 1 Real time |

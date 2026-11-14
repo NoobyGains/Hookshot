@@ -1548,6 +1548,9 @@ Row rows[] = {
      "How much of the big textures (ground, walls, buildings) is kept in video memory. Lower uses less, for a softer "
      "picture up close: for 6 and 8 GB cards that slow down after a while. Applies to textures made after the change; "
      "a restart applies it to all.", hn_texture_detail, false, true},
+    {TAB_GRAPHICS, "Field of view", &opts.fov, 50, 300, 5, tx_fov,
+     "How much of the world you see: 100% is the original view. Higher is wider, lower is closer. Changes apply at once "
+     "during gameplay. Cutscenes keep their own view.", nullptr, false, true},
     {TAB_GRAPHICS, "Anisotropic filtering", &opts.anisotropy, 0, 4, 1, tx_anisotropy,
      "Keeps textures sharp on surfaces seen at a slant, such as the ground ahead: higher is sharper in the distance, for a "
      "little GPU time. Game's is the console's own (1x or 2x).", nullptr, false, true},
@@ -1605,9 +1608,6 @@ Row rows[] = {
      "How large this menu, the FPS counter and the start-up screen are drawn.", hn_menu_size, false, true},
     {TAB_GAMEPLAY, "Game speed", &opts.realtime, 0, 1, 1, tx_speed, "How the game keeps time when it runs below 60 fps.",
      hn_speed},
-    {TAB_GAMEPLAY, "Field of view", &opts.fov, 50, 150, 5, tx_fov,
-     "How much of the world you see: 100% is the original view. Higher is wider, lower is closer. Changes apply at once "
-     "during gameplay. Cutscenes keep their own view.", nullptr, false, true},
     {TAB_GAMEPLAY, "Text speed", &opts.text_speed, 0, 3, 1, tx_text_speed,
      "How fast the letters of dialogue and other messages appear.", hn_text_speed, false, true},
     {TAB_GAMEPLAY, "Text size", &opts.text_size, 0, 4, 1, tx_text_size,

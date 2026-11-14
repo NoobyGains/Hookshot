@@ -127,7 +127,7 @@ a full build through it is the next test.
 
 <img src="docs/images/features/field-of-view.jpg" alt="Kakariko Village at field of view 60 percent, the game's 100 percent and 140 percent">
 
-**Field of view** (Gameplay tab, 50% to 150%): from a close, cinematic 60% to a wide 140%, where Kakariko's whole gate
+**Field of view** (Graphics tab, 50% to 300%): from a close, cinematic 60% to a wide 140%, where Kakariko's whole gate
 and the cliffs around it fit on screen.
 
 ### Retro look: the game as the Nintendo 64 drew it
@@ -669,6 +669,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | CRT glow | Off, Low, Medium, High (light spreading in the glass around bright parts; with N64 + CRT) | Medium |
 | | CRT curvature | Off, Subtle, Strong (a curved screen with darker corners; with N64 + CRT) | Subtle |
 | | Texture detail | Auto, Full, Medium, Low | Auto |
+| | Field of view | 50% to 300%, in steps of 5; applies immediately during gameplay | 100% (original) |
 | | Anisotropic filtering | Game's, 2x, 4x, 8x, 16x | 16x |
 | | View distance | Short, Original, Far, Very far, Max (how far trees, bushes and detailed models reach; changes at once) | Original |
 | | Grass | Off, Less, Original, More, Dense (changes at once) | Original |
@@ -687,7 +688,6 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Navi callouts | Off, On (Off: no "Hey! Listen!" for the hints of the places you enter, and none when you ask her there; story dialogue, Z-targeting and her enemy info stay; from the next place you enter) | On |
 | | Menu size | Small, Medium, Large | Medium |
 | | Game speed | Per frame, Real time | Real time |
-| | Field of view | 50% to 150%, in steps of 5; applies immediately during gameplay | 100% (original) |
 | | Text speed | Normal, 2x, 4x, Instant | Normal |
 | | Text size | Original, 110%, 125%, 150%, 175% (dialogue, Navi and signs) | Original |
 | | Microphone | Off, Default, or each microphone by name | Default |
