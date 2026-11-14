@@ -125,6 +125,19 @@ VkFormat widened(VkFormat f, int* from_bpb) {
     default: *from_bpb = 0; return f;
     }
 }
+/// The bits of one in a widened format's alpha: what the upload gives the component a 3-component format lacks, which NVN
+/// reads as one (1.0 in a float or normalized format, 1 in an integer one)
+uint32_t alpha_one(VkFormat wide) {
+    switch (wide) {
+    case VK_FORMAT_R8G8B8A8_UNORM: return 0xFF;
+    case VK_FORMAT_R8G8B8A8_SNORM: return 0x7F;
+    case VK_FORMAT_R16G16B16A16_SFLOAT: return 0x3C00;
+    case VK_FORMAT_R16G16B16A16_UNORM: return 0xFFFF;
+    case VK_FORMAT_R16G16B16A16_SNORM: return 0x7FFF;
+    case VK_FORMAT_R32G32B32A32_SFLOAT: return 0x3F800000;
+    default: return 1;   // (the UINT and SINT ones)
+    }
+}
 /// A storage-capable view format of the image's class (sRGB views cannot be storage)
 VkFormat storage_view_format(VkFormat f) {
     f = linear_twin(f);
@@ -183,6 +196,13 @@ VkFormat attachment_format(int tex_nvn, int view_nvn) {
     return view_format_of(image_format_of(widened(fi.format, &from), fi.astc), fi.astc, false, view_nvn, ViewUse::Attachment,
                           VK_FORMAT_UNDEFINED);
 }
+/// (hookshot) Whether textures of this NVN format hold 4 components of its 3 (widened on upload): their image's texels are
+/// not their storage's bytes
+bool nvn_format_widened(int nvn_format) {
+    int from = 0;
+    widened(vk_format(nvn_format).format, &from);
+    return from != 0;
+}
 namespace {
 /// The class an image format shares images by (see the top of the file)
 uint32_t format_class(VkFormat vf, int nvn_format, int bpb, bool astc_decoded) {
@@ -206,6 +226,23 @@ VkComponentSwizzle component(unsigned s) {
     case NVN_TEXTURE_SWIZZLE_B: return VK_COMPONENT_SWIZZLE_B;
     case NVN_TEXTURE_SWIZZLE_A: return VK_COMPONENT_SWIZZLE_A;
     default: return VK_COMPONENT_SWIZZLE_IDENTITY;
+    }
+}
+/// Whether a sampled view of this NVN format reads alpha as one: the X formats (the bits are there, unused), RGB_DXT1 (BC1
+/// without its alpha, vk_formats.cpp) and the 3-component ones (their image holds an alpha they lack: widened)
+bool alpha_reads_one(int nvn_format) {
+    switch (nvn_format) {
+    case NVN_FORMAT_RGBX8: case NVN_FORMAT_RGBX8SN: case NVN_FORMAT_RGBX8UI: case NVN_FORMAT_RGBX8I:
+    case NVN_FORMAT_RGBX16F: case NVN_FORMAT_RGBX16: case NVN_FORMAT_RGBX16SN: case NVN_FORMAT_RGBX16UI:
+    case NVN_FORMAT_RGBX16I: case NVN_FORMAT_RGBX32F: case NVN_FORMAT_RGBX32UI: case NVN_FORMAT_RGBX32I:
+    case NVN_FORMAT_RGBX8_SRGB: case NVN_FORMAT_BGRX8: case NVN_FORMAT_BGRX8_SRGB: case NVN_FORMAT_BGR5:
+    case NVN_FORMAT_RGB_DXT1: case NVN_FORMAT_RGB_DXT1_SRGB:
+        return true;
+    default: {
+        int from = 0;
+        widened(vk_format(nvn_format).format, &from);
+        return from != 0;
+    }
     }
 }
 
@@ -1160,14 +1197,14 @@ const uint8_t* guest_bytes(uint64_t gpu, uint64_t n, std::vector<uint8_t>& scrat
     return scratch.data();
 }
 
-void widen_rows(uint8_t* dst, const uint8_t* src, size_t texels, int from, int to) {
-    const int comp = from / 3;
+/// 3-component texels of `from` bytes as 4 components of `to`: each texel's bytes, then the alpha `one` (alpha_one of the
+/// image's format; the image's bytes are little-endian)
+void widen_rows(uint8_t* dst, const uint8_t* src, size_t texels, int from, int to, uint32_t one) {
+    uint8_t a[4] = {};
+    for (int k = 0; k < to - from; k++) a[k] = (uint8_t)(one >> 8 * k);
     for (size_t i = 0; i < texels; i++) {
         std::memcpy(dst + i * to, src + i * from, from);
-        uint8_t* a = dst + i * to + from;
-        if (comp == 1) a[0] = 0xFF;
-        else if (comp == 2) a[0] = 0x00, a[1] = 0x3C;   // (half 1.0; UNORM16 would want 0xFFFF: close enough for alpha)
-        else { const float one = 1.0f; std::memcpy(a, &one, 4); }
+        std::memcpy(dst + i * to + from, a, to - from);
     }
 }
 
@@ -1965,7 +2002,7 @@ bool upload_inner(Texture& tex, const Ranges* dirty, uint64_t* moved) {
         return up_route = UP_GPU, true;
     const bool linear = nvn_tex_is_linear(&tex.d);
     int widen_from = 0;
-    widened(tex.d.format ? vk_format(tex.nvn_format).format : tex.format, &widen_from);
+    const VkFormat wide = widened(tex.d.format ? vk_format(tex.nvn_format).format : tex.format, &widen_from);
     if (upload_all_zero(tex, total, dirty, widen_from != 0)) return true;
     const int src_bpb = tex.bpb;
     const int out_bpb = tex.astc ? 4 : widen_from ? (widen_from == 3 ? 4 : widen_from == 6 ? 8 : 16) : src_bpb;
@@ -2101,7 +2138,7 @@ bool upload_inner(Texture& tex, const Ranges* dirty, uint64_t* moved) {
                                                            (u32)tex.block_w, (u32)tex.block_h,
                                                            std::span<uint8_t>(out, (size_t)g.w * px_h * g.d * 4));
                 } else if (widen_from) {
-                    widen_rows(out, blocks, (size_t)g.tw * th * g.td, src_bpb, out_bpb);
+                    widen_rows(out, blocks, (size_t)g.tw * th * g.td, src_bpb, out_bpb, alpha_one(wide));
                 }
                 st_bytes += (int64_t)out_bytes;
                 // (a sparse image: only its blocks this holds texels other than zero get memory; the others read
@@ -3301,17 +3338,9 @@ VkImageView texture_view(Texture* tex, const nvn_tex* t, const nvn_view* v, VkIm
         unsigned sw[4] = {d.swizzle_r, d.swizzle_g, d.swizzle_b, d.swizzle_a};
         if (v && v->set_swizzle)
             for (int i = 0; i < 4; i++) sw[i] = v->swz[i];
-        // (X formats read alpha as one)
-        switch (nf) {
-        case NVN_FORMAT_RGBX8: case NVN_FORMAT_RGBX8SN: case NVN_FORMAT_RGBX8UI: case NVN_FORMAT_RGBX8I:
-        case NVN_FORMAT_RGBX16F: case NVN_FORMAT_RGBX16: case NVN_FORMAT_RGBX16SN: case NVN_FORMAT_RGBX16UI:
-        case NVN_FORMAT_RGBX16I: case NVN_FORMAT_RGBX32F: case NVN_FORMAT_RGBX32UI: case NVN_FORMAT_RGBX32I:
-        case NVN_FORMAT_RGBX8_SRGB: case NVN_FORMAT_BGRX8: case NVN_FORMAT_BGRX8_SRGB:
+        if (alpha_reads_one(nf))   // (X formats and 3-component ones)
             for (unsigned& s : sw)
                 if (s == NVN_TEXTURE_SWIZZLE_A) s = NVN_TEXTURE_SWIZZLE_ONE;
-            break;
-        default: break;
-        }
         static const bool swap_9e5 = env_on("RX_VK_9E5_SWAP");   // (hookshot, diagnosis: R and B swapped)
         if (swap_9e5 && nf == NVN_FORMAT_RGB9E5F) std::swap(sw[0], sw[2]);
         cm = {component(sw[0]), component(sw[1]), component(sw[2]), component(sw[3])};

@@ -175,6 +175,9 @@ VkFormat image_format_of(VkFormat vf, bool astc_decoded);
 VkFormat view_format_of(VkFormat image, bool astc_decoded, bool bc, int view_nvn, ViewUse use, VkFormat force_format);
 /// The format a draw renders in on this device, into a texture of NVN format tex_nvn through a view of NVN format view_nvn
 VkFormat attachment_format(int tex_nvn, int view_nvn);
+/// Whether textures of this NVN format hold 4 components of its 3 (widened on upload): their image's texels are not their
+/// storage's bytes
+bool nvn_format_widened(int nvn_format);
 /// The view format an NVN texture and view sample / render in
 int view_nvn_format(const nvn_tex* t, const nvn_view* v);
 /// The level and layer a view starts at (the texture's levels)
