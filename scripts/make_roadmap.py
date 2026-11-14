@@ -33,26 +33,35 @@ STAGES = [
         ("eyes.jpg", "Brightness, colour vision", "A brightness slider and colour-blind modes."),
         ("f12.jpg", "Screenshot key", "F12 saves the picture as you see it, as a PNG beside the game."),
     ]),
-    ("doing", "IN PROGRESS", "being worked on now", AMBER, [
+    ("doing", "IN PROGRESS", "being built and tested now", AMBER, [
         ("panel:name:Mods", "Mod manager", "Your own mods listed in the menu: on and off, load order, conflicts."),
         ("panel:name:Hero", "Hero mode, quiet Navi", "Double damage and no recovery hearts; Navi's callouts off."),
         ("panel:name:Launcher", "Hookshot Launcher", "Builds side by side, update channels, saves import and export."),
-        ("panel:name:More", "More fixes and features", "Faster prompts, less memory, Mono audio, hold-to-toggle, Intel and AMD fixes."),
+        ("panel:name:Toggle", "Toggle buttons, Mono", "Tap a button to hold it (shield, aim); a Mono sound output."),
+        ("panel:name:Memory", "Less memory, faster start", "Video memory only where the game uses it; prompts in 20 s, not 160."),
+        ("panel:name:Steady", "A steadier picture", "HUD labels, Gossip Stones with frame generation, HDR flicker, sharper scaling."),
+        ("panel:name:GPUs", "Intel and AMD fixes", "Intel Arc and Iris, Radeon RX 6600 family, and the hidden cursor."),
+        ("panel:name:Move", "Walk, sprint, mouse look", "A walk key, a sprint button, the mouse aiming, locking on and riding."),
+        ("panel:name:Pad", "Pro Controller, amiibo", "Switch 2 Pro Controller over USB; NFC tags from your own files."),
+        ("panel:name:Screens", "Every screen shape", "The HUD on ultrawide, fill the window, any output size, FOV to 300%."),
+        ("panel:name:Quick", "Straight into play", "Skip the title screen into your newest save; the menu from pause."),
+        ("panel:name:Fixes", "Hundreds of fixes", "Renderer, runtime and build fixes, each checked by tests."),
     ]),
     ("next", "COMING NEXT", "planned, not started", BLUE, [
         ("chart:memory", "Memory in long sessions", "Levels off at about 33 GB on a 96 GB PC; next, held to 16 GB."),
         ("towns.jpg", "Faster towns and fields", "Castle Town and Hyrule Field, where the processor holds frames back."),
         ("gohma.jpg", "Jump loop after Gohma", "Link repeats a jump in dialogue above 60 FPS."),
         ("invisible.jpg", "Invisible doors and walls", "Objects that vanish in a few places of the game."),
-        ("panel:amd", "AMD on Windows", "Crashes on some Radeon cards: needs a tester."),
-        ("panel:amiibo", "amiibo", "Scan your own amiibo files."),
-        # (what players of the remake ask for most; only what Hookshot can build as a toggle over the player's own game
-        # files: no Nintendo assets)
+        ("panel:name:VR", "Play in VR", "PC VR headsets through OpenXR, with a VR tab in the menu."),
+        ("panel:name:Deck", "Steam Deck profile", "Settings made for the Deck, on by themselves on a Deck."),
+        ("panel:name:Wheel", "Item wheel", "Pick items from a wheel, with instant equip."),
+        ("panel:name:Best", "Find my best settings", "The menu measures your PC and picks the settings."),
         ("panel:name:Photo", "Photo mode", "A free camera with the HUD hidden (F12 screenshots already work)."),
         ("panel:name:Aim", "First-person aim", "Bow, slingshot and Hookshot from Link's eyes, with the mouse."),
         ("panel:name:QoL", "Small toggles", "Auto jump, Young Link on Epona, gear on and off, N64 controls."),
         ("panel:name:Random", "Randomizer", "Items shuffled each run, a new game every time."),
         ("panel:name:Online", "Online co-op", "Play the adventure together with a friend."),
+        ("panel:amd", "AMD on Windows", "Crashes on some Radeon cards: needs a tester."),
     ]),
 ]
 PER_ROW = 4   # (a stage of more than five cards wraps, four to a row)

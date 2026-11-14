@@ -157,7 +157,7 @@ when the game closes.
 ## Roadmap
 
 <p align="center">
-  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 8 done, 4 in progress, 11 coming next, each as a card. The same items are listed as text below." width="820">
+  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 8 done, 12 in progress, 14 coming next, each as a card. The same items are listed as text below." width="820">
 </p>
 
 **Done** is on `main` now. **In progress** is being worked on at the moment. **Coming next** is planned but not
@@ -182,14 +182,24 @@ reaches.
 - Also: the one-click Windows HDR launcher, the water's per-light shadow maps, several users, each game in its own
   folders, the RX 6600 / 6650 XT / 6500 XT fallback
 
-**🟡 In progress**: being worked on now
+**🟡 In progress**: being built and tested now
 
 - **Mod manager:** your own mods listed in the menu, on and off, their load order and conflicts
 - **Hero mode and quiet Navi:** double damage and no recovery hearts; Navi's callouts off
-- **Hookshot Launcher:** several builds side by side, stable, release-candidate and nightly
-  channels, saves imported from emulators and exported, an installer and updates of its own, in Hookshot's 3D look
-- **More fixes and features:** faster button prompts, less memory, Mono audio, hold-to-toggle buttons, a hidden
-  cursor in play, fixes for Intel and AMD cards, and more
+- **Hookshot Launcher:** several builds side by side, stable, release-candidate and nightly channels, saves imported
+  and exported, an installer and updates of its own, in Hookshot's 3D look
+- **Toggle buttons and Mono:** tap a button to hold it (the shield, aiming), and a Mono sound output
+- **Less memory, a faster start:** video memory only where the game uses it; the button prompts ready in about 20 s
+  instead of 160
+- **A steadier picture:** HUD labels that stay sharp, the Gossip Stones whole with frame generation, no HDR flicker,
+  sharper scaling when the picture is larger than the window
+- **Intel and AMD fixes:** Intel Arc and Iris, the Radeon RX 6600 family; the mouse cursor hidden in play
+- **Walk, sprint and mouse look:** a walk key, a sprint button, and the mouse for aiming, locking on and riding
+- **Pro Controller and amiibo:** the Switch 2 Pro Controller over USB, and NFC tags from your own files
+- **Every screen shape:** the HUD placed right on ultrawide screens, filling the window, any output size, field of view
+  up to 300%
+- **Straight into play:** skip the title screen into your newest save, and open the menu from the pause screen
+- **Hundreds of fixes:** renderer, runtime and build fixes, each checked by tests
 
 **⚪ Coming next**: planned, not started
 
@@ -198,13 +208,16 @@ reaches.
 - **Faster towns and fields:** Castle Town and Hyrule Field, where each frame waits on the processor
 - **Jump loop after Gohma:** Link repeating a jump in dialogue above 60 FPS
 - **Invisible doors and walls** in a few places of the game
-- **AMD on Windows:** crashes on some Radeon cards (needs an AMD tester)
-- **amiibo:** scan your own amiibo files
+- **Play in VR:** PC VR headsets through OpenXR, with a VR tab in the menu
+- **Steam Deck profile:** settings made for the Deck, on by themselves on a Deck
+- **Item wheel:** pick items from a wheel, with instant equip
+- **Find my best settings:** the menu measures your PC and picks the settings
 - **Photo mode:** a free camera with the HUD hidden (F12 screenshots already work)
 - **First-person aim:** bow, slingshot and Hookshot from Link's eyes, with the mouse
 - **Small toggles:** auto jump, Young Link on Epona, gear on and off, N64-style controls
 - **Randomizer:** items shuffled each run, a new game every time
 - **Online co-op:** play the adventure together with a friend
+- **AMD on Windows:** crashes on some Radeon cards (needs an AMD tester)
 - Later: a signed Builder, Intel cards, cards without mesh shaders
 
 Mods that swap in Nintendo's own models, textures, music or voices are for players to add from their own files
@@ -1404,6 +1417,11 @@ Bigger ways to help:
 looks like.
 
 </details>
+
+## Related projects
+
+- **[Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot)**: another build of the same engine, by the Magic Bean
+  team, with its own [Longshot Launcher](https://git.magicbean.dev/MagicBeanDev/LongshotLauncher).
 
 ## Credits
 
