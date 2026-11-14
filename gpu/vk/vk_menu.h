@@ -84,8 +84,14 @@ struct Options {
     int mouse_native = 0; // the mouse turns the camera's own angles (host/mouse_native.c); 0: as the right stick; 2: off (never captured)
     int disable_camera_centering = 0; // 0: stock movement-follow turning; 1: keep the player's horizontal direction
     int auto_run = 0;  // (hookshot) Auto run: A (the sprint) kept held after it is let go (host/auto_run.h)
+    int sprint = 0; // 1: Sprint's key and button run (host/nn_hid.c sprint_step, HOS_OPT_SPRINT, 88), and turning it on gave them
+                    // Shift and the left stick's press (vk_menu.cpp apply_sprint_layout); 0, the default: they do nothing
     int mouse_sens = 100; // the mouse's sensitivity in percent: 0.1 degrees a count at 100 with native look (host/nn_hid.c)
     int mouse_invert = 0; // the mouse's up and down swapped
+    int walk_mode = 0;    // (hookshot) the Walk key (the Controls page): 0 Link walks while it is held, 1 one press walks and the next
+                          // runs again (host/nn_hid.c walk_held: HOS_OPT_WALK_MODE, 85)
+    int walk_speed = 45;  // (hookshot) how far the movement keys tilt the left stick while Link walks, percent, 15 to 90
+                          // (host/nn_hid.c: HOS_OPT_WALK_SPEED, 86)
     int text_speed = 0;   // how fast dialogue prints: 0 the game's, 1 2x, 2 4x, 3 instant (host/nn_vi.c, nx2/oot_patches.py; HOS_TEXT_SPEED)
     int damage_taken = 1; // 0 Half, 1 Normal, 2 Double, 3 Quadruple (host/oot_damage.c)
     int fov = 100;        // vertical gameplay field of view, 50..150% of the game's current angle (host/oot_fov.c)
@@ -100,7 +106,8 @@ struct Options {
     int rumble = 100;     // the controllers' rumble in percent of the game's: 0 Off, 25 to 150 (host/pad_sdl.c)
     int stick_dead_zone = 0;  // circular stick cutoff: 0 XInput's 7849 (~24%), 1..5 5% to 30% (host/nn_hid.c)
     int hold_toggle = 0;  // enabled Switch buttons (1 << HOS_SW_*); persisted as toggle_<button>, not one mask entry
-    int pad_layout = 0;   // 0 Nintendo (default), 1 Xbox / PC, 2 Swap Face Buttons, 3 Custom
+    int pad_layout = 0;   // 0 Nintendo (default), 1 Xbox / PC, 2 Swap Face Buttons, 3 Switch 2 Pro (every button the pad's own), 4 Custom
+    int pad_menu = 1;     // the controller's button that opens and closes the Insert menu: 0 none, 1 Home, 2 GL, 3 GR (the back buttons)
     int gyro = 1;         // motion controls from a pad's gyroscope (host/pad_sdl.c, host/hos_motion.h); on by default
     int gyro_sens_x = 100;   // the motion aim's horizontal sensitivity in percent
     int gyro_sens_y = 100;   // the motion aim's vertical sensitivity in percent
@@ -115,6 +122,8 @@ struct Options {
                           // RX_VK_ASTC_RGBA8 over it): the AMD texture workaround. Read once, at the start
     int intel_compiles = 0;   // (hookshot) Intel's shader compiler on Windows: 0 one thread at a time, 1 side by side (vk_internal.h
                               // IntelDriverGate; RX_VK_NO_INTEL_SERIAL=1 over it). Read once, at the start
+    int intel_quick = 1;   // (hookshot, from Longshot) Intel's one-at-a-time compute builds: a dispatch's pipeline first without the optimizer,
+                           // the optimized one bound once made (vk_draw.cpp compute_optimize; RX_VK_COMPUTE_QUICK_FIRST over it)
     int preset = 0;       // quality preset: 0 Custom, 1 Minimum (4GB), 2 Low (6GB), 3 Balanced (8GB), 4 High (12GB), 5 Ultra (16GB+),
                           // 6 Auto (this PC), kAutoPreset (its tier's budgets: budget)
     int vram_mb = 0;      // dynamic texture cache budget limit in MB
@@ -149,6 +158,7 @@ struct Options {
     int game_lang = 0;    // the game's language (vk_menu_i18n.h game_lang_code): language.txt's, not kept in the options file
     int menu_lang = 0;    // this menu's language: 0 Auto (the game's own, language.txt), else menu_i18n::kLangs[menu_lang - 1]
                           // (vk_menu_i18n.cpp). Saved as menu_language
+    int keyboard = 0;   // (hookshot) 0 Auto, 1 On, 2 Off; persisted by the Keyboard row
     int mic = 1;          // (hookshot) the ocarina's microphone: 0 Off, 1 the system's default, 2.. a device as host->mic_name lists it (host/nn_audio_in.c)
 };
 extern Options opts;
@@ -227,6 +237,7 @@ void menu_note_present_sizes(uint32_t picture_w, uint32_t picture_h, uint32_t wi
 /// Over the window's image `index` (TRANSFER_DST_OPTIMAL before and after), w x h: the start-up screen, the menu and the FPS
 /// counter, drawn with Dear ImGui (vk_imgui.h, vk_ui.h). Nothing recorded while none of them shows
 void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h);
+void menu_rumble_tick();   // (once a present: the Rumble strength row's own rumble)
 /// (headless shots, RX_VK_SHOT_MENU) The menu and the counter over another image: TRANSFER_DST_OPTIMAL before and after,
 /// R8G8B8A8_UNORM with colour-attachment use, view a view of it
 void menu_record_image(VkCommandBuffer cmd, VkImage image, VkImageView view, uint32_t w, uint32_t h);

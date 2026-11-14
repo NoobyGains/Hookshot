@@ -98,8 +98,9 @@ enum MenuTab {
     // (hookshot fork) DLSS 5 neural rendering's own tab. Its rows are the model's own knobs, which belong together and
     // would have doubled the Graphics tab on their own.
     TAB_NEURAL = 4,
-    TAB_DEBUG = 5,   // (the OoT debug tools of #785, a tab of their own)
-    TAB_COUNT = 6,
+    TAB_NFC = 5,     // (hookshot: the player's NFC tags, held to the game's reader: host/nn_nfp.c)
+    TAB_DEBUG = 6,   // (the OoT debug tools of #785, a tab of their own)
+    TAB_COUNT = 7,
     TAB_MOTION = TAB_COUNT,   // (hookshot: not a tab of the strip, the Motion page that the Controls tab's Motion row
                               // opens: one past the strip's tabs, so a tab added before TAB_COUNT moves it along)
     TAB_PAGE = TAB_MOTION + 1   // (hookshot: the Controls page's rows, above its grid; no tab shows them)
@@ -136,6 +137,10 @@ const char* tx_framegen(int v) {
     return t[v];
 }
 const char* tx_onoff(int v) { return v ? "On" : "Off"; }
+const char* tx_keyboard(int v) {
+    static const char* const t[] = {"Auto", "On", "Off"};
+    return t[v < 0 ? 0 : v > 2 ? 2 : v];
+}
 const char* tx_fps_level(int v) { return fps_stats::level_name(v); }
 const char* tx_fps_corner(int v) { return fps_stats::corner_name(v); }   // (the FPS counter row: Off, FPS, Frame time, Graph, Breakdown)
 const char* tx_profile(int v) { return v ? "Handheld" : "Docked"; }   // (opts.handheld: the Profile row)
@@ -882,6 +887,9 @@ const char* tx_damage_taken(int v) {
     return names[v >= 0 && v < 4 ? v : 1];
 }
 const char* tx_fov(int v) { return v == 100 ? "100% (original)" : tx_percent(v); }
+// (hookshot) Walk mode: how the Walk key (the Controls page) makes Link walk with the movement keys (host/nn_hid.c walk_held)
+const char* tx_walk_mode(int v) { return v == 1 ? "Toggle" : "Hold"; }
+MENU_HINTS(hn_walk_mode, 0, "Link walks while the Walk key is held.", "One press of the Walk key walks, the next runs again.")
 const char* tx_prompts(int v) {
     static const char* t[HOS_PROMPT_N + 1] = {"Auto", "Switch", "Xbox", "PlayStation 4", "PlayStation 5", "Steam Deck",
                                               "Keyboard"};
@@ -897,6 +905,7 @@ const char* tx_gpu(int v) {
     return buf;
 }
 const char* tx_pad_layout(int v);
+const char* tx_pad_menu(int v);
 // (hookshot) the Microphone row: Off, the system's default, or one of the host's microphones (host/nn_audio_in.c: the
 // ocarina's input streams), told to the host by its name (host->mic_select) whenever it changes. The chosen one is kept by
 // its name, mic_want, also while it is unplugged: the row then has one more entry for it, "<name> (not connected)", the
@@ -1328,7 +1337,8 @@ MENU_HINTS(hn_text_size, 0, "The game's original size.", "A little larger.", "La
 MENU_HINTS(hn_background, 0, "Only while the game's window has the focus.",
            "Also behind other windows, for streaming or other apps. The keyboard and mouse still need the game's window.")
 MENU_HINTS(hn_mousecam, 0, "The mouse stands in for the right stick, with its curve and top speed.",
-           "The mouse turns the camera itself, one to one, as in a PC game.",
+           "The mouse turns the camera itself, one to one, as in a PC game. The aim, the locked-on aim, riding and event "
+           "cameras too, and the aim starts where the view looks.",
            "The mouse plays no part: a click in the window doesn't capture it. For a controller or the keyboard alone.")
 MENU_HINTS(hn_mouse_invert, 0, nullptr, "Moving the mouse forward tilts the camera down.")
 MENU_HINTS(hn_gyro, 0, "The sticks alone aim.",
@@ -1337,12 +1347,64 @@ MENU_HINTS(hn_gyro, 0, "The sticks alone aim.",
 MENU_HINTS(hn_pad_layout, 0, "The Switch's order: A on the right, B at the bottom, X at the top, Y on the left.",
            "A at the bottom (action and talk), B on the right, X on the left, Y at the top.",
            "A at the bottom, B on the right; X and Y as on the Switch.",
+           "For a Switch 2 Pro Controller, or any Switch pad: every button its own (the sticks, shoulders, triggers, + and -, the "
+           "D-pad too, whatever was bound before), and the Switch's button icons.",
            "Bindings of your own, from the Controls page.")
 MENU_HINTS(hn_prompts, 0,
            "Those of the first controller, from its name (SDL's). With none, the keyboard's (the Switch's with XInput "
            "alone).",
            "The Switch's buttons.", "An Xbox controller's.", "A PlayStation 4 controller's.", "A PlayStation 5 controller's.",
            "A Steam Deck's.", "The keys and mouse buttons your controls put each action on.")
+
+// (hookshot) the NFC tab: the NFC tags in the player's folder (host/nn_nfp.c: the files the player puts there),
+// one chosen and held to the game's reader. The list is the host's, asked again each time the menu opens (refresh_nfc)
+constexpr int kMaxNfc = 256;
+int nfc_choice = 0, nfc_listed = 0;
+std::string nfc_said;   // (what the last tap did, under the row's help)
+bool can_nfc() { return host && host->nfc_count && host->nfc_name && host->nfc_tap && host->nfc_state; }
+const char* tx_nfc(int v) {
+    static char b[160];
+    if (!can_nfc() || !nfc_listed) return "None in your NFC folder";
+    snprintf(b, sizeof b, "%s", host->nfc_name(std::clamp(v, 0, nfc_listed - 1)));
+    return b;
+}
+/* The NFC tag row: what the game's reader is doing now (variant 0: the longest, for the help's height) */
+const char* hn_nfc(int, int variant) {
+    static const char* const waiting = "The game is waiting for an NFC tag: Tap tag holds the chosen one to it.";
+    if (variant > 0) return nullptr;
+    if (variant == 0 || !can_nfc()) return waiting;
+    const int st = host->nfc_state();
+    static int said_for = -1;   // (what a tap said stays until another tag is chosen)
+    if (said_for != nfc_choice) said_for = nfc_choice, nfc_said.clear();
+    if (!nfc_said.empty()) return nfc_said.c_str();
+    if (!nfc_listed) return "Put tag files (dumps of your own figures) in the NFC folder.";
+    if (st & 8) return "The game has read the NFC tag.";
+    if (st & 2) return waiting;
+    if (st & 4) return "An NFC tag is at the reader: the game reads it when it next asks for one.";
+    if (st & 1) return "The game is not asking for an NFC tag now. Open its NFC screen first, or tap one ahead.";
+    return "The game has not started its NFC reader yet.";
+}
+bool is_nfc_tap(const struct Row& r);
+bool is_nfc_remove(const struct Row& r);
+bool is_nfc_scan(const struct Row& r);
+/* The Scan row: what the scan is doing, or did (variant 0: the longest) */
+const char* nfc_scan_says(int variant) {
+    static char b[200];
+    static const char* const looking = "Hold the tag to the controller: on the logo in the middle of a Switch 2 Pro Controller, for up to ten seconds.";
+    if (variant == 0 || !host || !host->nfc_scan) return looking;
+    switch (host->nfc_scan(0)) {
+    case 1: return looking;
+    case 2:
+        snprintf(b, sizeof b, "Saved as \"%s\": it is in the NFC tag row's list now. The launcher's NFC page renames it.",
+                 host->nfc_scan_name ? host->nfc_scan_name() : "");
+        return b;
+    case 3: return "No tag was found in ten seconds. Hold it flat on the controller's logo and scan again.";
+    case 4: return "That tag was read, but it is not a figure's tag: nothing was saved.";
+    case 5: return "No Switch 2 Pro Controller over USB: plug it in, with Steam and any bridge program closed.";
+    case 6: return "The tag could not be read, or its file could not be written. Scan again.";
+    default: return nullptr;
+    }
+}
 
 Row rows[] = {
     // Graphics, in sections: a heading row is a section's title (draw_options draws it, the selection steps over it). The
@@ -1550,14 +1612,25 @@ Row rows[] = {
      "Your mods from the mods folder beside the game: turn each on or off and choose which wins when two have the same file, "
      "without renaming their folders. Applies after a restart."},
 
-    // Controls (13 rows; Motion opens the 6 TAB_MOTION rows, Controls its page with the 2 TAB_PAGE rows)
+    // Controls (17 rows; Motion opens the 6 TAB_MOTION rows, Controls its page with the 2 TAB_PAGE rows)
     {TAB_CONTROLS, "Controller in background", &opts.pad_background, 0, 1, 1, tx_onoff,
      "Whether the controller plays the game while another window has the focus.", hn_background, false, true},
+    {TAB_CONTROLS, "Keyboard", &opts.keyboard, 0, 2, 1, tx_keyboard,
+     "Whether the keyboard's controls count. Auto: only while no controller is connected, so a controller that sends key "
+     "presses cannot reach the game's controls (Steam Input's Desktop layout on a Steam Deck sends the stick and the face "
+     "buttons as the arrow keys, Enter, Esc and Tab). This also applies to menu navigation; F1 and the enabled Insert "
+     "shortcut still open and close the menu.", nullptr, false, true},
     {TAB_CONTROLS, "Mouse camera", &opts.mouse_native, 0, 2, 1, tx_mousecam, "How the captured mouse turns the camera.",
      hn_mousecam, false, true},
     {TAB_CONTROLS, "Disable camera centering", &opts.disable_camera_centering, 0, 1, 1, tx_onoff,
      "Stops the camera gradually turning toward the direction you move, useful with native mouse look. Off keeps the "
-     "game's standard behavior. Manual camera controls and recentering still work.", nullptr, false, true},
+     "game's standard behavior. Manual camera controls and recentering still work. With Mouse camera Native, the camera "
+     "also keeps the aim's direction when the aim ends.", nullptr, false, true},
+    {TAB_CONTROLS, "Sprint", &opts.sprint, 0, 1, 1, tx_onoff,
+     "Link runs while you move: Shift held, or the left stick pressed once until you stop, without rolling, talking or "
+     "picking things up. Turning it "
+     "on changes your controls: Shift moves from B to Sprint (B goes to V) and the left stick's press from LS to Sprint. "
+     "Turning it off puts them back. Controls you rebound yourself are left alone.", nullptr, false, true},
     {TAB_CONTROLS, "Mouse sensitivity", &opts.mouse_sens, 10, 500, 10, tx_sens,
      "How far the camera turns for a mouse movement, with either Mouse camera: at 1.00 native look turns 0.1 degree a "
      "count. The - and = keys change it in game too.", nullptr, false, true},
@@ -1599,17 +1672,27 @@ Row rows[] = {
     {TAB_CONTROLS, "Motion", nullptr, 0, 0, 0, nullptr,   // (hookshot: opens the Motion page, the TAB_MOTION rows)
      "Motion controls: aiming with the controller's gyroscope, its sensitivity and its inverts."},
     // (hookshot) the Controls page's own rows, above its grid (TAB_PAGE: no tab shows them)
-    {TAB_PAGE, "Layout preset", &opts.pad_layout, 0, 3, 1, tx_pad_layout,
+    {TAB_PAGE, "Layout preset", &opts.pad_layout, 0, 4, 1, tx_pad_layout,
      "Which face button is which. Binding one yourself on the Controls page makes it Custom.", hn_pad_layout, false, true},
     {TAB_PAGE, "Button prompts", &opts.prompts, 0, HOS_PROMPT_N, 1, tx_prompts,
      "The button icons the game shows, in its texts and menus: those of this controller, for the buttons your controls "
      "put each action on.", hn_prompts, true, true},
+    {TAB_CONTROLS, "Walk mode", &opts.walk_mode, 0, 1, 1, tx_walk_mode,
+     "How the Walk key makes Link walk with the movement keys: while it is held, or from one press to the next. It is Caps "
+     "Lock unless the Controls page changes it.", hn_walk_mode, false, true},
+    {TAB_CONTROLS, "Walk speed", &opts.walk_speed, 15, 90, 5, tx_percent,
+     "How far the movement keys tilt the stick while Link walks, in percent of the whole way. Controllers, the mouse and "
+     "the camera keys are not changed.", nullptr, false, true},
     {TAB_CONTROLS, "Controls", nullptr, 0, 0, 0, nullptr,   // (hookshot: opens its page)
      "The layout preset, the button prompts, and which gamepad button and which keys press each of the Switch's "
      "buttons."},
     {TAB_CONTROLS, "Menu shortcut", &opts.menu_shortcut, 0, 2, 1, tx_menu_shortcut,
      "Which keys open and close this menu. F1 always does; F1 only leaves Insert free for an overlay. With Esc, Esc opens it "
      "too, as a PC game's pause menu (open, Esc still goes back a page or closes it).",
+     nullptr, false, true},
+    {TAB_CONTROLS, "Controller menu button", &opts.pad_menu, 0, 3, 1, tx_pad_menu,
+     "Which of the controller's buttons opens and closes this menu, so that no keyboard is needed: Home, or one of the back "
+     "buttons of a pad that has them (GL and GR on a Switch 2 Pro Controller). None leaves all of them to the game.",
      nullptr, false, true},
     {TAB_CONTROLS, "Compact menu key", &opts.compact_menu_key, 0, 1, 1, tx_compact_menu_key,
      "Which key switches between the full menu and the compact bar (or opens directly to the compact bar when held "
@@ -1620,6 +1703,18 @@ Row rows[] = {
      "Saves the picture as the window shows it, with the Graphics tab's looks and without this menu or the FPS counter, as a "
      "PNG in the screenshots folder of the game folder.",
      nullptr, false, true},
+    // NFC (hookshot): the NFC tags of the player's folder; the two actions hold the chosen one to the game's reader and take it away
+    // (the choice is kept in the options file as any row's, by its place in the list: refresh_nfc keeps it within the list)
+    {TAB_NFC, "NFC tag", &nfc_choice, 0, 0, 1, tx_nfc,
+     "Which of your NFC tags to use: the files of your NFC folder, by their names: dumps of your own figures "
+     "(.bin, or a Flipper Zero's .nfc), which you put in the folder yourself.", hn_nfc, false, true},
+    {TAB_NFC, "Tap tag", nullptr, 0, 0, 0, nullptr,
+     "Holds the chosen NFC tag to the reader, as tapping the figure on the controller does. It stays there until the game "
+     "has read it."},
+    {TAB_NFC, "Remove tag", nullptr, 0, 0, 0, nullptr, "Takes the NFC tag off the reader."},
+    {TAB_NFC, "Scan tag on controller", nullptr, 0, 0, 0, nullptr,
+     "Reads a tag you own with a Switch 2 Pro Controller's reader (over USB) and saves it in your NFC folder, so it can be "
+     "tapped from this tab from then on. The tag itself is not changed."},
     // Debug: the tools' switch, the tools themselves below it while they are on (cheat: menu_tick does what they do), then the
     // developer's rows
     {TAB_DEBUG, "Debug tools", &opts.debug_tools, 0, 1, 1, tx_onoff,
@@ -1674,6 +1769,16 @@ Row rows[] = {
     // (hookshot, from Longshot; Intel graphics on Windows only: row_shown) IntelDriverGate, vk_internal.h
     {TAB_DEBUG, "Intel shader compiles", &opts.intel_compiles, 0, 1, 1, tx_intel_compiles,
      "Intel graphics: how many shaders Intel's compiler is given at once. Applies after a restart.", hn_intel_compiles, true, true},
+    // (hookshot, from Longshot, Intel graphics on Windows only: row_shown) vk_draw.cpp compute_optimize
+    {TAB_DEBUG, "Intel quick compute builds", &opts.intel_quick, 0, 1, 1, tx_onoff,
+     "Intel graphics, shaders one at a time: a pass over the scene (its light, its exposure) is built first without the "
+     "compiler's optimizer, in seconds instead of minutes, and drawn with until the optimized one is ready. Changes at once.",
+     nullptr, false, true},
+    // (hookshot, from Longshot, integrated graphics only: row_shown) weak_laptop_apply
+    {TAB_DEBUG, "Set up for a weak laptop", nullptr, 0, 0, 0, nullptr,
+     "For integrated graphics with 4 CPU threads or fewer (an i3 laptop's UHD Graphics): Render resolution 33% with the game's own "
+     "upscaler, the plain window scale without sharpening, the handheld profile, the smallest memory budgets, Intel's shaders "
+     "one at a time and quick compute builds. The handheld profile applies after a restart."},
 
     // (hookshot fork) Neural rendering (13 rows). Every row here takes effect on the next frame: the backend reads
     // them live rather than caching them at start-up, which is the bug that made the upscaling rows
@@ -1909,6 +2014,36 @@ const char* cheat_button_text(int i) {
     return i >= 0 && i < kCheatRows ? buttons[i] : "";
 }
 constexpr int kRows = sizeof rows / sizeof rows[0];
+bool is_nfc_tap(const Row& r) { return r.tab == TAB_NFC && !r.value && !strcmp(r.name, "Tap tag"); }
+bool is_nfc_remove(const Row& r) { return r.tab == TAB_NFC && !r.value && !strcmp(r.name, "Remove tag"); }
+bool is_nfc_scan(const Row& r) { return r.tab == TAB_NFC && !r.value && !strcmp(r.name, "Scan tag on controller"); }
+/// The NFC tags listed again (the menu opened): the row's range is theirs, the choice kept by its name
+void refresh_nfc() {
+    if (!can_nfc()) return;
+    const std::string was = nfc_listed ? host->nfc_name(std::clamp(nfc_choice, 0, nfc_listed - 1)) : "";
+    nfc_listed = std::min(host->nfc_count(), kMaxNfc);
+    nfc_choice = 0;
+    for (int i = 0; i < nfc_listed && !was.empty(); i++)
+        if (was == host->nfc_name(i)) nfc_choice = i;
+    for (Row& r : rows)
+        if (r.value == &nfc_choice) r.hi = std::max(0, nfc_listed - 1);
+    nfc_said.clear();
+}
+void nfc_press(bool tap) {
+    if (!can_nfc()) return;
+    if (!tap) {
+        host->nfc_tap(-1);
+        nfc_said = "The NFC tag is off the reader.";
+    } else if (!nfc_listed) {
+        nfc_said = "There is no tag to tap: put a tag file in the NFC folder.";
+    } else if (!host->nfc_tap(nfc_choice)) {
+        nfc_said = std::string("\"") + host->nfc_name(nfc_choice) + "\" is not an NFC tag's dump.";
+    } else {
+        nfc_said = std::string("\"") + host->nfc_name(nfc_choice) + ((host->nfc_state() & 2) || (host->nfc_state() & 8)
+                       ? "\" is at the reader: close the menu and the game reads it."
+                       : "\" is at the reader. The game is not asking for one yet: it reads it when it does.");
+    }
+}
 
 int ultrawide_read = 1;   // (ultrawide= as read: saved again while HOS_OUTPUT_RES holds the Output resolution and the row is as it was)
 /// (hookshot) The Aspect ratio and Output resolution rows' ends from the screen's sizes and the player's own (known once the
@@ -2031,10 +2166,14 @@ bool intel_compiler_row() {
     return false;
 #endif
 }
+bool laptop_row() { return dev.props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU; }   // (Set up for a weak laptop)
+bool is_laptop_row(const Row& r) { return !r.value && r.tab == TAB_DEBUG && !strcmp(r.name, "Set up for a weak laptop"); }
 bool row_shown(int i) {
     const int* v = rows[i].value;
     return ((rows[i].cheat < 0 && v != &opts.damage_taken) || cheats_on()) && (v != &opts.reflex || reflex_available()) &&
            (v != &opts.antilag || antilag_available()) && (v != &opts.intel_compiles || intel_compiler_row()) &&
+           (v != &opts.intel_quick || intel_compiler_row()) &&
+           (!is_laptop_row(rows[i]) || laptop_row()) &&
            (v != &opts.dlss || ur::upscaler_shown(upscalers_available())) &&
            (v != &opts.dlss_model || ur::model_shown(dlss_why() == DLSS_OK)) &&
            ((v != &opts.hdr_white && v != &opts.hdr_peak && v != &opts.hdr_contrast) || opts.hdr != 0) &&
@@ -2148,14 +2287,36 @@ const char* ini_key(const Row& r) {
 const char* const bind_names[HOS_KEY_N] = {"a", "b", "x", "y", "ls", "rs", "l", "r", "zl", "zr", "plus", "minus",
                                            "left", "up", "right", "down", "move_up", "move_down", "move_left",
                                            "move_right", "cam_up", "cam_down", "cam_left", "cam_right",
-                                           "note_l", "note_r", "note_a", "note_y", "note_x"};
+                                           "note_l", "note_r", "note_a", "note_y", "note_x", "walk", "sprint"};
 bool can_bind() { return host && host->binding && host->bind && host->pad_raw; }
 const char* tx_pad_layout(int v) {
-    static const char* t[] = {"Nintendo (Def)", "Xbox / PC", "Swap Face", "Custom"};
+    static const char* t[] = {"Nintendo (Def)", "Xbox / PC", "Swap Face", "Switch 2 Pro", "Custom"};
+    return t[std::min(std::max(v, 0), 4)];
+}
+// (the Switch's buttons on a Switch pad's own: host/nn_hid.c pad_default, in HOS_SW_*'s order)
+constexpr int kPadOwn[HOS_SW_N] = {HOS_PAD_EAST, HOS_PAD_SOUTH, HOS_PAD_NORTH, HOS_PAD_WEST, HOS_PAD_LSTICK, HOS_PAD_RSTICK,
+                                   HOS_PAD_LSHOULDER, HOS_PAD_RSHOULDER, HOS_PAD_LTRIGGER, HOS_PAD_RTRIGGER, HOS_PAD_START,
+                                   HOS_PAD_BACK, HOS_PAD_LEFT, HOS_PAD_UP, HOS_PAD_RIGHT, HOS_PAD_DOWN};
+const char* tx_pad_menu(int v) {
+    static const char* t[] = {"None", "Home", "Back left (GL)", "Back right (GR)"};
     return t[std::min(std::max(v, 0), 3)];
 }
 void apply_pad_layout(int layout) {
-    if (!can_bind() || layout < 0 || layout > 2) return;
+    if (!can_bind() || layout < 0 || layout > 3) return;
+    if (layout == 3) { // Switch 2 Pro (and any Switch pad): every button the pad's own, and the Switch's button icons
+        // (again while a button is not its own: see below)
+        for (int pass = 0; pass < HOS_SW_N; pass++) {
+            bool done = true;
+            for (int i = 0; i < HOS_SW_N; i++)
+                if (host->binding(HOS_BIND_PAD, i, 0) != kPadOwn[i]) {
+                    host->bind(HOS_BIND_PAD, i, 0, kPadOwn[i]);
+                    done = false;
+                }
+            if (done) break;
+        }
+        opts.prompts = 1;   // (Switch: the Button prompts row)
+        return;
+    }
     static const int face[4] = {HOS_SW_A, HOS_SW_B, HOS_SW_X, HOS_SW_Y};
     static const int want[3][4] = {
         {HOS_PAD_EAST, HOS_PAD_SOUTH, HOS_PAD_NORTH, HOS_PAD_WEST},   // Nintendo (Default: Bottom=B, Right=A, Top=X, Left=Y)
@@ -2180,10 +2341,16 @@ int detect_pad_layout() {
     const int b = host->binding(HOS_BIND_PAD, HOS_SW_B, 0);
     const int x = host->binding(HOS_BIND_PAD, HOS_SW_X, 0);
     const int y = host->binding(HOS_BIND_PAD, HOS_SW_Y, 0);
-    if (a == HOS_PAD_EAST && b == HOS_PAD_SOUTH && x == HOS_PAD_NORTH && y == HOS_PAD_WEST) return 0;
+    if (a == HOS_PAD_EAST && b == HOS_PAD_SOUTH && x == HOS_PAD_NORTH && y == HOS_PAD_WEST) {
+        // (the Switch 2 Pro preset: every button the pad's own, with the Switch's icons; else the face buttons' Nintendo,
+        // which is also what the row keeps when it says Nintendo over those same inputs)
+        bool own = opts.prompts == 1 && opts.pad_layout != 0;
+        for (int i = 0; i < HOS_SW_N && own; i++) own = host->binding(HOS_BIND_PAD, i, 0) == kPadOwn[i];
+        return own ? 3 : 0;
+    }
     if (a == HOS_PAD_SOUTH && b == HOS_PAD_EAST && x == HOS_PAD_WEST && y == HOS_PAD_NORTH) return 1;
     if (a == HOS_PAD_SOUTH && b == HOS_PAD_EAST && x == HOS_PAD_NORTH && y == HOS_PAD_WEST) return 2;
-    return 3;
+    return 4;
 }
 // (hookshot) the row's choice to the host: off, the default, or a microphone by its name (and its place in the host's list,
 // -1 while it is unplugged: of two with one name, the one chosen). Unplugged, the name is the kept one, cut: the host takes
@@ -2304,8 +2471,8 @@ void save() {
         fprintf(f, "options_version=6\n");
         fputs(others.c_str(), f);
         if (!can_bind()) fputs(kept.c_str(), f);
-        for (int i = 0; i < HOS_KEY_N && can_bind(); i++) {   // (the stick's and camera's rows, HOS_KEY_MOVE_*/CAM_*, have no pad_ line; the ocarina note rows do)
-            if (i < HOS_SW_N || (i >= HOS_KEY_OC_NOTE_L && i <= HOS_KEY_OC_NOTE_X)) {
+        for (int i = 0; i < HOS_KEY_N && can_bind(); i++) {   // (the stick's and camera's rows, HOS_KEY_MOVE_*/CAM_*, have no pad_ line; the ocarina note rows and Sprint do)
+            if (i < HOS_SW_N || (i >= HOS_KEY_OC_NOTE_L && i <= HOS_KEY_OC_NOTE_X) || i == HOS_KEY_SPRINT) {
                 const int alternate = host->binding(HOS_BIND_PAD, i, 1);
                 fprintf(f, "pad_%s=%d", bind_names[i], host->binding(HOS_BIND_PAD, i, 0));
                 if (alternate >= 0) fprintf(f, ",%d", alternate);
@@ -2363,6 +2530,32 @@ void share_finish() {
     menu_refresh = true;
 }
 bool is_share_row(const Row& r) { return !r.value && r.tab == TAB_DEBUG && !strcmp(r.name, "Save my pipeline list"); }
+// (hookshot, from Longshot) Set up for a weak laptop (the Debug tab, integrated graphics: row_shown): Minimum's rows and memory budgets, then
+// lighter still. An i3-1115G4's UHD Graphics (2 cores, 4 threads, 16 GB shared) ran Kokiri Forest and the Deku Tree at 3-6 fps
+// with 120-200 ms of GPU time a frame on the game's own dynamic resolution, docked at 2048 x 1152
+bool laptop_applied = false;
+void weak_laptop_apply() {
+    apply_preset(1);   // (Minimum: its scaling rows, the handheld profile, its memory budgets)
+    env_release(&opts.dlss);
+    opts.dlss = 0;   // (the game's own upscaler: no DLSS or FSR on these GPUs, and the lightest)
+    opts.resolution = ur::snap_render(upscaler(), 6);   // (33%: auto_settings.h RES_ULTRA_PERFORMANCE)
+    opts.upscale = 0, opts.sharpness = 0;   // (the plain window scale: as Auto's lightest tier, RX_VK_LOW_SPEC)
+    for (int* v : {&opts.framegen, &opts.intel_compiles, &opts.intel_quick}) env_release(v);
+    opts.framegen = 0;
+    opts.intel_compiles = 0, opts.intel_quick = 1;
+    opts.preset = 0;   // (Custom, Minimum's memory budgets kept: opts.budget)
+    samplers_changed();   // (the upscalers' texture LOD bias follows the 3D's share)
+    laptop_applied = true;
+    menu_refresh = true;
+    {   // (the handheld profile and Intel's shader compiles take a restart: asked at the next close, as for a row set by hand)
+        int now[mr::kMax];
+        restart_values(now);
+        restart_state.note(now);
+    }
+    save();
+    logf("menu: Set up for a weak laptop: Render resolution %d%%, the game's own upscaler, plain scale, handheld profile (after a "
+         "restart), Minimum's memory budgets", ur::percent(opts.resolution));
+}
 std::string game_folder() {
     char exe[MAX_PATH];
     const DWORD n = game_module_path(exe, MAX_PATH);
@@ -2726,6 +2919,46 @@ void share_pipeline_list() {
     }
 }
 
+/// (hookshot) The Controls tab's Sprint row turned on: Sprint gets Shift and the left stick's press where they are still
+/// the defaults' (Shift on B, which moves to V when no control has V; the press on LS, which keeps its other input), and only
+/// when Sprint has none of its own. Off: those go back to B and LS. A control the player rebound is left as it is
+void apply_sprint_layout(bool on) {
+    if (!can_bind()) return;
+    constexpr int kShift = 0x10, kV = 'V';   // (Windows key codes)
+    auto key = [](int b, int s) { return host->binding(HOS_BIND_KEY, b, s); };
+    auto pad = [](int b, int s) { return host->binding(HOS_BIND_PAD, b, s); };
+    auto key_used = [&](int code) {
+        for (int i = 0; i < HOS_KEY_N; i++)
+            for (int s = 0; s < 2; s++)
+                if (key(i, s) == code) return true;
+        return false;
+    };
+    const int S = HOS_KEY_SPRINT;
+    if (on) {
+        if (!key(S, 0) && !key(S, 1)) {
+            if (key(HOS_SW_B, 0) == kShift && !key_used(kV)) host->bind(HOS_BIND_KEY, HOS_SW_B, 0, kV);
+            if (!key_used(kShift)) host->bind(HOS_BIND_KEY, S, 0, kShift);
+        }
+        if (pad(S, 0) < 0 && pad(S, 1) < 0 && pad(HOS_SW_LS, 0) == HOS_PAD_LSTICK) {
+            const int other = pad(HOS_SW_LS, 1);   // (LS's Input 2 moves into its Input 1)
+            host->bind(HOS_BIND_PAD, HOS_SW_LS, 1, -1);
+            host->bind(HOS_BIND_PAD, HOS_SW_LS, 0, other);
+            host->bind(HOS_BIND_PAD, S, 0, HOS_PAD_LSTICK);
+        }
+        return;
+    }
+    if (key(HOS_SW_B, 0) == kV && (key(S, 0) == kShift || key(S, 1) == kShift))
+        host->bind(HOS_BIND_KEY, HOS_SW_B, 0, kShift);   // (taken from Sprint; V is free again)
+    for (int s = 0; s < 2; s++)
+        if (key(S, s) == kShift) host->bind(HOS_BIND_KEY, S, s, 0);
+    if (pad(S, 0) == HOS_PAD_LSTICK || pad(S, 1) == HOS_PAD_LSTICK) {
+        for (int s = 0; s < 2; s++)
+            if (pad(S, s) == HOS_PAD_LSTICK) host->bind(HOS_BIND_PAD, S, s, -1);
+        if (pad(HOS_SW_LS, 0) < 0) host->bind(HOS_BIND_PAD, HOS_SW_LS, 0, HOS_PAD_LSTICK);
+        else if (pad(HOS_SW_LS, 1) < 0) host->bind(HOS_BIND_PAD, HOS_SW_LS, 1, HOS_PAD_LSTICK);
+    }
+}
+
 /// A row's new value v, as the arrows set it (dir: 1 up, -1 down, for the rows that skip or wrap), saved unless !keep
 /// (a slider's drag: saved once it is let go)
 void set_row(Row& r, int v, int dir, bool keep = true) {
@@ -2751,8 +2984,8 @@ void set_row(Row& r, int v, int dir, bool keep = true) {
     if (r.value == &opts.vram_budget && v == kVramMinimumOnly) v += dir;
     if (stops_at_ends(r)) v = std::min(std::max(v, r.lo), r.hi);   // (a scale: it stops at its ends)
     if (r.value == &opts.pad_layout) {
-        if (v > 2) v = dir > 0 ? 0 : 2;
-        if (v < 0) v = 2;
+        if (v > 3) v = dir > 0 ? 0 : 3;   // (4, Custom, is shown only)
+        if (v < 0) v = 3;
         *r.value = v;
         apply_pad_layout(*r.value);
         *r.value = detect_pad_layout();   // (Custom when the preset could not be had whole)
@@ -2777,6 +3010,7 @@ void set_row(Row& r, int v, int dir, bool keep = true) {
         }
     }
     if (r.value == &opts.mic && can_mic()) mic_chosen();   // (hookshot)
+    if (r.value == &opts.sprint) apply_sprint_layout(*r.value != 0);   // (hookshot: the bindings follow the row)
     // (hookshot: the samplers made again, at once: their anisotropy, and the upscalers' LOD bias, vk_draw.cpp upscale_lod_bias)
     if (r.value == &opts.anisotropy || r.value == &opts.dlss || r.value == &opts.resolution || r.value == &opts.preset)
         samplers_changed();
@@ -2795,23 +3029,26 @@ void set_row(Row& r, int v, int dir, bool keep = true) {
 
 // ---- (hookshot) the Controls page: what presses each of the Switch's buttons, a gamepad input and up to two keys ----
 struct Control {
-    int button;   // HOS_SW_*, or HOS_KEY_* (keys only)
+    int button;   // HOS_SW_*, or HOS_KEY_* (the stick's and camera's: keys only)
     const char* name;
 };
 const Control controls[] = {{HOS_SW_A, "A"}, {HOS_SW_B, "B"}, {HOS_SW_X, "X"}, {HOS_SW_Y, "Y"}, {HOS_SW_L, "L"},
                             {HOS_SW_R, "R"}, {HOS_SW_ZL, "ZL"}, {HOS_SW_ZR, "ZR"}, {HOS_SW_PLUS, "Plus"},
                             {HOS_SW_MINUS, "Minus"}, {HOS_SW_LS, "Left stick press"}, {HOS_SW_RS, "Right stick press"},
                             {HOS_SW_UP, "D-pad up"}, {HOS_SW_DOWN, "D-pad down"}, {HOS_SW_LEFT, "D-pad left"},
-                            {HOS_SW_RIGHT, "D-pad right"}, {HOS_KEY_MOVE_UP, "Move forward"},
+                            {HOS_SW_RIGHT, "D-pad right"}, {HOS_KEY_SPRINT, "Sprint"}, {HOS_KEY_MOVE_UP, "Move forward"},
                             {HOS_KEY_MOVE_DOWN, "Move back"}, {HOS_KEY_MOVE_LEFT, "Move left"},
                             {HOS_KEY_MOVE_RIGHT, "Move right"}, {HOS_KEY_CAM_UP, "Camera up"},
                             {HOS_KEY_CAM_DOWN, "Camera down"}, {HOS_KEY_CAM_LEFT, "Camera left"},
-                            {HOS_KEY_CAM_RIGHT, "Camera right"}, {HOS_KEY_OC_NOTE_L, "Ocarina note (L)"},
+                            {HOS_KEY_CAM_RIGHT, "Camera right"}, {HOS_KEY_WALK, "Walk"}, {HOS_KEY_OC_NOTE_L, "Ocarina note (L)"},
                             {HOS_KEY_OC_NOTE_R, "Ocarina note (R)"}, {HOS_KEY_OC_NOTE_A, "Ocarina note (A)"},
                             {HOS_KEY_OC_NOTE_Y, "Ocarina note (Y)"}, {HOS_KEY_OC_NOTE_X, "Ocarina note (X)"}};
 constexpr int kControls = sizeof controls / sizeof controls[0];   // (then "Reset to defaults")
-// (the stick's and camera's directions: keys only; the ocarina's note rows take a gamepad input too, host/nn_hid.c)
-bool keys_only(int i) { return i < kControls && controls[i].button >= HOS_KEY_MOVE_UP && controls[i].button <= HOS_KEY_CAM_RIGHT; }
+// (the stick's and camera's directions and Walk: keys only; the ocarina's note rows and Sprint take a gamepad input too, host/nn_hid.c)
+bool keys_only(int i) {
+    return i < kControls && ((controls[i].button >= HOS_KEY_MOVE_UP && controls[i].button <= HOS_KEY_CAM_RIGHT) ||
+                             controls[i].button == HOS_KEY_WALK);
+}
 /// A Switch button row that can have its Toggle on: not Plus or Minus (they open the game's menus, which a latch would hold
 /// open), not a stick direction or an ocarina note (host/nn_hid.c hold_toggle)
 bool can_toggle(int i) {
@@ -2956,7 +3193,7 @@ float scroll_at[TAB_MOTION + 3];   // (the first row shown, eased toward the sel
                                    // the Controls page: kControlsSlot, and the Mods page: kModsSlot)
 constexpr int kControlsSlot = TAB_MOTION + 1, kModsSlot = TAB_MOTION + 2;
 int wheel_rows[TAB_MOTION + 3];   // (the mouse wheel's notches since the last drawing, a slot each: scroll_rows scrolls by them)
-int scrolled_to[TAB_MOTION + 3] = {-1, -1, -1, -1, -1, -1};   // (the selection scroll_rows last brought into view)
+int scrolled_to[TAB_MOTION + 3] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};   // (the selection scroll_rows last brought into view)
 float scroll_want[TAB_MOTION + 3];   // (where scroll_at is going: the wheel moves it, a new selection too)
 float ease_step = 0;     // (this drawing's share of the way: the time since the last one)
 
@@ -3259,6 +3496,7 @@ void draw_debug_rows(ui::Ctx& c, float cx0, float cx1, float top, float bottom, 
         }
         if (r.cheat == 0 || r.cheat == 1 || r.cheat == 7 || r.value) return halves_w + pad;
         if (is_share_row(r)) return ui::size_of(c.f.strong, px, "Not saved").x + (tight ? 56 : 60) * s;   // (Save, Saved, Not saved)
+        if (is_laptop_row(r)) return ui::size_of(c.f.strong, px, "Applied").x + (tight ? 56 : 60) * s;   // (Apply, Applied)
         const std::string v = r.cheat == 11 ? "1.25x" : cheat_value(r.cheat);   // (Movement speed: its widest, the cell kept still)
         const char* const says = cheat_button_text(r.cheat);
         return ui::size_of(c.f.strong, px, v.empty() ? says : v.c_str()).x + (cheat_chooses(r.cheat) ? 68 : tight ? 56 : 60) * s;   // (choice_cell keeps 48 for arrows either way)
@@ -3331,6 +3569,8 @@ void draw_debug_rows(ui::Ctx& c, float cx0, float cx1, float top, float bottom, 
                         row_fixed(r.value));
         } else if (is_share_row(r)) {   // (Save my pipeline list: what the last press did)
             choice_cell(c, va, vb, share_value.empty() ? "Save" : share_value, selected, false, false);
+        } else if (is_laptop_row(r)) {
+            choice_cell(c, va, vb, laptop_applied ? "Applied" : "Apply", selected, false, false);
         } else if (r.cheat == 0 || r.cheat == 1 || r.cheat == 7) {
             halves_cell(c, va, vb, "Off", "On", cheat_value(r.cheat) == "On", selected, false);
         } else if (age_shown(r.cheat)) {   // (Link's age now: the other half switches)
@@ -3450,7 +3690,7 @@ const char* bug_report_hint() {
     return text.c_str();
 }
 
-const char* const tab_titles[TAB_COUNT] = {"Graphics", "Audio", "Gameplay", "Controls", "Neural", "Debug"};
+const char* const tab_titles[TAB_COUNT] = {"Graphics", "Audio", "Gameplay", "Controls", "Neural", "NFC", "Debug"};
 inline const char* tab_title(int t) { return t >= 0 && t < TAB_COUNT ? tab_titles[t] : "Settings"; }
 inline bool cheat_is_toggle(int c) { return c == 0 || c == 1 || c == 7; }
 
@@ -3548,6 +3788,8 @@ void draw_options(ui::Ctx& c) {
     const int count = tab_row_count(cur_tab), sel = tab_selected[cur_tab];
     const Row& selr = rows[tab_row_to_global(cur_tab, sel)];
     const char* hint = selr.value && selr.hint ? selr.hint(*selr.value, -1) : nullptr;
+    if ((is_nfc_tap(selr) || is_nfc_remove(selr)) && !nfc_said.empty()) hint = nfc_said.c_str();   // (what the press did)
+    if (is_nfc_scan(selr)) hint = nfc_scan_says(-1);
     if (is_share_row(selr) && !share_said.empty()) hint = share_said.c_str();   // (what the last save did)
     if (&selr == &rows[kBugReportRow]) hint = bug_report_hint();   // (the Bug report: where it was saved, or why not)
     const std::string pending_line = (cur_tab == TAB_GRAPHICS || cur_tab == TAB_DEBUG) && restart_pending() ? restart_line(c, 16 * s, hx1 - hx0 - 66 * s) : "";
@@ -3568,7 +3810,7 @@ void draw_options(ui::Ctx& c) {
         if (const char* says = cheat_confirm(selr.cheat)) prompt_list[prompts_n++] = {ui::kConfirm, says};
         prompt_list[prompts_n++] = {ui::kCompact, "Compact", compact_key_name};
     } else {
-        prompt_list[prompts_n++] = {ui::kConfirm, confirms ? (pending == &selr ? "Confirm" : selr.name) : &selr == &rows[kBugReportRow] || is_share_row(selr) ? "Save" : "Open"};
+        prompt_list[prompts_n++] = {ui::kConfirm, is_nfc_tap(selr) ? "Tap" : is_nfc_remove(selr) ? "Remove" : is_nfc_scan(selr) ? "Scan" : confirms ? (pending == &selr ? "Confirm" : selr.name) : &selr == &rows[kBugReportRow] || is_share_row(selr) ? "Save" : "Open"};
     }
     if (cur_tab == TAB_MOTION) prompt_list[prompts_n++] = {ui::kBack, "Back"};   // (Esc: to Controls)
     else {
@@ -3706,6 +3948,11 @@ void draw_controls(ui::Ctx& c) {
     const char* title = page_row ? page_row->name : sel_i < kControls ? controls[sel_i].name : "Reset to defaults";
     const char* help = listening ? (listening == 1 ? "Press the gamepad button to use. Esc cancels." : "Press the key to use. Esc cancels.")
                        : page_row ? page_row->help
+                       : sel_i < kControls && controls[sel_i].button == HOS_KEY_SPRINT
+                           ? "Link runs while you move: the key while it is held, the gamepad button pressed once until you "
+                             "stop, without rolling, talking or picking things up. Only with the Controls tab's Sprint row on, "
+                             "which gives it Shift and the "
+                             "left stick's press. Enter binds; Delete clears it."
                        : can_toggle(sel_i) && ccol == kCtlToggle
                            ? "Hold-to-toggle: press once to hold this Switch button, again to release it. Either gamepad input or a "
                              "bound key works. Opening Insert, pressing Plus or Minus, focus loss or rebinding releases it. Off by default."
@@ -4930,6 +5177,7 @@ void menu_init() {
     // (vk_texture.cpp reads RX_VK_ASTC_RGBA8 over the row: the row shows it, fixed (row_fixed), and the ini keeps the player's)
     if (const char* e = getenv("RX_VK_ASTC_RGBA8")) env_override(&opts.astc_rgba8, !env_value_off(e));
     if (const char* e = getenv("RX_VK_NO_INTEL_SERIAL")) env_override(&opts.intel_compiles, !env_value_off(e));
+    if (const char* e = getenv("RX_VK_COMPUTE_QUICK_FIRST")) env_override(&opts.intel_quick, !env_value_off(e));
     if (const char* e = getenv("HOS_OUTPUT_RES")) {
         player_custom_output = custom_output;   // (parse_output replaces the player's own size with the environment's)
         env_override(&opts.output_res, parse_output(e));
@@ -4985,6 +5233,9 @@ void menu_auto_for_gpu(const VkPhysicalDeviceProperties& props, ::auto_settings:
 // (the switches read once, at the first present: they are for the whole run, and each present asked twice)
 int menu_vsync() { static const int run = env_on("RX_VK_FIFO") ? 1 : env_on("RX_VK_IMMEDIATE") ? 2 : 0; return run ? run : opts.vsync; }
 bool intel_compiles_side_by_side() { return opts.intel_compiles != 0; }   // (RX_VK_NO_INTEL_SERIAL in it: menu_init)
+// (Intel's Windows driver only, where the row shows: Mesa's ANV ignores DISABLE_OPTIMIZATION, same instructions, spills and
+// compile time on an Iris Xe, its slow part register allocation at SIMD32)
+bool intel_quick_compute() { return opts.intel_quick != 0 && intel_compiler_row(); }   // (RX_VK_COMPUTE_QUICK_FIRST in it: menu_init)
 bool resolution_auto() { return opts.resolution == 0; }
 int resolution_scale() {
     const float s = upscaler_rows::percent(ur::snap_render(upscaler(), opts.resolution)) / 100.0f;
@@ -5153,7 +5404,7 @@ void menu_option_set(int id, int value) {
 // its own thread: menu_mu keeps them apart from menu_tick (the present's thread) and from menu_option_set (the game's)
 bool bridge_row(int i) { return rows[i].value && !rows[i].heading && rows[i].cheat < 0 && row_shown(i); }
 void bridge_fill(int i, MkwVkSetting* out) {
-    static const char* const tabs[] = {"graphics", "audio", "gameplay", "controls", "neural", "debug", "motion", "controls"};
+    static const char* const tabs[] = {"graphics", "audio", "gameplay", "controls", "neural", "nfc", "debug", "motion", "controls"};
     static_assert(sizeof tabs / sizeof tabs[0] == TAB_PAGE + 1, "a name for each MenuTab");
     const Row& r = rows[i];
     *out = MkwVkSetting{};
@@ -5276,7 +5527,7 @@ int menu_setting_set(const char* key, int value, MkwVkSetting* out) {
     if (i == kRows) return 0;
     Row& r = rows[i];
     if (row_fixed(r.value)) return bridge_fill(i, out), -1;
-    const int want = std::min(std::max(value, r.lo), r.value == &opts.pad_layout ? std::min(r.hi, 2) : r.hi);   // (3: Custom, shown only)
+    const int want = std::min(std::max(value, r.lo), r.value == &opts.pad_layout ? std::min(r.hi, 3) : r.hi);   // (4: Custom, shown only)
     if (r.value == &opts.output_res && output_choice(want) == want &&
         dm::ratio_name(size_of(output_at(want))) != dm::ratio_name(size_of(output_at(opts.output_res)))) {
         // (a size of another shape: the Aspect ratio moves to it first, as a player would, which takes the Output resolution
@@ -5480,13 +5731,18 @@ void menu_tick() {
     if (fg) GetWindowThreadProcessId(fg, &pid);
     const bool mine = pid == GetCurrentProcessId();
     bool press[K_N] = {};
+    bool keyboard_enabled[K_N] = {};
     for (int i = 0; i < K_N; i++) {
         const bool down = mine && (GetAsyncKeyState(keys[i]) & 0x8000) != 0;
         const bool queued = host && host->take_key_press && host->take_key_press(keys[i]);
         // Read both keys even if one is disabled, so old presses cannot toggle the menu after a change.
         // (F1 always opens the menu; Menu shortcut's F1 only leaves Insert to an overlay)
-        const bool enabled = keys[i] != VK_INSERT || opts.menu_shortcut != 1;   // (Insert: all but F1 only)
-        press[i] = enabled && (host && host->take_key_press ? mine && queued : down && !held[i]);
+        // Drain queued events and track key edges even when the keyboard policy suppresses them.
+        const bool emergency = keys[i] == VK_INSERT || keys[i] == VK_F1;
+        const bool enabled = (keys[i] != VK_INSERT || opts.menu_shortcut != 1) &&
+                             (emergency || !host || !host->keyboard_counts || host->keyboard_counts(keys[i]));
+        keyboard_enabled[i] = enabled;
+        press[i] = keyboard_enabled[i] && (host && host->take_key_press ? mine && queued : down && !held[i]);
         held[i] = down;
         if (press[i]) pad_last = false;   // (the keys: their names in the prompts)
     }
@@ -5534,13 +5790,17 @@ void menu_tick() {
     if (host && host->binding)   // (A and B as bound now: the Controls page or the Layout preset can change them)
         menu_keys::confirm_back(host->binding(HOS_BIND_PAD, HOS_SW_A, 0), host->binding(HOS_BIND_PAD, HOS_SW_B, 0), &pad_confirm,
                                 &pad_back);
-    if (pad(HOS_PAD_GUIDE) || chord_now) press[0] = true;
+    {   // (the controller's own button for the menu: the Controller menu button row)
+        const int menu_pad = opts.pad_menu == 1 ? (int)HOS_PAD_GUIDE : opts.pad_menu == 2 ? (int)HOS_PAD_LPADDLE1
+                           : opts.pad_menu == 3 ? (int)HOS_PAD_RPADDLE1 : -1;
+        if ((menu_pad >= 0 && pad(menu_pad)) || chord_now) press[0] = true;
+    }
     {   // holding an arrow or the D-pad repeats it: after 0.35 s, 12 a second, then 30 a second after 1.5 s held
         static int64_t held_since[5], next_repeat[5];
         const int pads[5] = {0, HOS_PAD_UP, HOS_PAD_DOWN, HOS_PAD_LEFT, HOS_PAD_RIGHT};
         const int64_t t = prof_now();
         for (int i = 1; i <= 4; i++) {
-            const bool down = held[i] || (open_now.load() && listening != 1 && (raw >> pads[i] & 1));
+            const bool down = (keyboard_enabled[i] && held[i]) || (open_now.load() && listening != 1 && (raw >> pads[i] & 1));
             if (!down) { held_since[i] = 0; continue; }
             if (!held_since[i]) { held_since[i] = t, next_repeat[i] = t + 350000000LL; continue; }
             if (t >= next_repeat[i] && open_now.load() && listening == 0) {
@@ -5633,6 +5893,7 @@ void menu_tick() {
         if (open_now.load()) opts.pad_layout = detect_pad_layout();
         if (open_now.load()) dlss_probe(), fsr4_probe();   // (whether the Upscaler row can offer DLSS and FSR here: asked once)
         if (open_now.load()) refresh_mics();   // (the microphones as they are now)
+        if (open_now.load()) refresh_nfc();    // (and the NFC tags of the player's folder)
     }
     if (open_now.load() && page == 5) {   // (hookshot) the restart question: Later (the default) or Restart now
         if (mouse) {   // (a button under the cursor chosen, a click on it pressed, a right click is Later; no list: the wheel does nothing)
@@ -5724,6 +5985,7 @@ void menu_tick() {
                         host->bind(HOS_BIND_PAD, -1, 0, 0);
                         opts.pad_layout = 0;
                         opts.hold_toggle = 0;
+                        if (opts.sprint) apply_sprint_layout(true);   // (the defaults give Sprint nothing)
                         save();
                     }
                     else if (col == kCtlToggle) {
@@ -5902,10 +6164,24 @@ void menu_tick() {
             }
         } else if (r.cheat >= 0) cheat_press(r.cheat, press, changed);   // (a debug tool: on the Debug tab itself)
         else if (press[7] && is_motion_row(r)) cur_tab = TAB_MOTION, tab_selected[TAB_MOTION] = 0, press[7] = false, changed = true;
+        else if (press[7] && (is_nfc_tap(r) || is_nfc_remove(r))) nfc_press(is_nfc_tap(r)), press[7] = false, changed = true;
+        else if (press[7] && is_nfc_scan(r)) {
+            if (host && host->nfc_scan) host->nfc_scan(1);
+            press[7] = false, changed = true;
+        }
         else if (press[7] && is_share_row(r)) share_pipeline_list(), press[7] = false, changed = true;
+        else if (press[7] && is_laptop_row(r)) weak_laptop_apply(), press[7] = false, changed = true;
         else if (press[7] && &r == &rows[kBugReportRow]) bug_report_save(), press[7] = false, changed = true;
         else if (press[7] && is_mods_row(r)) mods_open(), press[7] = false, changed = true;   // (hookshot: the Mods page)
         else if (press[7] && !r.value && can_bind()) page = 1, csel = 0, ccol = menu_hit::kCtlPrimary, changed = true;
+        {   // (a scan ends by itself: its line drawn again, and the tag it saved in the row's list)
+            static int scan_was = 0;
+            const int scan = host && host->nfc_scan ? host->nfc_scan(0) : 0;
+            if (scan != scan_was) {
+                if (scan == 2) refresh_nfc();
+                scan_was = scan, changed = true;
+            }
+        }
         if ((press[3] || press[4] || press[7]) && r.value) {   // (Enter, or A, as Right)
             if (press[7]) press[4] = true;
             set_row(r, *r.value + (press[4] ? r.step : -r.step), press[4] ? 1 : -1);
@@ -5956,6 +6232,13 @@ void menu_tick() {
     }
 }
 
+/// (hookshot) Once a present: the Rumble strength row changed with the menu open, and the new strength is felt at once, a
+/// short rumble, which also shows that the controller rumbles (Off is silent). Whatever changed it: the keys, the mouse
+void menu_rumble_tick() {
+    static int was = -1;
+    if (was >= 0 && opts.rumble != was && menu_is_open() && host && host->version >= 22 && host->rumble_test) host->rumble_test();
+    was = opts.rumble;
+}
 void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     const bool start = startup_on.load(std::memory_order_acquire);
     const bool fps = opts.show_fps && !start;   // (no game frames yet: not "0 FPS" over the start-up screen)

@@ -634,8 +634,10 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Mods | Opens the Mods page: each mod in the `mods` folder on or off, and the order they load in (after a restart; [Mods](#mods)) | |
 | | Bug report | Saves a report into a new folder in `bug-reports` (below) | |
 | Controls | Controller in background | Off, On | Off |
+| | Keyboard | Auto (only without a connected controller), On, Off; applies to gameplay and menu navigation; F1 and the enabled Insert shortcut remain available | Auto |
 | | Mouse camera | As the stick, Native, Off | As the stick |
 | | Disable camera centering | Off, On | Off |
+| | Sprint | Off, On | Off |
 | | Mouse sensitivity | 0.10 to 5.00 | 1.00 |
 | | Invert mouse vertical | Off, On | Off |
 | | Invert camera X | Off, On | Off |
@@ -644,13 +646,20 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Stick dead zone | Default (24%), 5%, 10%, 15%, 20%, 30% | Default (24%) |
 | | Auto run | Off, On | Off |
 | | Rumble strength | Off, 25% to 150%, in steps of 25 | 100% |
-| | Layout preset | Nintendo (Def), Xbox / PC, Swap Face, Custom (on the Controls page) | Nintendo (Def) |
+| | Layout preset | Nintendo (Def), Xbox / PC, Swap Face, Switch 2 Pro; Custom once you bind a button yourself (on the Controls page) | Nintendo (Def) |
 | | Button prompts | Auto, Switch, Xbox, PlayStation 4, PlayStation 5, Steam Deck (on the Controls page) | Auto |
 | | Motion | Opens the Motion page: Motion controls (Off, On; On), Motion sensitivity X (10% to 600%) and Y (10% to 300%; 100%), Invert motion X and Y (Off, On; Off), Motion deadzone (Low, Standard, High; Standard) | |
+| | Walk mode | Hold, Toggle | Hold |
+| | Walk speed | 15% to 90%, in steps of 5 | 45% |
 | | Controls | Opens the Controls page | |
 | | Menu shortcut | Insert or F1; F1 only; Insert, F1 or Esc | Insert, F1 or Esc |
+| | Controller menu button | None, Home, Back left (GL), Back right (GR) | Home |
 | | Compact menu key | Right Shift, Right Ctrl | Right Shift |
 | | Screenshot key | Off, F12 (saves the picture as the window shows it, without the menu or the FPS counter, as a PNG in the `screenshots` folder: [Controls](#controls)) | F12 |
+| NFC | NFC tag | The tag files of your NFC folder, by their names | The first |
+| | Tap tag | Holds the chosen tag to the game's reader | |
+| | Remove tag | Takes it off the reader | |
+| | Scan tag on controller | Reads a tag you own with a Switch 2 Pro Controller (USB) and saves it in your NFC folder | |
 | Debug | Debug tools | Off, On (the tools below it while on) | Off |
 | | Player: Damage taken | Half, Normal, Double, Quadruple (live, while Debug tools is on; Half rounds damage up to a quarter heart; Heart protection wins) | Normal |
 | | Developer: Descriptor reuse | Off, On (changes at once) | On |
@@ -843,14 +852,21 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   nothing unless a Discord client is running on this PC; with the row Off nothing is sent to it.
 - **Controller in background:** On keeps the controller working while another window has the focus. The keyboard and
   mouse still need the game's window.
-- **Mouse camera:** Native turns the camera with the mouse one to one, as in a PC game. As the stick uses the mouse in
-  place of the right stick. The <kbd>-</kbd> and <kbd>=</kbd> keys change the sensitivity in game too.
+- **Mouse camera:** Native turns the camera with the mouse one to one, as in a PC game: the camera that follows Link,
+  and also the aim (bow, slingshot, hookshot, first-person view), the aim while locked on, lock-on's manual turn, riding
+  Epona and the event and talk cameras you can turn. The aim starts at the pitch the view had, not level. As the stick
+  uses the mouse in place of the right stick. The <kbd>-</kbd> and <kbd>=</kbd> keys change the sensitivity in game too.
   When another camera takes over, Native leaves it alone; on returning, mouse look starts from the game's current
   pitch and yaw rather than restoring the old view. Off leaves the mouse out of play: a click in the window doesn't
   capture it, so it neither turns the camera nor presses buttons. Play with a controller or the keyboard.
 - **Disable camera centering:** On stops the game gradually turning the camera toward your movement, so it does not fight
-  native mouse look. Off keeps the game's standard behavior. Changes apply immediately with either Mouse camera mode.
+  native mouse look. With Mouse camera on Native, it also keeps the aim's direction when you stop aiming instead of
+  swinging the camera back behind Link. Off keeps the game's standard behavior. Changes apply immediately with either
+  Mouse camera mode.
   Manual controls, explicit recentering and scripted camera headings still work; automatic pitch adjustment is unchanged.
+- **Sprint:** On lets Link run with <kbd>Shift</kbd> held or the left stick pressed once while you move (see **Sprint**
+  under Controls). Turning it on moves Shift from B to Sprint (B goes to <kbd>V</kbd>) and the left stick's press from LS
+  to Sprint; turning it off puts them back.
 - **Camera speed** is how fast the right stick turns the camera, in percent of the game's own speed. The camera keys
   follow it, and so does the mouse with Mouse camera on As the stick; Native mouse look has its own sensitivity. The
   game's own camera speed option still picks the speed this multiplies.
@@ -877,12 +893,34 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   action on (the first of its two), and WASD and the mouse for the sticks; the ocarina's notes and the pause menu's
   controller keep the Switch's buttons.
 - **Save my pipeline list** (Debug tab, under Developer): see [Send your pipeline list](#send-your-pipeline-list).
+- **Walk mode** and **Walk speed:** on the keyboard the movement keys push the stick all the way, so Link runs. While the
+  Walk key is held (<kbd>Caps Lock</kbd> unless you change it on the Controls page), they tilt it only Walk speed of the
+  way, and he walks; with Walk mode on Toggle, one press walks and the next runs again. 15% is his slowest walk, 45% to
+  50% his fastest; from 55% up he jogs, then runs. Controllers, the mouse and the camera keys are not changed. Caps Lock
+  still switches capitals on and off in other programs at each press: bind another key if that bothers you.
+  Walk mode is separate from the Controls page's Toggle column, which holds Switch buttons such as ZL, not Walk.
+  They can be used together without toggling twice. In Toggle mode, walking stays selected across Insert and focus
+  changes, but a Walk key held when play resumes must be released before a fresh press changes that selection.
 
 ### Controls
 
 Use a controller, or the keyboard and mouse. On the keyboard, <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move
-and the arrow keys (or <kbd>I</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd>) turn the camera.
+(hold <kbd>Caps Lock</kbd> to walk) and the arrow keys (or <kbd>I</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd>) turn the
+camera.
 With the default keyboard bindings, press <kbd>E</kbd> to select **New Game** on the title screen.
+
+**Sprint** (off by default: the Controls tab's **Sprint** row): hold <kbd>Shift</kbd> while you move and Link runs. On a
+controller, press the left stick in once while you move: Link keeps running until you stop, then press it again. Sprint
+holds A, the game's own run, only while the left stick (or the movement keys) is pushed, and the game never sees that A
+as a press: Link runs at once, without rolling, and runs past people, signs and pots without talking, reading or picking
+up. Your own A still works while sprinting: Sprint lets go of A for a moment as yours goes down, so a tap rolls (or
+talks, opens, picks up) as it does without Sprint. While the ocarina waits for a note, Sprint holds nothing (A is a note
+there), and the left stick's toggle ends.
+(`HOS_SPRINT_STILL_MS=<ms>` in `hookshot_env.txt` starts a sprint with the stick let go for that long instead, the older
+way round the roll, for a game without the patch.) Turning the row on changes your controls: Shift moves from B to Sprint (B
+goes to <kbd>V</kbd>, when no control has V) and the left stick's press from LS to Sprint. Turning it off puts them
+back. Controls you rebound yourself, and keys or buttons you gave Sprint, are left alone. Sprint has its own row on the
+Controls page.
 
 **Screenshots:** press <kbd>F12</kbd> to save the picture as the window shows it: at its size in the window, with the
 Graphics tab's looks in it (Retro look, Colour grade, Bloom, FXAA, Sharpness, the scaling filter) and without the menu, the
@@ -909,7 +947,26 @@ anything SDL reports as a Switch Pro Controller or Joy-Con, and that includes th
 (8BitDo, GameSir and others; SDL gives them Nintendo's ids). Some of them may turn it into weak rumble or none: set
 `HOS_HD_RUMBLE=0` to give them the plain motor rumble.
 
-To change which gamepad button or key presses a Switch button, or which keys move and turn the camera, open the
+**NFC tags:** where the game asks for a figure's NFC tag, the Insert menu's **NFC** tab gives it one. The tags are files
+in a folder of yours, dumps of tags you own: `.bin` (an NTAG215's 540 bytes; 532 and 572 byte ones too) or a Flipper
+Zero's `.nfc`. The folder is `%LOCALAPPDATA%\Hookshot\nfc` on Windows and `~/.local/share/hookshot/nfc` on Linux
+(`HOOKSHOT_NFC_DIR` names another); copy them in yourself.
+Choose one in the **NFC tag** row and press **Tap tag** while the game waits for one (or before: it stays at the reader
+until the game reads it). With a Nintendo Switch 2 Pro Controller plugged in over USB (Windows), a real tag held on the
+controller is read too, and **Scan tag on controller** saves one into the folder. Only a tag's ID and its figure's model
+are read from a file; what a game writes to a tag is kept beside your saves instead (`user/nfc`), and no tag, real or
+file, is ever written. [docs/nfc.md](docs/nfc.md) has the details.
+
+**The Nintendo Switch 2 Pro Controller over USB (Windows):** Windows has no driver a game can use for it, so the game
+reads it itself: plugged in with its cable, it is a controller with its motion sensor and rumble like any other, with no
+bridge program. Pick **Switch 2 Pro** as the Layout preset (Controls page) for its own buttons and the Switch's icons;
+its Home button opens this menu (**Controller menu button**, which can also be GL or GR, or none). Only one program can
+have the controller: close Steam (it takes it for Steam Input) and any bridge such as Switch2Connect first, or the log
+says another program has it. A controller that stops taking rumble (it happens; the log says so) plays its own buzz and
+click instead until it is unplugged and plugged in again. Not over Bluetooth, where the controller speaks a pairing of
+Nintendo's own. `HOS_SWITCH2=0` leaves the controller alone.
+
+To change which gamepad button or key presses a Switch button or sprints, or which keys move, walk and turn the camera, open the
 Controls tab's Controls page. Choose a row and a column (Input 1 or 2 for the gamepad, Key 1 or 2 for the keyboard: each
 control takes two of each), press <kbd>Enter</kbd> (or the bottom face button), then the new button or key. <kbd>Esc</kbd> cancels, <kbd>Delete</kbd> clears it, and Reset to defaults
 puts them all back. A gamepad button taken from another Switch button swaps with it. The page saves them in
@@ -917,10 +974,10 @@ puts them all back. A gamepad button taken from another Switch button swaps with
 
 **Toggle:** on the Controls page, set a Switch button's Toggle column to On to hold it with one press and release it
 with the next. Both gamepad inputs, bound keys and mouse buttons share the latch. Every Toggle starts Off.
-Plus, Minus, stick directions and ocarina note rows have no Toggle. Opening Insert, pressing Plus or Minus,
+Plus, Minus, stick directions, Walk and ocarina note rows have no Toggle. Opening Insert, pressing Plus or Minus,
 losing focus, rebinding or Reset to defaults releases latched buttons. With Controller in background On, a new
-press can latch again behind another window. On Linux, other game dialogs do not necessarily clear the latch;
-press Insert to release it. There is no separate on-screen latch indicator.
+press can latch again behind another window. On Linux, any menu screen receiving pane focus also clears the latch,
+not only the pause page. Insert always releases it. There is no separate on-screen latch indicator.
 
 **Ocarina notes:** the page gains five rows, `Ocarina note (L)`, `(R)`, `(A)`, `(Y)`, `(X)`, unset by default: the game's own
 buttons play until you bind a note to a key or gamepad input of your own, and a bound note then answers only that input while
@@ -941,11 +998,12 @@ toggle_a=0
 [Windows key codes](https://learn.microsoft.com/windows/win32/inputdev/virtual-key-codes) in decimal (69 is
 <kbd>E</kbd>, 13 <kbd>Enter</kbd>), 0 none; the mouse's buttons are 1 (left), 2 (right), 4 (middle), 5 and 6 (side
 buttons), and count while the mouse is captured. The buttons are `a` `b` `x` `y` `l` `r` `zl` `zr` `plus` `minus` `ls`
-`rs` `left` `up` `right` `down`, for keys only the left stick's and the camera's directions: `move_up`
-`move_down` `move_left` `move_right` `cam_up` `cam_down` `cam_left` `cam_right`, and the ocarina's five notes,
-which also take a `pad_` line: `note_l` `note_r` `note_a` `note_y` `note_x`. A button the file leaves out keeps
-its default. `toggle_<button>=0|1` sets that button's Toggle (0 Off, the default; 1 On). It accepts the Switch
-buttons above except `plus` and `minus`; stick directions and note rows do not accept it. Other values mean Off.
+`rs` `left` `up` `right` `down`, for keys only the left stick's and the camera's directions and walking: `move_up`
+`move_down` `move_left` `move_right` `cam_up` `cam_down` `cam_left` `cam_right` `walk`, and the ocarina's five notes,
+which also take a `pad_` line: `note_l` `note_r` `note_a` `note_y` `note_x`; `sprint` takes both a `pad_` and a
+`key_` line. A button the file leaves out keeps its default. `toggle_<button>=0|1` sets that button's Toggle (0 Off,
+the default; 1 On). It accepts the Switch buttons above except `plus` and `minus`; stick directions, Walk and note
+rows do not accept it. Other values mean Off.
 The file saves enabled flags, not held state; a restart starts with no button latched.
 
 </details>
@@ -1402,8 +1460,9 @@ For a first run on a 4 GB card such as a GTX 1650, `RX_VK_LOW_SPEC=1` starts wit
 frame generation and upscaling off. It applies only when there is no `hookshot_options.ini` yet; after that, change
 the settings in the in-game menu.
 
-On **Minimum (4GB)**, when the driver reports a nonzero VRAM budget of at most 4.5 GiB, sampled ASTC textures use
-a 1024 dimension limit and an 8 MiB decoded-size threshold for leaving out their top mip levels. This lowers texture
+On **Minimum (4GB)**, when the driver reports a nonzero VRAM budget of at most 4.5 GiB, or the GPU is integrated
+and the PC has 16 GB of RAM or less (its "VRAM" is that RAM, whatever budget the driver reports), sampled ASTC textures
+use a 1024 dimension limit and an 8 MiB decoded-size threshold for leaving out their top mip levels. This lowers texture
 detail to reduce the working set. Other presets and larger or unknown budgets keep the 2048 / 64 MiB defaults;
 uncompressed render targets, depth images and the separate `RX_VK_TEX_MAX_MB` allocation limit keep their handling.
 The driver budget is sampled at the first texture creation and kept for the session. It is a heuristic, not a physical

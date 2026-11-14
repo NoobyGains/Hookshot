@@ -43,7 +43,8 @@ def check_source(source):
                          "made in the images' pool, they stay empty while the textures are compacted in a pool of their own)")
     need("vk_vma.cpp: blocks_at_start()", block(vma, "static size_t blocks_at_start(bool holds_textures)"),
          ["if (!holds_textures) return 0;", 'getenv("RX_VK_IMAGE_PREALLOC")',
-          "vram_compact::blocks_at_start(heap, kImageBlock, holds_textures)"])
+          "vram_compact::blocks_at_start(heap, kImageBlock, holds_textures,\n"
+          "                                                 dev.props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)"])
     # (the images' pool only when the textures are made there, RX_VK_COMPACT=0; else the textures' own)
     need("vk_vma.cpp: images_pool()", block(vma, "VmaPool images_pool() {"),
          ['make_pool(pi, blocks_at_start(!vram_compact::enabled(getenv("RX_VK_COMPACT"))), image_pool)', "made at the start"])
@@ -89,10 +90,11 @@ struct VmaAllocationCreateInfo { int usage{}, requiredFlags{}; };
 struct VmaPoolCreateInfo { uint32_t memoryTypeIndex{}; uint64_t blockSize{}; size_t minBlockCount{}; };
 struct Pool { VmaPoolCreateInfo info; };
 using VmaPool = Pool*;
+constexpr int VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU = 1, VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU = 2;
 struct { struct {
     uint32_t memoryHeapCount = 1;
     struct { uint64_t size = 8ull << 30; int flags = VK_MEMORY_HEAP_DEVICE_LOCAL_BIT; } memoryHeaps[1];
-} memory; } dev;
+} memory; struct { int deviceType = VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU; } props; } dev;
 int vma, calls, successes;
 bool fail_prealloc, fail_all;
 size_t requested[8]{};

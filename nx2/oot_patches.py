@@ -22,6 +22,10 @@ Each is a runtime switch where it can be, so the game's own path stays reachable
 - The OptimizeChangeBank thread's allocations tried again when their heap is full (host/oot_heap_retry.c): f_804566e0's two
   calls of f_80522050, its GPU memory (GPU_ALLOC_SITES), and its two tryAllocs of CPU buffers (HEAP_ALLOC_SITES). They went on
   with a null pointer and crashed writing through it (issue 1697). The supported build only.
+- Sprint without the press (host/nn_hid.c sprint_step): the controllers' update works out "pressed this frame" as held now and
+  not held before, and stores it with "released" at +8 (f_8038a220: the four the game plays with; f_834a3680: the menus').
+  While Sprint is the one holding A, hos_sprint_press_mask (A's bit) is cleared from "pressed": the game sees A held, its
+  run, and never pressed, so no roll and no talk, open or pick up. 0 otherwise: the game's own presses.
 - Ocarina note controls: the note-wait action's start (f_828a9190) and tick (f_828a9280) report the wait to the host (hos_oc_wait, hos_oc_beat), which swaps the five notes for its own controls (host/nn_hid.c); a tick whose gates refuse reports no wait, so a dialogue keeps its buttons.
 """
 import collections
@@ -231,6 +235,111 @@ def patch_mouse_camera(source):
     at = start + len(CAM_HEAD)
     source = source[:at] + "    hos_mouse_camera(c->x[0]);   /* (nx2/oot_patches.py: native mouse look) */\n" + source[at:]
     return source.replace('#include "a64.h"\n', '#include "a64.h"\nextern void hos_mouse_camera(uint64_t camera);\n', 1)
+
+
+# Native mouse aim (host/mouse_native.c, hos_mouse_aim): the player camera's aiming node, ExecutePlayerCameraAiming (the
+# slingshot, the bow, the hookshot, the first-person look), has an update of its own, f_827c0470 (slot 43 of its vtable at
+# 0x849ddd98, the node in x0). It hands its node to the host before anything else, as the camera that follows Link does: the
+# mouse's motion turns the aim's own pitch and yaw there instead of pushing the right stick.
+AIM_HEAD = "void f_827c0470(Ctx *__restrict A64_NOESC c) {\n"
+
+
+def patch_mouse_aim(source):
+    start = source.find(AIM_HEAD)
+    if start < 0:
+        return None
+    if "hos_mouse_aim(c->x[0]);" in source:   # (made before: a lift patched again)
+        return source
+    at = start + len(AIM_HEAD)
+    source = source[:at] + "    hos_mouse_aim(c->x[0]);   /* (nx2/oot_patches.py: native mouse aim) */\n" + source[at:]
+    return source.replace('#include "a64.h"\n', '#include "a64.h"\nextern void hos_mouse_aim(uint64_t node);\n', 1)
+
+
+# Native mouse in the player camera's other nodes (host/mouse_native.c, hos_mouse_turn): riding, the tail camera, the fixed
+# camera and the events' and talks' manual cameras each add what f_80643e70 (the yaw) and f_80643ac0 (the pitch) return, the
+# right stick's turn of this frame in degrees, to an angle of their own. Each return of the two adds the mouse's degrees to s0.
+# And the aim while locked on (ExecutePlayerCameraLockOnAimingAt): f_827de2a0, which turns its offsets by the stick, hands its
+# node to hos_mouse_lock_aim first.
+MOUSE_TURN_HEADS = tuple(("void f_%x(Ctx *__restrict A64_NOESC c) {" % a, axis) for a, axis in ((0x80643e70, 0), (0x80643ac0, 1)))
+MOUSE_TURN_DECL = "extern float hos_mouse_turn(int axis);\n"
+MOUSE_TURN_RETURN = ("{ float _m = hos_mouse_turn(%d); if (_m != 0.0f) { float _t; uint32_t _u; memcpy(&_t,c->vreg[0],4); _t += _m; "
+                     "memcpy(&_u,&_t,4); a64_vset64(c->vreg[0],_u); } return; }   /* (nx2/oot_patches.py: native mouse turn) */")
+LOCK_AIM_HEAD = "void f_827de2a0(Ctx *__restrict A64_NOESC c) {\n"
+MOUSE_TURN_PLACES = len(MOUSE_TURN_HEADS) + 1   # (the count patch_mouse_turn gives over the whole lift)
+
+
+def patch_mouse_turn(s):
+    """(s, the places of s that have the mouse: the two turn functions and the locked-on aim's, made now or by an earlier run)"""
+    found = 0
+    for head_text, axis in MOUSE_TURN_HEADS:
+        head = s.find(head_text)
+        if head < 0:
+            continue
+        end = s.find("\nvoid f_", head + len(head_text))
+        end = end if end >= 0 else len(s)
+        body = s[head:end]
+        if "hos_mouse_turn(" not in body:   # (not made before)
+            body, n = re.subn(r"\breturn;", lambda _: MOUSE_TURN_RETURN % axis, body)
+            if not n:
+                continue
+            s = s[:head] + body + s[end:]
+        found += 1
+        if MOUSE_TURN_DECL not in s:
+            s = s.replace('#include "a64.h"\n', '#include "a64.h"\n' + MOUSE_TURN_DECL, 1)
+    start = s.find(LOCK_AIM_HEAD)
+    if start >= 0:
+        if "hos_mouse_lock_aim(c->x[0]);" not in s:
+            at = start + len(LOCK_AIM_HEAD)
+            s = s[:at] + "    hos_mouse_lock_aim(c->x[0]);   /* (nx2/oot_patches.py: native mouse, the locked-on aim) */\n" + s[at:]
+            s = s.replace('#include "a64.h"\n', '#include "a64.h"\nextern void hos_mouse_lock_aim(uint64_t node);\n', 1)
+        found += 1
+    return s, found
+
+
+# Z-targeting (host/mouse_native.c, hos_mouse_lockon_seen): the update ExecutePlayerCameraLockOn and ExecutePlayerCameraTarget
+# share, f_8072da10 (the node in x0), hands its node to the host first, which keeps which node ran and in which mode
+# (HOS_MOUSE_DEBUG says it in the log).
+# And the native mouse in the lock-on's own mode of the player (hos_mouse_lockon; the node's mode at +0x164 is 1 once the
+# right stick has turned the view): the stick's path and the path of a stick at rest join at 0x8072ee0c for the yaw (the
+# node's offset at +0xec in s0, this frame's turn in s9) and at 0x8072f2a4 for the pitch (the node's at +0xd8, the turn in
+# s11). The host adds the mouse's degrees to the node's angle and gives them back; they are added to the turn's register
+# too, which is the least speed the view then follows the angle at, and s0 takes the new offset. w28 is the mode the
+# frame began in. With nothing from the mouse the registers are left as they are.
+LOCKON_HEAD = "void f_8072da10(Ctx *__restrict A64_NOESC c) {\n"
+LOCKON_SEEN = "    hos_mouse_lockon_seen(c->x[0]);   /* (nx2/oot_patches.py: native mouse, the lock-on's node) */\n"
+LOCKON_DECL = ("extern void hos_mouse_lockon_seen(uint64_t node);\n"
+               "extern float hos_mouse_lockon(uint64_t node, uint32_t mode, int axis);\n")
+LOCKON_TURN = ("    { float _m = hos_mouse_lockon(c->x[19], (uint32_t)c->x[28], %d); if (_m != 0.0f) { float _t; uint32_t _u; "
+               "memcpy(&_t,c->vreg[%d],4); _t += _m; memcpy(&_u,&_t,4); a64_vset64(c->vreg[%d],_u); %s} }"
+               "   /* (nx2/oot_patches.py: native mouse, the lock-on) */\n")
+# (the label, the axis, the turn's register, and what else the place needs: the yaw's offset is in s0 already)
+LOCKON_JOINS = (("L_8072ee0c:;\n", 0, 9, "a64_vset64(c->vreg[0],recomp_load32(c,(c->x[19]+236ULL))); "),
+                ("L_8072f2a4:;\n", 1, 11, ""))
+MOUSE_LOCKON_PLACES = 1 + len(LOCKON_JOINS)   # (the count patch_mouse_lockon gives over the whole lift)
+
+
+def patch_mouse_lockon(s):
+    """(s, the places of s that have the lock-on's hooks, made now or by an earlier run)"""
+    head = s.find(LOCKON_HEAD)
+    if head < 0:
+        return s, 0
+    found = 1
+    if LOCKON_SEEN not in s:
+        at = head + len(LOCKON_HEAD)
+        s = s[:at] + LOCKON_SEEN + s[at:]
+    for label, axis, reg, more in LOCKON_JOINS:
+        end = s.find("\nvoid f_", head + len(LOCKON_HEAD))
+        at = s.find(label, head, end if end >= 0 else len(s))
+        if at < 0:
+            continue
+        hook = LOCKON_TURN % (axis, reg, reg, more)
+        at += len(label)
+        if not s.startswith(hook, at):   # (not made before)
+            s = s[:at] + hook + s[at:]
+        found += 1
+    if LOCKON_DECL not in s:
+        s = s.replace('#include "a64.h"\n', '#include "a64.h"\n' + LOCKON_DECL, 1)
+    return s, found
 
 
 # The camera's state-3 yaw follow: after f_80642c80's authored heading override (the branch to 0x806492c4), the block at
@@ -1012,6 +1121,40 @@ def patch_ocarina_wait(s):
     return s
 
 
+# (the controllers' update: f_8038a220, the game's four; f_834a3680, the menus' one. Each computes "pressed" (x9: held now
+# x8 and not before) and "released" (x8: before and not now), then stores the two at +8. The before is x28 in the one and
+# x21 in the other; the pair is once in each function. The mask goes in after the pair, before the store, however a later
+# pass spells the store)
+SPRINT_DECL = "extern volatile uint32_t hos_sprint_press_mask;\n"
+SPRINT_HEADS = ("void f_8038a220(Ctx *__restrict A64_NOESC c) {", "void f_834a3680(Ctx *__restrict A64_NOESC c) {")
+SPRINT_PAIR = ("    { uint64_t _r = (c->x[8] & ~((uint64_t)(uint32_t)(((uint32_t)(c->x[%d])) << 0))); _r &= 0xFFFFFFFFULL; c->x[9] = _r; }\n"
+               "    { uint64_t _r = (c->x[%d] & ~((uint64_t)(uint32_t)(((uint32_t)(c->x[8])) << 0))); _r &= 0xFFFFFFFFULL; c->x[8] = _r; }\n")
+SPRINT_MASK = "    c->x[9] &= ~(uint64_t)hos_sprint_press_mask;   /* (nx2/oot_patches.py: Sprint's A held, never pressed) */\n"
+
+
+def patch_sprint_press(s):
+    """Sprint's A without its press, in the controllers' update: (s, the functions patched, made now or before)"""
+    found, out = 0, s
+    for head in SPRINT_HEADS:
+        at = out.find(head)
+        if at < 0:
+            continue
+        end = out.find("\n}\n", at + len(head))   # (the function's own closing brace: what follows it is never read)
+        end = end + 1 if end >= 0 else len(out)
+        body = out[at:end]
+        if SPRINT_MASK in body:
+            found += 1
+            continue
+        pairs = [SPRINT_PAIR % (r, r) for r in (28, 21) if body.count(SPRINT_PAIR % (r, r)) == 1]
+        if len(pairs) != 1:
+            continue
+        out = out[:at] + body.replace(pairs[0], pairs[0] + SPRINT_MASK, 1) + out[end:]
+        found += 1
+    if found and SPRINT_DECL not in out:
+        out = out.replace('#include "a64.h"\n', '#include "a64.h"\n' + SPRINT_DECL, 1)
+    return out, found
+
+
 def patch_file(s, name, protect_hearts=False):
     """One lifted file's patches (apply(), and nx2/chunks.py edit_c, a process per file): (its text, the places counted in it, the
     lines to print). The counts add up over the files; report() decides from the sums"""
@@ -1073,6 +1216,12 @@ def patch_file(s, name, protect_hearts=False):
         if ocw != out:
             lines.append("oot_patches: the ocarina note wait in " + name)
         out = ocw
+    if protect_hearts:   # (the supported build's functions)
+        sprint, n = patch_sprint_press(out)
+        counts["sprint press"] += n
+        if sprint != out:
+            lines.append("oot_patches: Sprint's A without its press at %d function(s) in %s" % (n, name))
+        out = sprint
     out, n = fixed_scale(out)
     if n:
         counts["fixed path's scale"] += 1
@@ -1097,7 +1246,24 @@ def patch_file(s, name, protect_hearts=False):
         out = mouse
         counts["mouse camera"] += 1
         lines.append("oot_patches: native mouse camera in " + name)
-    center = patch_camera_centering(out) if protect_hearts else None
+    aim = patch_mouse_aim(out) if protect_hearts else None
+    if aim is not None:
+        out = aim
+        counts["mouse aim"] += 1
+        lines.append("oot_patches: native mouse aim in " + name)
+    if protect_hearts:
+        made, n = patch_mouse_turn(out)
+        counts["mouse turn"] += n
+        if made != out:
+            out = made
+            lines.append("oot_patches: native mouse in the other cameras at %d place(s) in %s" % (n, name))
+    if protect_hearts:
+        made, n = patch_mouse_lockon(out)
+        counts["mouse lock-on"] += n
+        if made != out:
+            out = made
+            lines.append("oot_patches: native mouse in the lock-on at %d place(s) in %s" % (n, name))
+    center =patch_camera_centering(out) if protect_hearts else None
     if center is not None:
         out = center
         counts["disable camera centering"] += 1
@@ -1201,6 +1367,7 @@ def report(paths, counts, protect_hearts=False):
         done["player flight rotation"] = 0
         done["free camera"] = 0
         done["mouse camera"] = 0
+        done["mouse aim"] = 0
         done["disable camera centering"] = 0
         done["scene format"] = 0
         done["zstd stream hook"] = 0
@@ -1237,8 +1404,17 @@ def report(paths, counts, protect_hearts=False):
             print("oot_patches: WARNING: the %s was found %d times" % (what, n))
     if protect_hearts and speed_hooks != len(SPEED_PLACES):
         print("oot_patches: WARNING: the movement speed's places were found %d times, not %d" % (speed_hooks, len(SPEED_PLACES)))
+    if protect_hearts and total["sprint press"] != len(SPRINT_HEADS):   # (without it Sprint's A rolls and acts as a press)
+        print("oot_patches: WARNING: the controllers' press was found in %d of %d functions (Sprint's A is a press there)"
+              % (total["sprint press"], len(SPRINT_HEADS)))
     if protect_hearts and total["opening skip"] != 3:
         print("oot_patches: WARNING: the opening skip was found at %d of 3 functions" % total["opening skip"])
+    # (the two turn functions and the locked-on aim's; the lock-on update's places: without one of them the mouse stays
+    # the right stick in those cameras)
+    if protect_hearts and total["mouse turn"] != MOUSE_TURN_PLACES:
+        print("oot_patches: WARNING: the other cameras' mouse was found at %d of %d places" % (total["mouse turn"], MOUSE_TURN_PLACES))
+    if protect_hearts and total["mouse lock-on"] != MOUSE_LOCKON_PLACES:
+        print("oot_patches: WARNING: the lock-on's mouse was found at %d of %d places" % (total["mouse lock-on"], MOUSE_LOCKON_PLACES))
     if protect_hearts and camera_speed != len(CAMERA_SPEED_HEADS):
         print("oot_patches: WARNING: the camera's turn speed was found in %d of %d functions (the Camera speed row turns only "
               "those)" % (camera_speed, len(CAMERA_SPEED_HEADS)))

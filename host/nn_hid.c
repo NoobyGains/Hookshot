@@ -5,8 +5,9 @@
    page (gpu/vk/vk_menu.cpp) changes it, kept in hookshot_options.ini (binds_load). The defaults:
    Keyboard (totk-pc-recomp's layout): WASD left stick, arrows or IJKL right stick (camera), Space X (jump), E A
    (action), Shift B (run/cancel), Q L (abilities), R R, Z ZL, X or F ZR (bow), Ctrl left-stick click (crouch), C
-   right-stick click (first person), Tab or Enter Plus, M Minus (map), 1 2 3 4 d-pad left, up, right, down. Only
-   while the game's window is in front (the key state is global).
+   right-stick click (first person), Tab or Enter Plus, M Minus (map), 1 2 3 4 d-pad left, up, right, down, Caps Lock
+   walk (walk_held: the movement keys tilt the stick less). Only while the game's window is in front (the key state is
+   global).
    Mouse (after a click in the window, display.c; Esc releases): its motion is the right stick (mouse panning,
    mouse_stick), or with the Insert menu's "Mouse camera" set to Native (HOS_MOUSE_NATIVE=1 or 0 overrides it) turns
    the camera itself (mouse_native.c); left button Y (attack), right button ZL (shield, lock on). - and = change its sensitivity (x0.8 /
@@ -53,8 +54,22 @@ static XInputGetStateFn xinput_get;
 static int64_t sampling;
 
 int rx_option(int id, int otherwise);
+static volatile LONG pad_count_now;   /* (the controllers connected at the last read: pads_read) */
+/* (hookshot) Whether the keyboard's bindings count: the Insert menu's Keyboard row (HOS_OPT_KEYBOARD), 0 Auto (they count
+   only while no controller is connected), 1 On, 2 Off. Steam Input's Desktop layout sends a pad's stick and buttons to the
+   window in front as key presses (the left stick the arrow keys, A Enter, View Tab, Menu Esc), and those reached the game's
+   camera and Plus when they were read as the keyboard's: walking moved the camera, and View and Menu both opened the pause
+   menu, on a Steam Deck in Desktop Mode with the game started outside Steam. A mouse button is the mouse's, not the
+   keyboard's: only the keyboard's keys go through the row. The menu shares this policy, except its explicit shortcuts. */
+static int keyboard_counts(int vk) {
+    if (vk >= 0x01 && vk <= 0x06 && vk != 0x03) return 1;   /* (VK_LBUTTON to VK_XBUTTON2 but VK_CANCEL: the mouse's buttons) */
+    const int mode = rx_option(HOS_OPT_KEYBOARD, 0);
+    return mode == 1 ? 1 : mode == 2 ? 0 : pad_count_now == 0;
+}
+/* The menu shares gameplay's keyboard policy, even while the connected controller is idle. */
+int hos_keyboard_counts(int vk) { return keyboard_counts(vk); }
 /* (the Insert menu takes the keyboard while it is open) */
-static int key(int vk) { return !rx_option(1, 0) && (GetAsyncKeyState(vk) & 0x8000) != 0; }
+static int key(int vk) { return !rx_option(1, 0) && keyboard_counts(vk) && (GetAsyncKeyState(vk) & 0x8000) != 0; }
 
 int hos_mouse_take(int32_t *dx, int32_t *dy);   /* display.c */
 
@@ -298,7 +313,7 @@ static int game_in_front(void) {
 /* HOS_INPUT_SCRIPT, and HOS_INPUT_LIVE=<file>: lines appended to that file while the game runs are presses in the
    script's syntax, their times counted from when the line is read ("0:LUP/2000,2:A"): a test can steer the game
    by looking at its screenshots. */
-typedef struct { int64_t start_ms, end_ms; uint64_t buttons; int32_t stick[4]; } Press;
+typedef struct { int64_t start_ms, end_ms; uint64_t buttons; int32_t stick[4]; int host; } Press;   /* (host: hos_hid_tap's) */
 #define MAX_PRESSES 1024
 static Press presses[MAX_PRESSES];
 static int npresses = -1;
@@ -314,7 +329,7 @@ static int64_t script_elapsed_ms(int64_t now) {
     return frames * 1000 / 60;
 }
 
-static int parse_presses(const char *s, int64_t base_ms, int live);
+static int parse_presses(const char *s, int64_t base_ms, int live);   /* (live: 0 the script, 1 HOS_INPUT_LIVE, 2 the host's) */
 
 static void parse_script(void) {
     {   /* start SDL's controller thread now: pads are open by the time the game window comes to the front */
@@ -418,6 +433,7 @@ static int parse_presses(const char *s, int64_t base_ms, int live) {
         if (*s == '/') hold = strtol(s + 1, (char **)&s, 10);
         p.start_ms = base_ms + (int64_t)(t * 1000);
         p.end_ms = p.start_ms + hold;
+        p.host = live == 2;
         int slot = npresses < MAX_PRESSES ? npresses : -1;
         if (slot < 0)   /* full: reuse a press that is over */
             for (int i = 0; i < MAX_PRESSES && slot < 0; i++)
@@ -437,14 +453,16 @@ static void host_taps(void);
 static void host_stick_read(int32_t stick[4]);
 static void host_drag_read(int32_t stick[4]);   /* (above) */
 
-static void scripted_input(uint64_t *buttons, int32_t stick[4]) {
+/* (the host's taps go to *taps, not *buttons: they are the game's menus' mouse clicks, not the player's presses, so
+   hold-to-toggle does not latch them) */
+static void scripted_input(uint64_t *buttons, uint64_t *taps, int32_t stick[4]) {
     if (npresses < 0) parse_script();
     live_input();
     host_taps();
     const int64_t ms = script_elapsed_ms(hos_now_ns());
     for (int i = 0; i < npresses; i++)
         if (ms >= presses[i].start_ms && ms < presses[i].end_ms) {
-            *buttons |= presses[i].buttons;
+            *(presses[i].host ? taps : buttons) |= presses[i].buttons;
             for (int k = 0; k < 4; k++)
                 if (presses[i].stick[k]) stick[k] = presses[i].stick[k];
         }
@@ -492,7 +510,7 @@ static void host_taps(void) {
     memcpy(text, tap_text, sizeof text);
     tap_text[0] = 0;
     ReleaseSRWLockExclusive(&tap_lock);
-    if (text[0]) parse_presses(text, script_elapsed_ms(hos_now_ns()), 1);
+    if (text[0]) parse_presses(text, script_elapsed_ms(hos_now_ns()), 2);
 }
 
 static void stick_max(int32_t stick[4], const int32_t v[4]) {
@@ -504,19 +522,23 @@ static void stick_max(int32_t stick[4], const int32_t v[4]) {
    hookshot_options.ini beside the executable when it has them: pad_<button>=<position>[,<position>] (HOS_PAD_*, -1 none) and
    key_<button>=<key code>,<key code> (Windows key codes, 0 none), <button> one of bind_names. Read once, at the
    first use; what the file leaves out keeps its default. Keys only, after the Switch's buttons (HOS_KEY_*): the left
-   stick's and the camera's directions, and the ocarina's five note controls (which take a gamepad input too).
+   stick's and the camera's directions, and Walk (keys only); the ocarina's five note controls take a gamepad input too,
+   and so does Sprint (keys and gamepad inputs: held while Link is steered, it holds A, the game's run; none by default,
+   the Controls tab's Sprint row gives it Shift and the left stick's press, gpu/vk/vk_menu.cpp apply_sprint_layout).
    A key can be a mouse button (1 2 4 5 6: left, right, middle, 4, 5), which counts
    only while the mouse is captured ---- */
 static const char *const bind_names[HOS_KEY_N] = {"a", "b", "x", "y", "ls", "rs", "l", "r", "zl", "zr", "plus",
                                                   "minus", "left", "up", "right", "down", "move_up", "move_down",
                                                   "move_left", "move_right", "cam_up", "cam_down", "cam_left",
-                                                  "cam_right", "note_l", "note_r", "note_a", "note_y", "note_x"};
+                                                  "cam_right", "note_l", "note_r", "note_a", "note_y", "note_x", "walk", "sprint"};
 static const signed char pad_default[HOS_SW_N] = {
     HOS_PAD_EAST, HOS_PAD_SOUTH, HOS_PAD_NORTH, HOS_PAD_WEST, HOS_PAD_LSTICK, HOS_PAD_RSTICK, HOS_PAD_LSHOULDER,
     HOS_PAD_RSHOULDER, HOS_PAD_LTRIGGER, HOS_PAD_RTRIGGER, HOS_PAD_START, HOS_PAD_BACK, HOS_PAD_LEFT, HOS_PAD_UP,
     HOS_PAD_RIGHT, HOS_PAD_DOWN};
 static int is_note_row(int i) { return i >= HOS_KEY_OC_NOTE_L && i <= HOS_KEY_OC_NOTE_X; }
-static int has_pad(int i) { return i < HOS_SW_N || is_note_row(i); }
+static int has_pad(int i) { return i < HOS_SW_N || is_note_row(i) || i == HOS_KEY_SPRINT; }
+/* (the Switch's buttons and Sprint trade gamepad inputs by hos_bind's slot rules; the note rows share theirs) */
+static int pad_swaps(int i) { return i < HOS_SW_N || i == HOS_KEY_SPRINT; }
 #ifndef VK_XBUTTON1
 #define VK_XBUTTON1 0x05
 #define VK_XBUTTON2 0x06
@@ -526,16 +548,16 @@ static int is_mouse_vk(int vk) { return vk == VK_LBUTTON || vk == VK_RBUTTON || 
                                         vk == VK_XBUTTON1 || vk == VK_XBUTTON2; }
 /* (the keys of totk-pc-recomp's docs/controls.md, github.com/valentderah/totk-pc-recomp, MIT; plus Enter for Plus; the
    mouse's left button Y, attack, and right button ZL, shield and lock-on, as before; WASD the left stick, the arrows or
-   IJKL the camera) */
+   IJKL the camera; Caps Lock walk, beside the movement keys and no other control's) */
 static const unsigned char key_default[HOS_KEY_N][2] = {
     {'E'}, {VK_SHIFT}, {VK_SPACE}, {VK_LBUTTON}, {VK_CONTROL}, {'C'}, {'Q'}, {'R'}, {'Z', VK_RBUTTON}, {'X', 'F'},
     {VK_TAB, VK_RETURN}, {'M'}, {'1'}, {'2'}, {'3'}, {'4'}, {'W'}, {'S'}, {'A'}, {'D'}, {VK_UP, 'I'}, {VK_DOWN, 'K'},
-    {VK_LEFT, 'J'}, {VK_RIGHT, 'L'}, {0}, {0}, {0}, {0}, {0}};   /* (the five note rows start unset: oc_pad_word) */
+    {VK_LEFT, 'J'}, {VK_RIGHT, 'L'}, {0}, {0}, {0}, {0}, {0}, {VK_CAPITAL}, {0}};   /* (the five note rows start unset: oc_pad_word; Sprint too) */
 static volatile LONG toggle_reset;
 static HoldToggle toggles;
 void hos_input_clear_toggles(void) { InterlockedExchange(&toggle_reset, 1); }
 static SRWLOCK pad_bind_lock = SRWLOCK_INIT;
-static int pad_bind[HOS_KEY_N][2];
+static int pad_bind[HOS_KEY_N][2];   /* (-1 for the keys-only controls, !has_pad) */
 static volatile LONG key_bind[HOS_KEY_N][2];   /* (the menu changes them as the game reads them) */
 
 /* ---- (hookshot) the ocarina's five note controls, driven by the wait flag nx2/oot_patches.py's patch sets ---- */
@@ -550,7 +572,7 @@ static void binds_default(void) {
     hos_input_clear_toggles();
     AcquireSRWLockExclusive(&pad_bind_lock);
     for (int i = 0; i < HOS_KEY_N; i++) {
-        pad_bind[i][0] = i < HOS_SW_N ? pad_default[i] : -1;   /* (the note rows: -1, unset) */
+        pad_bind[i][0] = i < HOS_SW_N ? pad_default[i] : -1;   /* (the note rows and Sprint: -1, unset) */
         pad_bind[i][1] = -1;
     }
     ReleaseSRWLockExclusive(&pad_bind_lock);
@@ -583,7 +605,7 @@ static void binds_load(void) {
     int changed = 0;
     if (f) {
         char line[80];
-        int version = 0, had_keys = 0;   /* (options_version: 3 since the mouse's buttons are bindings) */
+        int version = 0, had_keys = 0, walk_named = 0;   /* (options_version: 3 since the mouse's buttons are bindings) */
         while (fgets(line, sizeof line, f)) {
             char *eq = strchr(line, '=');
             if (!eq) continue;
@@ -595,6 +617,7 @@ static void binds_load(void) {
                 if (strcmp(line + 4, bind_names[i]) || (pad && !has_pad(i))) continue;
                 changed++;
                 const char *comma = strchr(eq + 1, ',');
+                walk_named |= keys && i == HOS_KEY_WALK;
                 if (pad) {
                     pad_bind[i][0] = pad_code(eq + 1);
                     pad_bind[i][1] = comma ? pad_code(comma + 1) : -1;
@@ -615,6 +638,18 @@ static void binds_load(void) {
                 for (int i = 0; i < HOS_KEY_N; i++)
                     for (int k = 0; k < 2; k++) taken |= key_bind[i][k] == mouse_to[m][1];
                 if (!taken && !key_bind[mouse_to[m][0]][1]) key_bind[mouse_to[m][0]][1] = mouse_to[m][1];
+            }
+        }
+        /* A file from before the Walk control: its default key (Caps Lock) stays off when the file gives it to another
+           control, which kept it alone before */
+        if (!walk_named) {
+            int taken = 0;
+            for (int i = 0; i < HOS_KEY_N; i++)
+                for (int k = 0; k < 2; k++) taken |= i != HOS_KEY_WALK && key_bind[i][k] == key_default[HOS_KEY_WALK][0];
+            if (taken) {
+                key_bind[HOS_KEY_WALK][0] = 0;
+                hos_log("hid: no Walk key: hookshot_options.ini gives its default key (%d) to another control",
+                        key_default[HOS_KEY_WALK][0]);
             }
         }
     }
@@ -645,20 +680,20 @@ void hos_bind(int set, int button, int slot, int code) {
     if (set == HOS_BIND_PAD) {
         if (!has_pad(button) || code < -1 || code >= HOS_PAD_N) return;
         AcquireSRWLockExclusive(&pad_bind_lock);
-        if (button < HOS_SW_N) {   /* (among the Switch's buttons: the slot rules; the note rows keep theirs) */
+        if (pad_swaps(button)) {   /* (among the Switch's buttons and Sprint: the slot rules; the note rows keep theirs) */
             const int old = pad_bind[button][slot];
             if (code >= 0 && code != old) {
                 /* (the input taken from where it is: it gets the replaced input; with none (an empty Input 2), its own
                    other input moves into its Input 1; a button it is the only gamepad input of keeps it, and nothing changes) */
-                for (int i = 0; i < HOS_SW_N; i++)
+                for (int i = 0; i < HOS_KEY_N; i++)
                     for (int k = 0; k < 2; k++)
-                        if (pad_bind[i][k] == code && old < 0 && pad_bind[i][1 - k] < 0) {
+                        if (pad_swaps(i) && pad_bind[i][k] == code && old < 0 && pad_bind[i][1 - k] < 0) {
                             ReleaseSRWLockExclusive(&pad_bind_lock);
                             return;
                         }
-                for (int i = 0; i < HOS_SW_N; i++)
+                for (int i = 0; i < HOS_KEY_N; i++)
                     for (int k = 0; k < 2; k++)
-                        if (pad_bind[i][k] == code) {
+                        if (pad_swaps(i) && pad_bind[i][k] == code) {
                             if (old >= 0) pad_bind[i][k] = old;
                             else if (k == 0) pad_bind[i][0] = pad_bind[i][1], pad_bind[i][1] = -1;
                             else pad_bind[i][1] = -1;
@@ -694,7 +729,8 @@ static uint64_t bound_pad_buttons(uint64_t raw) {
 }
 
 static volatile LONG pad_raw_now;   /* the gamepads' inputs at the last read, 1 << HOS_PAD_* */
-static int pad_after_menu;          /* (the menu just closed: the pads wait until they are let go; oc_pad_word too) */
+static uint64_t pad_after_menu;     /* (the pads' inputs the Insert menu had, 1 << HOS_PAD_*: each waits until let go) */
+static uint64_t pad_raw_game;       /* (pads_read: the last read's inputs without the menu's Back+Start chord) */
 uint32_t hos_pad_raw(void) { return (uint32_t)pad_raw_now; }
 
 /* Apply the Insert menu's Stick dead zone to each stick as a pair, for XInput and SDL.
@@ -726,6 +762,7 @@ static void pads_read(uint64_t *buttons, int32_t stick[4]) {
     uint64_t raw = 0;   /* (by position: 1 << HOS_PAD_*) */
     int32_t s[4] = {0};
     int sdl_pads = 0;
+    int controlled = 0;   /* connected controllers, including idle ones */
     {   /* every controller SDL knows (DualSense, DualShock 4, Switch Pro, ...: hos/pad_sdl.c) */
         int hos_sdl_pads(uint64_t *buttons, int32_t stick[4]);
         static int was;
@@ -733,6 +770,7 @@ static void pads_read(uint64_t *buttons, int32_t stick[4]) {
         if (n != was) hos_log("hid: %d controller%s through SDL", n, n == 1 ? "" : "s");
         was = n;
         sdl_pads = n;
+        controlled = n;
     }
 #ifdef __EMSCRIPTEN__
     xinput_get = XInputGetState;
@@ -779,6 +817,7 @@ static void pads_read(uint64_t *buttons, int32_t stick[4]) {
             }
             if (!was_connected[p]) hos_log("hid: controller %d connected", p);
             was_connected[p] = 1;
+            controlled++;
             xinput_pads_now = 1;
             const WORD w = xs.Gamepad.wButtons;
             for (unsigned i = 0; i < sizeof map / sizeof *map; i++)
@@ -797,10 +836,12 @@ static void pads_read(uint64_t *buttons, int32_t stick[4]) {
         }
     }
     InterlockedExchange(&pad_raw_now, (LONG)raw);
+    InterlockedExchange(&pad_count_now, (LONG)controlled);
     /* Back and Start together open the Insert menu (gpu/vk/vk_menu.cpp, for pads whose Home button the system
        keeps): they reach the game only one at a time */
     const uint64_t chord = 1ULL << HOS_PAD_BACK | 1ULL << HOS_PAD_START;
     if ((raw & chord) == chord) raw &= ~chord;
+    pad_raw_game = raw;
     const uint64_t b = bound_pad_buttons(raw);
     cached_buttons = b;
     memcpy(cached_stick, s, sizeof s);
@@ -860,6 +901,71 @@ static uint64_t flight_input;
 static uint64_t free_camera_axes;
 static int free_camera_height;
 static int move_stick_held;   /* (the left stick pushed as the game got it: hos_move_stick_held) */
+static int sprint_now;   /* (Sprint as read_input last read it, SPRINT_KEY | SPRINT_PAD: sprint_step's) */
+enum { SPRINT_KEY = 1, SPRINT_PAD = 2 };
+
+/* Sprint's gamepad input held at the last read of the pads (pad_raw_now): SPRINT_PAD */
+static int pad_sprint_down(void) {
+    int down = 0;
+    AcquireSRWLockShared(&pad_bind_lock);
+    for (int k = 0; k < 2; k++) {
+        const int p = pad_bind[HOS_KEY_SPRINT][k];
+        down |= p >= 0 && p < HOS_PAD_N && (((uint64_t)pad_raw_now & ~pad_after_menu) >> p & 1);
+    }
+    ReleaseSRWLockShared(&pad_bind_lock);
+    return down ? SPRINT_PAD : 0;
+}
+
+/* Sprint: the game's run is A held while Link moves, but A pressed while he moves is a roll, and A pressed in front of
+   someone or something talks, opens or picks up. So Sprint holds A, and while it is Sprint that holds it
+   hos_sprint_press_mask is A's bit: nx2/oot_patches.py patch_sprint_press leaves that bit out of what the game's
+   controllers count as pressed this frame. The game sees A held, its run, and never pressed: no roll, no action. Its key
+   (Shift) runs while it is held; its gamepad input (the left stick's press) is a toggle, pressed once while Link moves, it
+   runs until the stick comes back to the middle, and then wants a new press. The player's own A while it runs is theirs:
+   A is held already then, so as it goes down Sprint lets go of A for SPRINT_ROLL_GAP_MS (at least one game frame) and
+   holds it again with the mask 0: the game sees A pressed, the player's roll (or talk, open, pick up). The mask stays 0
+   while their A is down and for SPRINT_ROLL_GAP_MS after the gap, so a tap shorter than the gap still counts.
+   HOS_SPRINT_STILL_MS=<ms> (a game without the patch): the stick let go for that long as Sprint starts, so A goes down
+   with Link standing, the earlier way round the roll (0, the default, none).
+   held: SPRINT_KEY | SPRINT_PAD as read now; steered: the left stick pushed; paused: the menu open, or the ocarina waiting
+   for a note (A is a note there and the stick bends its pitch), where Sprint holds nothing; now: hos_now_ns. */
+volatile uint32_t hos_sprint_press_mask;
+#define SPRINT_ROLL_GAP_MS 50   /* (A let go as the player's own A goes down mid-sprint: a frame at 20 fps) */
+static void sprint_step(uint64_t *buttons, int32_t stick[4], int held, int steered, int paused, int64_t now) {
+    static int was_pad, latched, running, still_ms = -1, own_was;
+    static int64_t started, gap_until, owed_until;
+    if (still_ms < 0) {
+        const char *e = getenv("HOS_SPRINT_STILL_MS");
+        still_ms = e && *e ? atoi(e) : 0;
+        if (still_ms < 0 || still_ms > 2000) still_ms = 0;
+    }
+    const int pad = !!(held & SPRINT_PAD);
+    if (!steered || paused) latched = 0;
+    else if (pad && !was_pad) latched = 1;   /* (pressed while he moves) */
+    was_pad = pad;
+    const int want = steered && !paused && (latched || (held & SPRINT_KEY));
+    const int own = (int)(*buttons >> B_A & 1);   /* (the player's own A: the pads', the keys', a script's) */
+    const int own_down = own && !own_was;
+    own_was = own;
+    if (!want) {
+        running = 0, gap_until = owed_until = 0;
+        __atomic_store_n(&hos_sprint_press_mask, 0, __ATOMIC_RELAXED);
+        return;
+    }
+    if (!running) running = 1, started = now;
+    else if (own_down) {   /* (theirs going down while Sprint holds A: a gap, then A again as their press) */
+        gap_until = now + (int64_t)SPRINT_ROLL_GAP_MS * 1000000;
+        owed_until = gap_until + (int64_t)SPRINT_ROLL_GAP_MS * 1000000;
+    }
+    if (now < gap_until) {
+        *buttons &= ~(1ULL << B_A);
+        __atomic_store_n(&hos_sprint_press_mask, 0, __ATOMIC_RELAXED);
+        return;
+    }
+    __atomic_store_n(&hos_sprint_press_mask, own || now < owed_until ? 0u : 1u, __ATOMIC_RELAXED);
+    *buttons |= 1ULL << B_A;
+    if (now - started < (int64_t)still_ms * 1000000) stick[0] = stick[1] = 0;   /* (A goes down with Link standing: no roll) */
+}
 
 uint64_t hos_flight_input(void) {
     return __atomic_load_n(&flight_input, __ATOMIC_RELAXED);
@@ -938,7 +1044,7 @@ static void oc_notes(void) {
         const int row = HOS_KEY_OC_NOTE_L + i;
         int held = keys && bound_down(row, 0);
         for (int k = 0; k < 2 && !held; k++)
-            if (pad_bind[row][k] >= 0 && (pad_raw_now >> pad_bind[row][k] & 1)) held = 1;
+            if (pad_bind[row][k] >= 0 && ((uint64_t)pad_raw_now & ~pad_after_menu) >> pad_bind[row][k] & 1) held = 1;
         if (held) bits |= 1ULL << i;
     }
     for (int i = 0; i < 5; i++) {
@@ -956,9 +1062,9 @@ static void oc_notes(void) {
 /* (npad_states writes the game's one merged word: during a button wait its five note buttons are the note controls) */
 static uint64_t oc_pad_word(uint64_t buttons) {
     if (hos_oc_wait != 1) return buttons;
-    /* (no notes where read_input gives the game no player input either: menu open, pads held after it, background
-       unless the pads count there) */
-    if (rx_option(1, 0) || pad_after_menu || (!game_in_front() && !pads_behind())) return buttons;
+    /* (no notes where read_input gives the game no player input either: menu open, background unless the pads count
+       there; the pads' inputs still held after the menu are left out in oc_notes) */
+    if (rx_option(1, 0) || (!game_in_front() && !pads_behind())) return buttons;
     static const uint64_t note_to[5] = {1ULL << HOS_SW_L, 1ULL << HOS_SW_R, 1ULL << HOS_SW_A,
                                         1ULL << HOS_SW_Y, 1ULL << HOS_SW_X};
     uint64_t w = buttons;
@@ -976,28 +1082,68 @@ static uint64_t oc_pad_word(uint64_t buttons) {
 }
 
 /* (hookshot) The pads into the game's input, in front and behind other windows alike: while the Insert menu is open they
-   are its own, as the keyboard is (key()), and after it closed until they are let go (the press that closed it never
-   reaches the game). They are read either way, so the letting go is seen. Whether they were used (a button, or a stick
-   past a third) */
+   are its own, as the keyboard is (key()), and after it closed each input it had waits until it is let go (the press
+   that closed it never reaches the game); the others and the sticks count again at once, so one input that stays down
+   (a worn trigger, a second pad) no longer keeps the rest from the game. They are read either way, so the letting go
+   is seen. Whether they were used (a button, or a stick past a third) */
 static int pads_merge(uint64_t *buttons, int32_t stick[4]) {
     uint64_t pb = 0;
     int32_t ps[4] = {0};
     pads_read(&pb, ps);
-    if (rx_option(1, 0)) pad_after_menu = 1;
-    else if (pad_after_menu && !pad_raw_now) pad_after_menu = 0;
-    if (!pad_after_menu) {
-        *buttons |= pb;
+    static int menu_was;
+    const int menu = rx_option(1, 0);
+    if (menu || menu_was) pad_after_menu |= (uint32_t)pad_raw_now;   /* (the first read after the close too) */
+    else pad_after_menu &= (uint32_t)pad_raw_now;
+    menu_was = menu;
+    if (!menu) {
+        *buttons |= pad_after_menu ? bound_pad_buttons(pad_raw_game & ~pad_after_menu) : pb;
         stick_max(stick, ps);
+        sprint_now = pad_sprint_down();   /* (Sprint's gamepad input, as read now) */
     }
     return pb || ps[0] > 12000 || ps[0] < -12000 || ps[1] > 12000 || ps[1] < -12000 || ps[2] > 12000 || ps[2] < -12000 ||
            ps[3] > 12000 || ps[3] < -12000;
 }
+/* (hookshot) Walking on the keyboard. The movement keys push the left stick to its edge, so on the keyboard Link always
+   ran. While the Walk control's key is held (Caps Lock unless the Controls page changes it), or with the Controls tab's
+   Walk mode on Toggle from one press of it to the next, they tilt it to the Walk speed row's share of the way instead,
+   where the game walks him (move_keys_stick). Only the movement keys: the camera keys, the mouse, the controllers and
+   scripted input keep their tilt. down: the key now; readable 0 while the keys are not the game's (the Insert menu
+   open, the window behind another one): a key held as they come back counts only after its release, so the press that
+   closed the menu or the one Alt+Tab ended with does not switch walking. Returns whether Link walks now */
+static int walk_held(int down, int readable, int toggle) {
+    static int was_down = 1, on;   /* (a key held at the first read counts only after its release) */
+    if (!readable) {
+        was_down = 1;
+        return toggle && on;
+    }
+    if (!toggle) on = 0;
+    else if (down && !was_down) on = !on, hos_log("hid: walking %s (Walk mode Toggle)", on ? "on" : "off");
+    was_down = down;
+    return toggle ? on : down;
+}
+/* The Walk speed row (HOS_OPT_WALK_SPEED): 15 to 90 percent of the stick's way; anything else (no Vulkan renderer's menu to
+   ask) the row's default. Measured in Kokiri Forest: Link walks his slowest (1.03 m/s) at 15% and below, his walk's top
+   speed (1.47 m/s) from 45% to 50%; from 55% he speeds up into a jog, at full tilt he runs at 4.5 m/s */
+enum { WALK_SPEED_DEFAULT = 45 };
+static int walk_percent(int v) { return v >= 15 && v <= 90 ? v : WALK_SPEED_DEFAULT; }
+/* The movement keys' left stick, x and y -1, 0 or 1 (right, up): at its edge, or while Link walks (percent, 0: he does not)
+   that share of the way, a diagonal by its length (1/sqrt(2) a side, 7071/10000), so that he walks that way too. The
+   first tilt at each share is logged */
+static void move_keys_stick(int x, int y, int percent, int32_t out[2]) {
+    const int32_t tilt = percent ? (int32_t)(32767LL * percent * (x && y ? 7071 : 10000) / 1000000) : 32767;
+    out[0] = x * tilt, out[1] = y * tilt;
+    static int logged;
+    if (percent && (x || y) && percent != logged)
+        logged = percent, hos_log("hid: walking: the movement keys tilt the left stick to %d%% (%d, %d)", percent, out[0], out[1]);
+}
 
-static void read_input(uint64_t *buttons, int32_t stick[4]) {
-    *buttons = 0;
+/* *taps: the host's own presses (hos_hid_tap), apart from the rest */
+static void read_input(uint64_t *buttons, uint64_t *taps, int32_t stick[4]) {
+    *buttons = *taps = 0;
     memset(stick, 0, 4 * sizeof *stick);
+    sprint_now = 0;
     void hos_mouse_native_stick(int held);
-    scripted_input(buttons, stick);
+    scripted_input(buttons, taps, stick);
     /* (hookshot) HOS_CONTROL: the control bridge's presses (host/control.c); one that asked to be exclusive keeps the
        player's devices out while it lasts */
     if (hos_control_input(buttons, stick)) return;
@@ -1012,19 +1158,25 @@ static void read_input(uint64_t *buttons, int32_t stick[4]) {
     if (exclusive < 0) exclusive = env_on("HOS_INPUT_EXCLUSIVE");
     if (exclusive && npresses > 0 && script_elapsed_ms(hos_now_ns()) < script_end_ms + 5000)
         return;
-    /* (hookshot, issue 389) A scripted press (HOS_INPUT_SCRIPT, HOS_INPUT_LIVE) is the test's own, not the
-       player's: it counts with the game's window behind another one, so a test run can drive the game on one
-       monitor while the player works in the front window. HOS_INPUT_BACKGROUND still decides the pads. */
+    /* (hookshot, issue 389) A scripted press (HOS_INPUT_SCRIPT, HOS_INPUT_LIVE) and the control bridge's are the test's
+       own: scripted_input() and hos_control_input() put them in above, so they count with the game's window behind
+       another one, and a test run can drive the game on one monitor while the player works in the front window.
+       HOS_INPUT_SCRIPT_BACKGROUND=1 used to skip the gate below, which let only the player's devices through: the
+       keyboard (GetAsyncKeyState, whatever window is in front) and the mouse, so typing in another window reached the
+       test run. The gate now holds with it set; it is only said in the log. */
     static int scripted_background = -1;
     if (scripted_background < 0) {
         scripted_background = env_on("HOS_INPUT_SCRIPT_BACKGROUND");
-        if (scripted_background) hos_log("hid: scripted input runs with the game in the background (HOS_INPUT_SCRIPT_BACKGROUND)");
+        if (scripted_background)
+            hos_log("hid: HOS_INPUT_SCRIPT_BACKGROUND is no longer needed: scripted and control-bridge presses count with "
+                    "the game's window behind another one, and the player's keyboard and mouse stay out");
     }
-    if (!game_in_front() && !scripted_background) {   /* (the pads alone, when the player asked for them behind other windows) */
+    if (!game_in_front()) {   /* (the pads alone, when the player asked for them behind other windows) */
         static const char *env;
         static int looked;
         if (!looked) looked = 1, env = getenv("HOS_INPUT_BACKGROUND");
         if (pads_in_background(env, rx_option(4, 0))) pads_merge(buttons, stick);
+        walk_held(0, 0, 0);
         return;
     }
     if (pads_merge(buttons, stick)) player_used();
@@ -1043,29 +1195,43 @@ static void read_input(uint64_t *buttons, int32_t stick[4]) {
     const int native = mode == 1;
     int hos_mouse_native(void);
     void hos_mouse_native_free(int free);
-    const uint64_t game_stick = (1ULL << B_ZR) | (1ULL << B_L) | (1ULL << B_R);
+    void hos_mouse_native_held(int zr, int wheel);
+    /* (ZR, the aim, is no longer among them: the aiming camera takes the mouse's motion itself, mouse_native.c
+       hos_mouse_aim. A mouse button bound to ZR or L is only known after the capture below: the last read's counts) */
+    const uint64_t game_stick = (1ULL << B_L) | (1ULL << B_R);
+    static uint64_t last_buttons;
     int captured = 0, as_stick = mode == 0;
     if (native) {
         mouse_setup();
         mouse_sens_keys();
-        hos_mouse_native_free(!((*buttons | toggles.latched) & game_stick));
+        hos_mouse_native_free(!((*buttons | *taps | toggles.latched) & game_stick));
+        {   /* (a button held by the hold-to-toggle counts as held: ZR's aim and L's wheel too) */
+            const uint64_t held = *buttons | *taps | toggles.latched | last_buttons;
+            hos_mouse_native_held((int)(held >> B_ZR & 1), (int)(held >> B_L & 1));
+        }
         captured = hos_mouse_native();
         if (captured < 0) captured = 0, as_stick = 1;
     }
     if (as_stick) {
-        captured = mouse_stick(&mouse[2], &mouse[3], (int)((*buttons | toggles.latched) >> B_L & 1));
+        captured = mouse_stick(&mouse[2], &mouse[3], (int)((*buttons | *taps | toggles.latched) >> B_L & 1));
         if (captured) stick_max(stick, mouse);
     }
     mouse_buttons_arm(captured);
     if (captured)
         for (int i = 0; i < HOS_SW_N; i++)
             if (bound_down(i, 1)) *buttons |= 1ULL << i;
-    /* (the left stick's and the camera's keys: WASD and the arrows or IJKL by default) */
+    last_buttons = *buttons;
+    if (bound_down(HOS_KEY_SPRINT, captured)) sprint_now |= SPRINT_KEY, player_used();
+    /* (the left stick's and the camera's keys: WASD and the arrows or IJKL by default; the movement keys tilt the stick
+       less while Link walks: walk_held) */
+    const int walk = walk_held(bound_down(HOS_KEY_WALK, captured), !rx_option(1, 0), rx_option(HOS_OPT_WALK_MODE, 0) == 1);
+    int32_t move[2];
+    move_keys_stick(bound_down(HOS_KEY_MOVE_RIGHT, captured) - bound_down(HOS_KEY_MOVE_LEFT, captured),
+                    bound_down(HOS_KEY_MOVE_UP, captured) - bound_down(HOS_KEY_MOVE_DOWN, captured),
+                    walk ? walk_percent(rx_option(HOS_OPT_WALK_SPEED, 0)) : 0, move);
     const int cx = bound_down(HOS_KEY_CAM_RIGHT, captured) - bound_down(HOS_KEY_CAM_LEFT, captured),
               cy = bound_down(HOS_KEY_CAM_UP, captured) - bound_down(HOS_KEY_CAM_DOWN, captured);
-    const int32_t keys[4] = {(bound_down(HOS_KEY_MOVE_RIGHT, captured) - bound_down(HOS_KEY_MOVE_LEFT, captured)) * 32767,
-                             (bound_down(HOS_KEY_MOVE_UP, captured) - bound_down(HOS_KEY_MOVE_DOWN, captured)) * 32767,
-                             cx * 32767, cy * 32767};
+    const int32_t keys[4] = {move[0], move[1], cx * 32767, cy * 32767};
     stick_max(stick, keys);
     if (keys[0] || keys[1] || keys[2] || keys[3]) player_used();
     /* (hookshot, mouse_native.c) the keys and the pads are the right stick too: while they turn the camera, its angles are
@@ -1081,7 +1247,7 @@ static void npad_states(Ctx *c) {
     uint64_t out = ARG(0);
     int count = (int)ARG(1);
     uint32_t id = G32(ARG(2));
-    uint64_t buttons = 0;
+    uint64_t buttons = 0, taps = 0;
     int32_t stick[4] = {0};
     int connected = id == NPAD_NO1;
     {
@@ -1104,7 +1270,7 @@ static void npad_states(Ctx *c) {
         }
     }
     if (connected) {
-        read_input(&buttons, stick);
+        read_input(&buttons, &taps, stick);
         uint64_t axes = 0;
         uint64_t flight = 0;
         int height = 0;
@@ -1115,7 +1281,7 @@ static void npad_states(Ctx *c) {
                           !pads_in_background(getenv("HOS_INPUT_BACKGROUND"), rx_option(4, 0)));
         /* Pause/map must release shield/aim before the game's menu reads input. */
         const uint64_t pause = buttons & ~toggles.previous & ((1ULL << B_PLUS) | (1ULL << B_MINUS));
-        buttons = hold_toggle_apply(&toggles, buttons, enabled, reset || pause);
+        buttons = hold_toggle_apply(&toggles, buttons, enabled, reset || pause) | taps;
         const int free_camera = rx_option(HOS_OPT_CHEAT_CAMERA, 0);
         const int flying = flight_jump_shortcut(&buttons, rx_option(HOS_OPT_CHEAT_FLIGHT, -1), menu_open, free_camera);
         if (free_camera && !menu_open) {
@@ -1145,7 +1311,14 @@ static void npad_states(Ctx *c) {
             if (auto_run.locked && !logged_lock) logged_lock = 1, hos_log("hid: auto run: A kept held for the sprint");
         }
         __atomic_store_n(&flight_input, flight, __ATOMIC_RELAXED);
-        __atomic_store_n(&move_stick_held, abs(stick[0]) > 4096 || abs(stick[1]) > 4096, __ATOMIC_RELAXED);
+        const int steered = abs(stick[0]) > 4096 || abs(stick[1]) > 4096;
+        __atomic_store_n(&move_stick_held, steered, __ATOMIC_RELAXED);
+        /* Sprint (the Controls page's row; the Controls tab's Sprint row on gives it Shift and the left stick's press): A held,
+           only while the left stick is pushed (standing still, A would talk, open, pick up), started without the roll
+           (sprint_step). The row off (the default): its key and button do nothing */
+        const int sprint_held = rx_option(HOS_OPT_SPRINT, 0) ? sprint_now : 0;
+        /* (the ocarina's note wait, as oc_notes left it this read: Sprint lets go, and its toggle ends) */
+        sprint_step(&buttons, stick, sprint_held, steered, menu_open || hos_oc_wait == 1, hos_now_ns());
         __atomic_store_n(&free_camera_axes, axes, __ATOMIC_RELAXED);
         __atomic_store_n(&free_camera_height, height, __ATOMIC_RELAXED);
     }

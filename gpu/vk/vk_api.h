@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define MKWVK_API_VERSION 23
+#define MKWVK_API_VERSION 27   /* (27: main's Mods page (mod, mod_shared, mods_save, MkwVkMod: 23 on main) joined with the input batch's 23-26; 26: the NFC tags, nfc_count to nfc_scan_name; 25: MkwVkHost.rumble_test; 24: HOS_KEY_SPRINT, a control past the Switch's buttons with gamepad inputs: binding and bind take them) */
 enum { HOS_OPT_CHEAT_HEARTS = 32, HOS_OPT_CHEAT_FLIGHT, HOS_OPT_CHEAT_ACTION, HOS_OPT_CHEAT_CAMERA, HOS_OPT_CHEAT_SPEED };
 /* (hookshot) the Gameplay tab's Text size (host/oot_text_size.c): 0 the game's, 1 110%, 2 125%, 3 150%, 4 175% */
 enum { HOS_OPT_TEXT_SIZE = 10 };
@@ -28,6 +28,10 @@ enum { HOS_OPT_DLSS_JITTER_W = 24, HOS_OPT_DLSS_JITTER_H, HOS_OPT_DLSS_JITTER_PH
 /* (hookshot) the Audio tab's rows (host/nn_audio.c reads them every 100 ms): the volume in percent, and no sound while
    another window has the focus */
 enum { HOS_OPT_VOLUME = 27, HOS_OPT_MUTE_BACKGROUND };
+/* (hookshot) the Controls tab's Walk mode and Walk speed (host/nn_hid.c: the Walk control, HOS_KEY_WALK; 85 and 86 here: 49 and 50, reserved for Walk below, are left to upstream's own): 0 Link walks
+   while its key is held, 1 one press walks and the next runs again; how far the movement keys then tilt the left stick, in
+   percent of the way (15 to 90) */
+enum { HOS_OPT_WALK_MODE = 85, HOS_OPT_WALK_SPEED };
 /* (hookshot) the Insert menu's HDR set to Native (host/nn_vi.c QueryDisplayHdrStatus and QueryDisplayHdrPaperWhite): whether
    the game is told its display is HDR10 (the swapchain is one), and the peak and paper white it is told, in nits */
 /* (HOS_OPT_DISCORD, 43: the Insert menu's Discord status row, host/discord_rpc.c: 1 on) */
@@ -47,6 +51,9 @@ enum { HOS_OPT_HDR_TONEMAP = 47 };
 /* Gameplay's vertical field of view, percent of the game's current angle; 100 is unchanged. */
 /* 49 and 50 are reserved for Walk mode and Walk speed (#2345). */
 enum { HOS_OPT_FOV = 51 };
+/* (HOS_OPT_KEYBOARD, 87: the Controls tab's Keyboard row, host/nn_hid.c keyboard_counts: 0 Auto (the keys count only while no
+   controller is connected), 1 On, 2 Off. Longshot has it at 54, which is hold-to-toggle's here) */
+enum { HOS_OPT_KEYBOARD = 87 };
 /* (HOS_OPT_SKIP_OPENING, 52: Gameplay's Skip opening, host/hos_main.c hos_oot_opening. Off. The new-game story movie
    and Navi waking Link. 44 stays reserved for Skip title, 49 and 50 for Walk, 60 for the item wheel. A new option id
    answered by the existing option callback does not change MkwVkHost or MkwVkRenderer.) */
@@ -80,6 +87,9 @@ enum { HOS_OPT_AUDIO_OUTPUT = 63 };
    patch_navi_hints: Off, no area hint is registered with Navi, from the next one the game would register. 63 is the Longshot
    port's Audio output, 54 its Hold toggle) */
 enum { HOS_OPT_NAVI_CALLOUTS = 64 };
+/* (HOS_OPT_SPRINT, 87 is Keyboard's; 88: the Controls tab's Sprint row, host/nn_hid.c sprint_step: 1 on, 0 Sprint's key and button do
+   nothing. Longshot has it at 54, which is hold-to-toggle's here) */
+enum { HOS_OPT_SPRINT = 88 };
 
 /* (hookshot) the controls' names (host/nn_hid.c, host/pad_sdl.c, the pad_ and key_ lines of hookshot_options.ini):
    the Switch's buttons in nn::hid's bit order, and a gamepad's inputs by position (the bottom face button first:
@@ -104,12 +114,13 @@ enum { HOS_PROMPT_SWITCH, HOS_PROMPT_XBOX, HOS_PROMPT_PS4, HOS_PROMPT_PS5, HOS_P
    the textures (the ocarina's notes, the Talk ring's letters, the System page's controller), the layouts (the Talk ring's
    places, the ocarina hint's spacing), the icons in texts; the rest at the next start */
 enum { HOS_PROMPTS_LIVE_TEXTURES = 1, HOS_PROMPTS_LIVE_LAYOUTS = 2, HOS_PROMPTS_LIVE_TEXTS = 4, HOS_PROMPTS_LIVE_ALL = 7 };
-/* keys only (HOS_BIND_KEY), after the Switch's buttons: the left stick's and the camera's directions, and the
-   ocarina's five note controls (which take a gamepad input too, and share it: a note's key can be some other
-   control's key at once, host/nn_hid.c has_pad) */
+/* keys only (HOS_BIND_KEY), after the Switch's buttons: the left stick's and the camera's directions, and Walk (while its
+   key is held, the movement keys tilt the left stick less: host/nn_hid.c walk_held). The ocarina's five note controls
+   take a gamepad input too, and share it: a note's key can be some other control's key at once, host/nn_hid.c has_pad;
+   then Sprint, keys and gamepad inputs, which holds A while Link is steered (host/nn_hid.c: the game's run on A held) */
 enum { HOS_KEY_MOVE_UP = HOS_SW_N, HOS_KEY_MOVE_DOWN, HOS_KEY_MOVE_LEFT, HOS_KEY_MOVE_RIGHT, HOS_KEY_CAM_UP,
        HOS_KEY_CAM_DOWN, HOS_KEY_CAM_LEFT, HOS_KEY_CAM_RIGHT, HOS_KEY_OC_NOTE_L, HOS_KEY_OC_NOTE_R,
-       HOS_KEY_OC_NOTE_A, HOS_KEY_OC_NOTE_Y, HOS_KEY_OC_NOTE_X, HOS_KEY_N };
+       HOS_KEY_OC_NOTE_A, HOS_KEY_OC_NOTE_Y, HOS_KEY_OC_NOTE_X, HOS_KEY_WALK, HOS_KEY_SPRINT, HOS_KEY_N };
 
 /* (hookshot) the mouse over the window while it is free (not captured): the Insert menu's (host/display.c,
    host/posix/display_sdl.c). x and y: the cursor in the window's pixels, of a window width x height pixels (the
@@ -130,7 +141,7 @@ typedef struct MkwVkSetting {
     int restart, fixed;   /* the change applies at the next start; nothing to choose on this PC (the menu shows it greyed) */
 } MkwVkSetting;
 
-/* (version 23, hookshot) a mod in the game's mods folder (host/mods.c), for the Insert menu's Mods page (Gameplay, Mods) */
+/* (version 27, hookshot; 23 on main) a mod in the game's mods folder (host/mods.c), for the Insert menu's Mods page (Gameplay, Mods) */
 typedef struct MkwVkMod {
     char name[260];     /* its folder in the mods folder, '/' between folders (UTF-8): its line in mods/hookshot-mods.ini */
     int32_t on;         /* loaded in this run */
@@ -187,7 +198,8 @@ typedef struct MkwVkHost {
        the gamepad inputs that press it (HOS_PAD_* positions, -1 none; slots 0 and 1); set HOS_BIND_KEY: the keys that
        do (Windows key codes, 0 none; slots 0 and 1; a mouse button's too, and HOS_KEY_* past the Switch's buttons).
        bind with button -1: all back to their defaults.
-       (version 19: HOS_BIND_PAD takes the ocarina's note rows too, HOS_KEY_OC_NOTE_*, which start unset) */
+       (version 19: HOS_BIND_PAD takes the ocarina's note rows too, HOS_KEY_OC_NOTE_*, which start unset;
+       version 24: and Sprint, HOS_KEY_SPRINT, a key and a gamepad input of its own) */
     int (*binding)(int set, int button, int slot);
     void (*bind)(int set, int button, int slot, int code);
     /// Display aspect of the presented picture, after crop: the camera aspect applied at startup.
@@ -236,7 +248,7 @@ typedef struct MkwVkHost {
        while the game draws it in the middle 16:9 with the menus (wide_menus's keep_mask) and so leaves the sides open
        (host/hos_main.c hos_wide_cover); 0 when it covers the whole picture itself. Asked at each present */
     float (*wide_cover)(void);
-    /* (version 23, hookshot) the mods (host/mods.c), for the Insert menu's Mods page: the index-th (MkwVkMod) in this run's
+    /* (version 27, hookshot; 23 on main) the mods (host/mods.c), for the Insert menu's Mods page: the index-th (MkwVkMod) in this run's
        load order (a later mod wins a file both have), those off by their folder's name last; 1, or 0 past the last */
     int (*mod)(int index, MkwVkMod *out);
     /* how many RomFS files the a-th and the b-th mods both have, on or off (the Mods page's conflicts, for any choice) */
@@ -245,6 +257,25 @@ typedef struct MkwVkHost {
        name, each once, in the load order wanted (order[0] loads first); on[i] whether order[i] loads. 1 written, 0 not (the
        file as it was) */
     int (*mods_save)(const int *order, const int *on, int n);
+    /* (version 23, hookshot) shared keyboard acceptance policy; mouse buttons remain independent. */
+    int (*keyboard_counts)(int key);
+    /* (version 25, hookshot) a short rumble on the controllers at the Rumble strength as it is now: the Insert menu's row plays it when
+       it is changed (host/pad_sdl.c) */
+    void (*rumble_test)(void);
+    /* (version 26, hookshot) the NFC tags of the player's folder (host/nn_nfp.c), for the Insert menu's NFC tab: how many there
+       are (listing them again), one's name (its file's, without the ending), one held to the reader (index; -1: taken away;
+       returns 0 when its file is not an NFC tag's), and what the reader is doing (bits: 1 the game uses NFC tags, 2 it waits for
+       one now, 4 one is held to it, 8 the game has read it), and the folder */
+    int (*nfc_count)(void);
+    const char *(*nfc_name)(int index);
+    int (*nfc_tap)(int index);
+    int (*nfc_state)(void);
+    const char *(*nfc_dir)(void);
+    /* (version 26) a tag on the Switch 2 Pro Controller's reader copied into that folder (host/nn_nfp.c, host/pad_switch2.c):
+       start 1 begins a scan; returns 0 none, 1 looking for a tag, 2 saved (nfc_scan_name: its file's name), 3 no tag in ten
+       seconds, 4 the tag is not a figure's, 5 no such controller over USB, 6 it could not be read or written */
+    int (*nfc_scan)(int start);
+    const char *(*nfc_scan_name)(void);
 } MkwVkHost;
 
 /* One completed temporal-upscale sample; all zero while inactive. */

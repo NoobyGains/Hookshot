@@ -36,6 +36,7 @@ def between(text, first, last):
 
 
 PRELUDE = r"""
+#define _CRT_SECURE_NO_WARNINGS
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,6 +56,7 @@ typedef unsigned long DWORD;
 #define VK_SHIFT 0x10
 #define VK_CONTROL 0x11
 #define VK_MENU 0x12
+#define VK_CAPITAL 0x14
 #define VK_SPACE 0x20
 #define VK_LEFT 0x25
 #define VK_UP 0x26
@@ -198,8 +200,8 @@ int main(int argc, char **argv) {
     CHECK(hos_binding(HOS_BIND_KEY, HOS_KEY_OC_NOTE_A, 1) == 0);
     hos_bind(HOS_BIND_KEY, HOS_SW_Y, 0, VK_LBUTTON);   /* a normal row still takes the mouse button */
     CHECK(hos_binding(HOS_BIND_KEY, HOS_SW_Y, 0) == VK_LBUTTON);
-    /* (j) the note window shares read_input's own gates: Insert menu open, pads held after it closed, or the game
-       behind another window, and the word the game reads is the player's own */
+    /* (j) the note window shares read_input's own gates: Insert menu open, or the game behind another window, and
+       the word the game reads is the player's own; a pad input still held since the menu plays no note */
     release(), held[VK_NUMPAD2] = held['Q'] = held['E'] = 1;
     hos_oc_wait = 1;
     oc_notes();
@@ -209,9 +211,16 @@ int main(int argc, char **argv) {
     oc_menu = 1;
     CHECK(oc_pad_word(raw2) == raw2);
     oc_menu = 0;
-    pad_after_menu = 1;
-    CHECK(oc_pad_word(raw2) == raw2);
-    pad_after_menu = 0;
+    pad_raw_now = 1 << HOS_PAD_LSHOULDER;   /* (the (L) note's pad input, held since the menu) */
+    pad_after_menu = 1ULL << HOS_PAD_LSHOULDER;
+    oc_notes();
+    CHECK(!(hos_oc_note_bits & 1ULL) && !(oc_pad_word(raw2) & (1ULL << HOS_SW_L)));
+    CHECK(oc_pad_word(raw2) & (1ULL << HOS_SW_R));   /* (the keys' notes still play) */
+    pad_after_menu = 0;   /* (let go and pressed again) */
+    oc_notes();
+    CHECK((hos_oc_note_bits & 1ULL) && (oc_pad_word(raw2) & (1ULL << HOS_SW_L)));
+    pad_raw_now = 0;
+    oc_notes();
     oc_front = 0;
     CHECK(oc_pad_word(raw2) == raw2);
     oc_front = 1;

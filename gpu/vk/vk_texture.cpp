@@ -2368,6 +2368,30 @@ DetailDims texture_detail_dims(int detail, bool low_vram) {
     if (detail == 2 || (detail == 0 && low_vram)) return {1024, 8};
     return {2048, 64};
 }
+/// (hookshot, from Longshot) the PC's RAM in bytes, read once; 0 when it cannot be read
+uint64_t system_ram_bytes() {
+    static const uint64_t v = [] {
+        uint64_t ram = 0;
+#if defined(_WIN32)
+        MEMORYSTATUSEX m{};
+        m.dwLength = sizeof m;
+        if (GlobalMemoryStatusEx(&m)) ram = m.ullTotalPhys;
+#else
+        if (FILE* f = fopen("/proc/meminfo", "r")) {
+            char line[256];
+            unsigned long long kb = 0;
+            while (fgets(line, sizeof line, f))
+                if (sscanf(line, "MemTotal: %llu kB", &kb) == 1) {
+                    ram = (uint64_t)kb << 10;
+                    break;
+                }
+            fclose(f);
+        }
+#endif
+        return ram;
+    }();
+    return v;
+}
 bool low_vram_texture_mips() {
     static const bool disabled = [] {
         const char* e = getenv("RX_VK_LOW_VRAM_MIPS");
@@ -2379,8 +2403,14 @@ bool low_vram_texture_mips() {
         uint64_t used = 0, allowed = 0;
         return vram_usage(&used, &allowed) && allowed && allowed <= (4ull << 30) + (512ull << 20);
     }();
-    // (Minimum, or Auto (this PC) at Minimum's tier: its budgets, opts.budget 1)
-    return !disabled && small && (opts.preset == 1 || (opts.preset == kAutoPreset && opts.budget == 1));
+    // (hookshot, from Longshot) An integrated GPU's budget is a share of the system's RAM, which the game shares: an i3-1115G4's UHD Graphics
+    // with 16 GB was allowed 7.4 GB, past the 4.5 GiB, while the game, 2 GB of textures and the driver held 12-13 GB and
+    // Windows paged the game out (3-6 fps). With 16 GB of RAM or less it counts as small whatever the driver allows
+    static const bool shared = dev.props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU && system_ram_bytes() &&
+                               system_ram_bytes() <= (16ull << 30);
+    // (Minimum's budgets, opts.budget 1: Minimum, Auto (this PC) at Minimum's tier, or Custom after either, which keeps them: the
+    // Debug tab's Set up for a weak laptop leaves the preset on Custom)
+    return !disabled && (small || shared) && (opts.preset == 1 || opts.budget == 1);
 }
 
 Texture* create(const Key& key, const nvn_tex* t, VkFormat vf, bool astc, int bw, int bh, int bpb, bool as_target) {

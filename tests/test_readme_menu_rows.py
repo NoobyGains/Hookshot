@@ -1,4 +1,4 @@
-"""readme.md's option table has a line for every row of the Insert menu's Graphics, Audio, Gameplay and Controls tabs.
+"""readme.md's option table has a line for every row of the Insert menu's Graphics, Audio, Gameplay, Controls and NFC tabs.
 
 Four rows had none: Ultrawide menus, Mesh shaders, Discord status (which is on by default) and the Controls page's
 Button prompts. The rows are read from gpu/vk/vk_menu.cpp's table and the lines from the readme's
@@ -25,7 +25,7 @@ HEADINGS = re.findall(HEADING, MENU)
 ROWS = re.sub(HEADING, "", MENU)
 
 
-def menu_rows(tabs="GRAPHICS|AUDIO|GAMEPLAY|CONTROLS|PAGE"):
+def menu_rows(tabs="GRAPHICS|AUDIO|GAMEPLAY|CONTROLS|PAGE|NFC"):
     return re.findall(r'\{TAB_(%s),\s*"([^"]+)"' % tabs, ROWS)
 
 
@@ -56,8 +56,8 @@ class ReadmeMenuRowsTests(unittest.TestCase):
 
     def test_the_lines_keep_the_menus_order(self):
         page = {name for _, name in menu_rows("PAGE")}   # (the Controls page's rows: listed with the Controls tab's)
-        tabs = ["GRAPHICS", "AUDIO", "GAMEPLAY", "CONTROLS"]   # (a tab shows its rows in the table's order, wherever they sit)
-        rows = sorted(menu_rows("GRAPHICS|AUDIO|GAMEPLAY|CONTROLS"), key=lambda row: tabs.index(row[0]))
+        tabs = ["GRAPHICS", "AUDIO", "GAMEPLAY", "CONTROLS", "NFC"]   # (a tab shows its rows in the table's order, wherever they sit)
+        rows = sorted(menu_rows("GRAPHICS|AUDIO|GAMEPLAY|CONTROLS|NFC"), key=lambda row: tabs.index(row[0]))
         order = [name for _, name in rows if name not in ACTIONS and name not in page]
         listed = [cells[1] for cells in table_lines() if cells[1] not in page]
         self.assertEqual(listed, order)
@@ -78,7 +78,8 @@ class ReadmeMenuRowsTests(unittest.TestCase):
             with self.subTest(option=cells[1]):
                 self.assertEqual(len(cells), 4)
                 self.assertTrue(cells[2])
-                self.assertTrue(cells[3] or cells[1] in ("Motion", "Controls", "Mods", "Bug report"))   # (they open a page or do a thing: no default)
+                self.assertTrue(cells[3] or cells[1] in ("Motion", "Controls", "Mods", "Bug report", "Tap tag", "Remove tag",
+                                                        "Scan tag on controller"))   # (they open a page or do a thing: no default)
 
 
 if __name__ == "__main__":

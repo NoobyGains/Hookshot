@@ -28,11 +28,11 @@ ENV_ON_H = str(Path(__file__).resolve().parents[1] / "gpu" / "vk" / "compat" / "
 RUN_ALL_ARGS = ["--cc", "gcc"]
 
 ROOT = Path(__file__).resolve().parents[1]
-CASES = ("foreground", "script-background", "headless", "noactivate", "live-background",
+CASES = ("foreground", "script-background", "script-background-switch", "headless", "noactivate", "live-background",
          "no-script-background", "exclusive-foreground", "exclusive-background", "pads-env", "pads-menu", "pads-off",
          "pads-insert",
          "frame-hold", "live-frame", "reuse-frame", "wall", "zero", "empty", "single-state", "hold-toggle", "hold-mouse",
-         "hold-background")
+         "hold-background", "walk-toggle", "hold-taps")
 
 
 def main():
@@ -61,12 +61,17 @@ def main():
 
     api = (ROOT / "gpu/vk/vk_api.h").read_text(encoding="utf-8")
     constants = block(hid, "enum { B_A") + ";\n" + block(api, "enum { HOS_SW_A") + ";\n"
-    constants += block(api, "enum { HOS_KEY_MOVE_UP") + ";\n"   # (the keys-only controls)
+    constants += block(api, "enum { HOS_PAD_SOUTH") + ";\n"   # (Sprint's gamepad input)
+    constants += block(api, "enum { HOS_KEY_MOVE_UP") + ";\n"   # (the keys-only controls, and Sprint)
     constants += block(api, "enum { HOS_OPT_CHEAT_HEARTS") + ";\n"
     constants += block(api, "enum { HOS_OPT_HOLD_TOGGLE") + ";\n"
+    constants += block(api, "enum { HOS_OPT_KEYBOARD") + ";\n"
+    constants += "static volatile long pad_count_now;\n"
+    constants += block(api, "enum { HOS_OPT_SPRINT") + ";\n"   # (the Controls tab's Sprint row: the fixture's rx_option says on)
     constants += block(api, "enum { HOS_BIND_PAD") + ";\n"   # (the live input's !bind)
     constants += block(api, "enum { HOS_OPT_AUTO_RUN") + ";\n"   # (Auto run: off here, rx_option answers 0)
     constants += (ROOT / "host/auto_run.h").read_text(encoding="utf-8") + "\n"
+    constants += block(api, "enum { HOS_OPT_WALK_MODE") + ";\n"   # (the Walk key's rows: read_input asks for them)
     for name in ("STATE_SIZE", "NPAD_NO1", "ATTR_CONNECTED"):
         matches = re.findall(r"^#define " + name + r"\s+[^\n]+", hid, re.M)
         assert len(matches) == 1, name
@@ -75,30 +80,38 @@ def main():
     script = block(hid, "static void scripted_input(")
     end = hid.index(script) + len(script)
     cheat_state = re.search(r"^static uint64_t flight_input;\nstatic uint64_t free_camera_axes;\nstatic int free_camera_height;\n"
-                            r"static int move_stick_held;", hid, re.M).group(0)
+                            r"static int move_stick_held;[^\n]*\nstatic int sprint_now;", hid, re.M).group(0)
+    cheat_state += "\n" + block(hid, "enum { SPRINT_KEY") + ";\n" + block(hid, "static int pad_sprint_down(")   # (Sprint)
+    cheat_state += "\nvolatile uint32_t hos_sprint_press_mask;\n"
+    cheat_state += re.search(r"^#define SPRINT_ROLL_GAP_MS [^\n]*", hid, re.M).group(0) + "\n"
+    cheat_state += block(hid, "static void sprint_step(")   # (npad_states': A held, without the roll)
     cheat_spies = """
 volatile int hos_oot_live_action;
 int hos_oot_flight_shortcut_ready(void) { CHECK(!"unexpected cheat readiness query"); return 0; }
 void rx_option_set(int id, int value) { (void)id; (void)value; CHECK(!"unexpected cheat option change"); }
 int hos_oot_player_free(void) { return 1; }
 """
-    # (the host's own presses and stick, for the game's menus' mouse (host/oot_menu.c): none here; the player's input
-    # time it hides the mouse by: not looked at)
+    # (the host's own stick, for the game's menus' mouse (host/oot_menu.c): none here; the player's input time it hides
+    # the mouse by: not looked at. Its presses, hos_hid_tap and host_taps, are production's, below)
     host_spies = """
-static void host_taps(void) {}
 static void host_stick_read(int32_t stick[4]) { (void)stick; }
 static void host_drag_read(int32_t stick[4]) { (void)stick; }
 static void player_used(void) {}
 """
-    actual = "\n".join(("static HoldToggle toggles;", cheat_state, cheat_spies, host_spies, block(hid, "static int key("), block(hid, "static int kmap_down("),
-        block(hid, "static int game_in_front("), hid[start:end], block(hid, "static void stick_max("),
+    actual = "\n".join(("static HoldToggle toggles;", cheat_state, cheat_spies, host_spies, block(hid, "static int keyboard_counts("), block(hid, "static int key("), block(hid, "static int kmap_down("),
+        block(hid, "static int game_in_front("), hid[start:end],
+        re.search(r"^static SRWLOCK tap_lock = SRWLOCK_INIT;\nstatic char tap_text\[256\];", hid, re.M).group(0),
+        block(hid, "void hos_hid_tap("), block(hid, "static void host_taps(void) {"), block(hid, "static void stick_max("),
         block(hid, "static int pads_in_background("), block(hid, "static int pads_merge("),
         block(hid, "static int pads_behind("),
         # (the bound keys' helpers read_input calls: a mouse button counts only while the mouse is captured)
         block(hid, "static int mouse_vk_slot("), re.search(r"^static int mouse_armed\[5\];", hid, re.M).group(0),
         block(hid, "static void mouse_buttons_arm("), block(hid, "static int bound_down("),
         block(hid, "static void oc_notes("), block(hid, "static uint64_t oc_pad_word("),
-        block(hid, "static int flight_jump_shortcut("), read, block(hid, "static void npad_states("),
+        # (walking on the keyboard: the movement keys' tilt, read_input asks for it)
+        block(hid, "static int walk_held("), block(hid, "enum { WALK_SPEED_DEFAULT") + ";",
+        block(hid, "static int walk_percent("), block(hid, "static void move_keys_stick("),
+                block(hid, "static int flight_jump_shortcut("), read, block(hid, "static void npad_states("),
         block(hid, "static void npad_state_one("), block(hid, "static void npad_state_absent(")))
     glue = (ROOT / "host/mkw_glue.c").read_text(encoding="utf-8")
     actual += "\n" + "\n".join(block(glue, "uint64_t " + name + "(")
@@ -127,7 +140,7 @@ static void player_used(void) {}
         for case in ((a.case,) if a.case else CASES):
             case_env = dict(env)
             if case not in ("live-background", "no-script-background", "live-frame", "reuse-frame", "pads-insert", "hold-toggle",
-                            "hold-mouse", "hold-background"):
+                            "hold-mouse", "hold-background", "walk-toggle", "hold-taps"):
                 case_env["HOS_INPUT_SCRIPT"] = "0:A+LUP/200"
             if case in ("frame-hold", "live-frame", "reuse-frame"):
                 case_env["HOS_INPUT_FRAME_CLOCK"] = "1"
@@ -137,6 +150,8 @@ static void player_used(void) {}
                 case_env["HOS_INPUT_EXCLUSIVE"] = "1"
             if case in ("pads-env", "pads-off"):
                 case_env["HOS_INPUT_BACKGROUND"] = "1" if case == "pads-env" else "0"
+            if case == "script-background-switch":   # (the player typing in another window: still kept out)
+                case_env["HOS_INPUT_SCRIPT_BACKGROUND"] = "1"
             if case == "headless":
                 case_env["HOS_HEADLESS"] = "1"
             if case == "noactivate":

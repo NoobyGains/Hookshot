@@ -15,7 +15,7 @@ ENV_ON_H = str(Path(__file__).resolve().parents[1] / "gpu" / "vk" / "compat" / "
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = ("normal", "busy", "prepare", "write", "unprepare", "open", "bounded", "stall", "surround", "fallback",
-         "lost", "gone", "service", "default")
+         "lost", "gone", "service", "default", "upmix", "downmix", "retry")
 
 
 def main():

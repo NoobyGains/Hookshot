@@ -59,6 +59,14 @@ int hos_binding(int set, int button, int slot);
 int hos_mic_count(void);            /* nn_audio_in.c: the microphones, for the Insert menu */
 const char *hos_mic_name(int index);
 void hos_mic_select(int mode, const char *name, int index);
+void hos_sdl_rumble_test(void);   /* pad_sdl.c */
+int hos_nfc_count(void);            /* nn_nfp.c: the player's NFC tags, for the Insert menu's NFC tab */
+const char *hos_nfc_name(int index);
+int hos_nfc_tap(int index);
+int hos_nfc_state(void);
+const char *hos_nfc_dir(void);
+int hos_nfc_scan(int start);
+const char *hos_nfc_scan_name(void);
 void hos_bind(int set, int button, int slot, int code);
 int hos_prompts_face(void);         /* prompts.c */
 int hos_prompts_live_parts(void);   /* prompts.c */
@@ -227,6 +235,7 @@ static int host_mod(int index, MkwVkMod *out) {
 }
 int hos_mouse_pointer(MkwVkPointer *out);   /* display.c, posix/display_sdl.c */
 int hos_sdl_gyro_status(void);   /* pad_sdl.c */
+int hos_keyboard_counts(int key);   /* nn_hid.c: shared menu/gameplay keyboard policy */
 extern const char *hos_romfs_dir;   /* nn_fs.c, set by hos_main.c */
 static const char *host_romfs_dir(void) { return hos_romfs_dir; }
 
@@ -262,7 +271,8 @@ static const MkwVkHost vk_host = {
     host_watch_guest_writes, hos_pad_raw, hos_binding, hos_bind, host_aspect_ratio, host_take_key_press,
     hos_mouse_pointer, hos_mic_count, hos_mic_name, hos_mic_select, hos_sdl_gyro_status, hos_log_flush, hos_prompts_face,
     host_romfs_dir, host_wide_menus, host_slept_ns, host_fps_timing, hos_prompts_live_parts, host_screen_size,
-    hos_wide_cover, host_mod, hos_mods_shared, hos_mods_save,
+    hos_wide_cover, host_mod, hos_mods_shared, hos_mods_save, hos_keyboard_counts, hos_sdl_rumble_test,
+    hos_nfc_count, hos_nfc_name, hos_nfc_tap, hos_nfc_state, hos_nfc_dir, hos_nfc_scan, hos_nfc_scan_name,
 };
 
 static const MkwVkRenderer *vk;   /* the Vulkan back end, when it was chosen and started */

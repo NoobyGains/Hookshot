@@ -132,6 +132,18 @@ static void frames(int count, int complete) {
         if (complete) complete_all();
     }
 }
+/* one frame mixed for `channels`, 7777 past its end: what a copy with another count would take */
+static void mixed_frame(int channels) {
+    int16_t pcm[FRAME * 6];
+    for (int i = 0; i < FRAME * 6; i++) pcm[i] = (int16_t)(i < FRAME * channels ? 100 + i : 7777);
+    output_frame(pcm);
+}
+static int blocks_hold(int16_t value) {
+    for (int b = 0; b < NBLOCKS; b++)
+        for (int i = 0; i < FRAME * 2 * 6; i++)
+            if (blocks[b][i] == value) return 1;
+    return 0;
+}
 int main(int argc, char **argv) {
     CHECK(argc == 2);
     scenario = argv[1];
@@ -140,16 +152,44 @@ int main(int argc, char **argv) {
     fail_unprepare = !strcmp(scenario, "unprepare");
     fail_open = !strcmp(scenario, "open");
     if (!strcmp(scenario, "bounded")) fail_prepare = -1;
-    if (!strcmp(scenario, "surround") || !strcmp(scenario, "fallback")) speakers = 6;
-    fail_open6 = !strcmp(scenario, "fallback");
+    if (!strcmp(scenario, "surround") || !strcmp(scenario, "fallback") || !strcmp(scenario, "upmix") ||
+        !strcmp(scenario, "downmix") || !strcmp(scenario, "retry"))
+        speakers = 6;
+    fail_open6 = !strcmp(scenario, "fallback") || !strcmp(scenario, "upmix");
+    opens_fail = !strcmp(scenario, "retry");
     output_open();
     if (fail_open6) {
         CHECK(open_calls == 4 && last_channels == 2 && last_device == WAVE_MAPPER);   /* (5.1 on all three, then stereo) */
         CHECK(out_channels == 2 && hdr[0].dwBufferLength == FRAME * 2 * 2 * 2);
         CHECK(strstr(last_log, "default device") && strstr(last_log, "stereo"));
         logs = 0;
-        frames(40, 1);
-        CHECK(accepted == 20 && !logs);
+        if (!strcmp(scenario, "upmix")) {
+            frames(10, 1);
+            fail_open6 = 0;              /* the new default takes 5.1 */
+            default_key = 12;
+            now_ms += 1000;
+            const int before = accepted;
+            mixed_frame(2);              /* mixed in stereo before the move */
+            CHECK(close_calls == 1 && open_calls == 5 && out_channels == 6);
+            CHECK(fill_block == 0 && fill_frames == 0 && !blocks_hold(7777));   /* nothing of it queued */
+            frames(2, 1);
+            CHECK(accepted == before + 1 && blocks[0][FRAME * 6 - 1] == (int16_t)(FRAME * 6 - 1));
+            CHECK(blocks[0][FRAME * 6] == 31);
+        } else {
+            frames(40, 1);
+            CHECK(accepted == 20 && !logs);
+        }
+    } else if (opens_fail) {
+        CHECK(open_calls == 6 && !wout && out_channels == 2);   /* (5.1 on all three, then stereo on all three) */
+        mixed_frame(2);
+        CHECK(open_calls == 6);          /* not again within the second */
+        opens_fail = 0;                  /* a device plugged in, and it takes 5.1 */
+        now_ms += 1000;
+        mixed_frame(2);
+        CHECK(wout && open_calls == 7 && out_channels == 6);
+        CHECK(fill_frames == 0 && !write_calls && !blocks_hold(7777));
+        frames(2, 1);
+        CHECK(accepted == 1 && blocks[0][FRAME * 6] == 31);
     } else if (fail_open) {
         CHECK(open_calls == 3);   /* (the default, then both devices; HOS_AUDIO_DEVICE unset) */
         CHECK(!wout);
@@ -165,6 +205,19 @@ int main(int argc, char **argv) {
         CHECK(accepted == 20 && prepare_calls == 20 && write_calls == 20 && !logs);
         CHECK(blocks[9][0] == 38 * 31 && blocks[9][FRAME * 6] == 39 * 31);
         CHECK(blocks[9][FRAME * 6 - 1] == (int16_t)(38 * 31 + FRAME * 6 - 1));
+    } else if (!strcmp(scenario, "downmix")) {
+        CHECK(out_channels == 6);
+        frames(10, 1);
+        fail_open6 = 1;                  /* the new default takes stereo only */
+        default_key = 12;
+        now_ms += 1000;
+        const int before = accepted;
+        mixed_frame(6);
+        CHECK(close_calls == 1 && out_channels == 2 && hdr[0].dwBufferLength == FRAME * 2 * 2 * 2);
+        CHECK(fill_block == 0 && fill_frames == 0);   /* the 5.1 frame not queued as two stereo ones */
+        frames(2, 1);
+        CHECK(accepted == before + 1 && blocks[0][FRAME * 2 - 1] == (int16_t)(FRAME * 2 - 1));
+        CHECK(blocks[0][FRAME * 2] == 31);
     } else if (!strcmp(scenario, "lost")) {
         gone_write_at = 25;              /* a Bluetooth headset off: its 25th block, "no driver" */
         frames(60, 1);
@@ -205,6 +258,7 @@ int main(int argc, char **argv) {
         now_ms += 600;
         frames(1, 1);
         CHECK(close_calls == 1 && open_calls == 2 && last_device == WAVE_MAPPER && out_default_key == 12);
+        CHECK(fill_frames == 1);         /* stereo again: the frame mixed before the move kept */
         now_ms += 2000;
         frames(2, 1);
         CHECK(open_calls == 2);          /* the same default: not opened again */

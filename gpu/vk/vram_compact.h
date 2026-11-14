@@ -32,9 +32,13 @@ inline uint64_t run_from(uint64_t min_free, bool is_pressed) { return is_pressed
 /// empty: the driver counted them (1152 MB on an 8 GB card), no texture could take them, so reclaimable() rightly left them in
 /// the count and the hold cut the texture budget by as much (#2690: an RTX 3070 in Castle Town Market, 31-36 fps against 54-56
 /// without them), and the textures' blocks were made in play as before. In the textures' pool the scene's textures fill them,
-/// and what they hold free is that pool's free space, which the budget takes off the count already
-inline uint64_t blocks_at_start(uint64_t heap, uint64_t block, bool holds_textures) {
-    return holds_textures && block ? std::clamp<uint64_t>(heap / 100 * 15 / block, 2, 24) : 0;
+/// and what they hold free is that pool's free space, which the budget takes off the count already.
+/// None on an integrated GPU: its heap is the PC's RAM, which the game needs too, and VMA keeps those blocks for the whole run.
+/// On a UHD Graphics with 16 GB (i3-1115G4) nine blocks (1152 MB) stayed while the textures' budget fell to 720 MB; the pool
+/// down to them (kept_only) kept the 97% rule waiting, and at 6.6 GB of the 6.5 the driver allowed a 1119 x 1119 depth image
+/// was not made and the device was lost (the Deku Tree's last cutscene)
+inline uint64_t blocks_at_start(uint64_t heap, uint64_t block, bool holds_textures, bool integrated) {
+    return holds_textures && block && !integrated ? std::clamp<uint64_t>(heap / 100 * 15 / block, 2, 24) : 0;
 }
 
 /// The free space of the textures' pool a run can give back: not what the blocks made at the start hold (kept), which VMA

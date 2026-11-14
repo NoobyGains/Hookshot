@@ -28,8 +28,9 @@ def main():
     option = replay.split("t.option =", 1)[1].split("};", 1)[0]
     numeric = re.findall(r"\bid\s*==\s*(\d+)\b", option)
     cases = names + numeric
-    # Skip-title already owns 44; Walk and Item wheel are on concurrent branches.
-    for name, value in (("HOS_OPT_SKIP_TITLE", 44), ("HOS_OPT_WALK_MODE", 49), ("HOS_OPT_WALK_SPEED", 50),
+    # Skip-title already owns 44; 49 and 50 are upstream's for its own Walk, and Item wheel is on a concurrent branch
+    # (Walk's rows take 85 and 86 here).
+    for name, value in (("HOS_OPT_SKIP_TITLE", 44), ("HOS_OPT_WALK_RESERVED_1", 49), ("HOS_OPT_WALK_RESERVED_2", 50),
                         ("HOS_OPT_ITEM_WHEEL", 60)):
         if name not in names:
             cases.append(str(value))
@@ -44,9 +45,9 @@ def main():
             return subprocess.run([args.cc, "-std=c11", "-Wall", "-Wextra", "-Werror", "-c", str(path), "-o", str(obj)], capture_output=True, text=True)
         result = compile(source)
         assert result.returncode == 0, result.stderr
-        # Prove the guard catches the original collision, an implicit enum value,
+        # Prove the guard catches collisions with Walk's IDs, an implicit enum value,
         # and a legacy numeric ID, not just collisions among explicit constants.
-        for collision in (49, 50, 60, 33, 7):
+        for collision in (49, 50, 60, 33, 7, 85, 86):
             broken = source.replace("HOS_OPT_FOV = 51", f"HOS_OPT_FOV = {collision}")
             assert broken != source
             assert compile(broken).returncode != 0, f"Missed ID collision at {collision}"

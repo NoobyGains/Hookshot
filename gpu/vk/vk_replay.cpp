@@ -4860,6 +4860,7 @@ void present_image(VkImage src, uint32_t sw, uint32_t sh, const int crop[4], VkI
         }
     }
     menu_record(f.cmd, index, dev.swap_extent.width, dev.swap_extent.height);   // (hookshot) Dear ImGui's overlays, over all of it
+    menu_rumble_tick();   // (hookshot: the Rumble strength row's own rumble, vk_menu.cpp)
     image_barrier(f.cmd, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     if (vkEndCommandBuffer(f.cmd) == VK_ERROR_DEVICE_LOST) device_lost();
     // after the image's acquisition. (Not on the timeline: one queue runs submits in order, and a wait for a value
@@ -5712,6 +5713,8 @@ void fill_replay_table(MkwVkRenderer& t) {
     t.nvn_event_signal = event_signal_queued;
     t.option = [](int id) -> int {   // (3: the fixed path's scale in 1/10000, vk_menu.cpp; DLAA: full scale, vk_dlss.cpp)
         if (id == 11) return opts.stick_dead_zone;
+        if (id == HOS_OPT_WALK_MODE) return opts.walk_mode;
+        if (id == HOS_OPT_WALK_SPEED) return opts.walk_speed;
         if (id == HOS_OPT_CHEAT_HEARTS) return menu_heart_protection();
         if (id == HOS_OPT_CHEAT_FLIGHT) return menu_player_flight();
         if (id == HOS_OPT_CHEAT_ACTION) return menu_take_cheat_action();
@@ -5727,6 +5730,8 @@ void fill_replay_table(MkwVkRenderer& t) {
         if (id == HOS_OPT_MUTE_BACKGROUND) return opts.mute_background;
         if (id == HOS_OPT_DISABLE_CAMERA_CENTERING) return opts.disable_camera_centering;
         if (id == HOS_OPT_AUTO_RUN) return opts.auto_run;   // (host/nn_hid.c and host/auto_run.h)
+        if (id == HOS_OPT_KEYBOARD) return opts.keyboard;
+        if (id == HOS_OPT_SPRINT) return opts.sprint;
         if (id == HOS_OPT_TEXT_SIZE) return opts.text_size;
         if (id == HOS_OPT_CAMERA_SPEED) return opts.camera_speed;
         if (id == HOS_OPT_PROMPTS) return opts.prompts;

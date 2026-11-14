@@ -742,6 +742,8 @@ static int event_peek(Obj *e) {
 
 /* SignalEvent from host code (any host thread): devices the OS layer emulates, the video decoder for one. */
 void hos_event_signal(uint64_t guest_event) { event_signal(obj(guest_event, K_EVENT)); }
+/* (an event of the OS layer's own making: nn::nfp's, host/nn_nfp.c) */
+void hos_event_init(uint64_t guest_event, int signaled, int clear_mode) { event_init(guest_event, signaled, clear_mode); }
 
 HLE(_ZN2nn2os15InitializeEventEPNS0_9EventTypeEbNS0_14EventClearModeE) { event_init(ARG(0), (int)(ARG(1) & 1), (int)ARG(2)); }
 HLE(_ZN2nn2os13FinalizeEventEPNS0_9EventTypeE) { drop(ARG(0)); }

@@ -52,6 +52,7 @@ int saves = 0;
 void save() { ++saves; }
 void apply_pad_layout(int) {}
 int detect_pad_layout() { return opts.pad_layout; }
+void apply_sprint_layout(bool) {}
 void sync_preset_budgets(int) {}
 constexpr int kAutoPreset = 6;   /* (the Quality preset Auto (this PC): apply_auto, not reached here) */
 void apply_auto(bool) {}

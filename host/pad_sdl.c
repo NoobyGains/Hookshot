@@ -67,6 +67,10 @@ static int32_t state_stick[4];
 static int state_count;
 static char state_name[128];   /* the first controller's name (host/prompts.c: the button prompts' Auto) */
 static volatile LONG rumble_low, rumble_high;   /* 0..65535, set by the vibration HLE */
+/* (the Insert menu's Rumble strength row, changed: a short rumble at the new strength, so the player feels what the row
+   does, and that the controller rumbles at all) until when, hos_now_ns */
+static int64_t rumble_test_until;
+void hos_sdl_rumble_test(void) { __atomic_store_n(&rumble_test_until, hos_now_ns() + 400000000LL, __ATOMIC_RELAXED); }
 /* the game's own vibration values per side (0 left, 1 right: {amp_low, freq_low, amp_high, freq_high}), for the pads
    that play HD rumble; silence until the game sends one */
 static SRWLOCK hd_lock = SRWLOCK_INIT;
@@ -378,7 +382,8 @@ static void pads_poll(void) {
         int rx_option(int id, int otherwise);
         const int strength = rx_option(9, 100);   /* (the menu's Rumble strength: the motors' and HD rumble's) */
         uint16_t motors[2];
-        rumble_strength((uint16_t)rumble_low, (uint16_t)rumble_high, strength, motors);
+        const int testing = now < __atomic_load_n(&rumble_test_until, __ATOMIC_RELAXED);   /* (the row's own rumble: three quarters of the motors, as the game's is scaled) */
+        rumble_strength(testing ? 0xC000 : (uint16_t)rumble_low, testing ? 0xC000 : (uint16_t)rumble_high, strength, motors);
         const uint16_t lo = motors[0], hi = motors[1];
         uint8_t side[3][4];   /* (the HD rumble pads': each side's bytes, then both merged for a single Joy-Con) */
         {
@@ -386,6 +391,7 @@ static void pads_poll(void) {
             AcquireSRWLockShared(&hd_lock);
             memcpy(hv, hd_values, sizeof hv);
             ReleaseSRWLockShared(&hd_lock);
+            if (testing) hv[0][0] = hv[0][2] = hv[1][0] = hv[1][2] = 0.5f;   /* (HD rumble pads: both bands, at their frequencies) */
             hd_rumble_felt(hv[0], felt[0]);   /* (the game's small amplitudes, as the motors get them) */
             hd_rumble_felt(hv[1], felt[1]);
             hd_rumble_encode(felt[0], strength, side[0]);
@@ -525,6 +531,10 @@ int hos_sdl_pads(uint64_t *buttons, int32_t stick[4]) {
         }
 #ifdef _WIN32
         CreateThread(NULL, 0, pad_main, NULL, 0, NULL);
+        {   /* (hookshot) the Switch 2 Pro Controller over USB, which Windows and this SDL have no driver for: host/pad_switch2.c */
+            void hos_switch2_start(void);
+            hos_switch2_start();
+        }
 #else
         if (hos_display_owns_sdl())
             InterlockedExchange(&pads_loaded, 1);   /* (the window's thread polls: hos_sdl_pads_pump) */

@@ -97,6 +97,12 @@ does. An on/off switch ("(set)" below) is on for `1` or any other value, and off
 `off` or `no` (`env_on` in `gpu/vk/compat/hookshot_env.h`, `kit.env_on` in Python); it used to be that any value turned
 one on, `0` included. A switch that takes a number or a list reads its value as it says.
 
+The native mouse (`host/mouse_native.c`): `HOS_MOUSE_NATIVE=1` or `0` stands in for the menu's Mouse camera (Native or
+not), `HOS_MOUSE_INVERT_Y` (set) for Invert mouse vertical, `HOS_MOUSE_AIM_SCALE=<x>` scales the aims' sensitivity
+(the bow's, the locked-on aim's) against the camera's (1), and `HOS_MOUSE_DEBUG` (set) logs whose the mouse is, which
+lock-on node runs in which mode, and the follow camera update by update for 40 updates after each aim (`mouse native
+trace:` lines: what the game left, what the hook put, the view's own pitch).
+
 `RX_VK_MESH_NOCULL=<prefix,...>` turns off the culling in the task shaders whose native code key starts with one of
 the prefixes. On a Steam Deck, `RX_VK_MESH_NOCULL=2c56dc1006942f74` avoids the same hang without leaving anything out:
 that task shader walks a coarse depth grid cell by cell for every meshlet and ends with
@@ -177,7 +183,14 @@ See [the format and history rules](temporal-history.md#psychov35-with-dlssdlaa-a
 | `HOS_INPUT_SCRIPT=<presses>` | Presses timed from the game's first controller read |
 | `HOS_INPUT_LIVE=<file>` | A file the test appends lines of presses to, read every 30 ms; each line's times count from when it is read. A line `!cheat <n>` sends a Cheats page action, `!synclog` logs the NVN syncs (`!dump`, `!shots`, `!rdoc` and `!flasharm` are the WebGPU renderer's) |
 | `HOS_INPUT_FRAME_CLOCK=1` | The script's time runs at 60 game frames a second instead of the wall clock |
-| `HOS_INPUT_EXCLUSIVE`, `HOS_INPUT_BACKGROUND`, `HOS_INPUT_SCRIPT_BACKGROUND` (set) | As above; the last lets every device count while the window is behind another one |
+| `HOOKSHOT_NFC_DIR=<folder>` | The folder of NFC tag files the Insert menu's NFC tab lists (`host/nn_nfp.c`), instead of the user's own (`docs/nfc.md`) |
+| `HOS_NFP_TRACE=1` | `nn::nfp`'s application area calls in the log |
+| `HOS_NFP_SEARCH=1` | A test's: the game's reader looks for a tag from the start, without the game's own NFC screen (the Switch 2 Pro Controller's reader, checked without playing to that screen) |
+| `HOS_SWITCH2=0` | The Nintendo Switch 2 Pro Controller over USB is not taken by the game (`host/pad_switch2.c`, Windows): a bridge program can then have it |
+| `HOS_SWITCH2_RUMBLE_TEST=1` | That controller's rumble checked without hands: a second at rest, a second of rumble, and how far its own accelerometer moved in each, in the log (`switch2: rumble test: ...`). The controller must lie still |
+| `HOS_INPUT_EXCLUSIVE`, `HOS_INPUT_BACKGROUND` (set) | As above |
+| `HOS_INPUT_SCRIPT_BACKGROUND` (set) | No longer needed, only said in the log: scripted and control-bridge presses count with the window behind another one anyway, and the player's keyboard and mouse never do (it used to let them through, so typing in another window reached a test run) |
+| `HOS_SPRINT_STILL_MS=<ms>` | With the Controls tab's Sprint row on: a sprint starts with the stick let go for that long (0 to 2000, default 0), the older way round the roll for a game built without `nx2/oot_patches.py`'s Sprint patch (`host/nn_hid.c` `sprint_step`) |
 | `RX_VK_MENU_SCRIPT=<seconds>:<key>,...` | Timed Insert menu keys: `INS`, `UP`, `DOWN`, `LEFT`, `RIGHT`, `ESC`, `ENTER`, `TABL`, `TABR`; `SHOT`, the Screenshot key (F12) |
 | `RX_VK_UI_PROMPTS=pad` or `keys` | The menu's button prompts for a controller or the keys, whatever was used last (screenshots) |
 | `RX_VK_UI_GAME_FONT=0` | The menu, the counter and the start-up screen in the included Libertinus, not the game's own font |
@@ -269,6 +282,7 @@ Pipeline-cache file ownership, temporary storage and failure behavior are descri
 | `RX_VK_FALLBACK_PHI_LIMIT=<n>` | RADV on GCN 1-4 cards (RX 400/500, R9 2xx/3xx/Fury): a mesh fallback compute stage with more than this many phis is not built and its draws are left out (default 50000; `0`: no limit; anything but decimal digits is ignored with a warning; the limit in use is logged). Its compiler did not finish the two biggest mesh programs (80,000 phis) and grew past 25 GB (`gpu/vk/fallback_size_policy.h`) |
 | `RX_VK_DRIVER_FAULTS=0` or `2` | 0: programs the driver's compiler faulted on are asked of it again. By default they are left out for the rest of the run and, through `hookshot_driver_faults.txt` beside the executable, on later runs with the same driver, and on AMD one program's builds go to the driver one at a time (issue 996). 2: one at a time on every driver |
 | `RX_VK_NO_INTEL_SERIAL=1` | On Windows, Intel's compiler (UHD and Arc) is entered by one thread, and a fault creating a shader or pipeline leaves that one out. This builds them side by side, as on every other GPU and on Intel elsewhere, for the run: the Debug tab's Intel shader compiles row shows it and is not changed (`hookshot_options.ini` keeps the row's own, `intel_shader_compiles=`). The log says which |
+| `RX_VK_COMPUTE_QUICK_FIRST=0` | With Intel's compute pipelines built one at a time on Windows (Intel's own driver; not on Linux, where Mesa's ANV ignores the optimizer flag), a dispatch's pipeline is built first without the driver's optimizer (seconds where the optimizer took up to minutes on a UHD Graphics) and the optimized one is bound once it is built behind the others. This builds the optimized one only, as before, for the run: the Debug tab's Intel quick compute builds row shows it (`hookshot_options.ini` keeps the row's own, `intel_quick_compute_builds=`) |
 | `HOS_VIDEO_NO_CATCHUP=1` | A movie does not skip pictures that are behind its sound. By default, pictures already decoded are skipped, and a decoder that keeps up decodes ahead to skip a late one (at most one picture's time in a frame). A decoder slower than the gap between pictures, timed over its recent pictures, shows the late one instead of decoding the next in order to drop it |
 | `RX_VK_GM_LOOP=0` or `1` | The storage buffer tables of a global memory access searched in a loop (1) or written out entry by entry (0). On by default on Intel, whose compiler did not finish the culling programs with the entries written out |
 | `RX_VK_IMPORT_CHUNK_MB=<MB>` | The size game memory is imported for the GPU by, and so a pool's VRAM mirror's least size (default 4 where the pools have VRAM mirrors, discrete cards; 16 without them, and before). Larger: fewer imports, more of each mirror outside the game's pools |
@@ -593,6 +607,9 @@ against a fake bridge.
 
 ## The options file
 
+The Controls **Keyboard** row is saved as `keyboard=0` (Auto), `1` (On), or `2` (Off). Auto suppresses keyboard bindings and menu navigation while a controller is connected, including an idle controller, to avoid Steam Input Desktop-layout key duplication. Mouse buttons are independent. F1 and the enabled Insert shortcut remain available. Select On to use a physical keyboard alongside a controller. This adds no environment switch.
+
+
 A new row on the Graphics, Audio, Gameplay or Controls tab needs a line in the README's option table too, in the
 menu's order, with its choices and default: `tests/test_readme_menu_rows.py` fails without it.
 
@@ -605,10 +622,12 @@ number is not the obvious one:
 
 `toggle_<button>=0|1` is the Controls page's Toggle column: 0 Off (default), 1 press once to hold and again to release.
 It applies after remapping to either pad binding, keys and mouse buttons. Only Switch buttons accept it, excluding
-Plus and Minus; directions and ocarina notes do not. Other values mean Off. Saving keeps the flags, not live latches.
+Plus and Minus; directions, Walk and ocarina notes do not. Other values mean Off. Saving keeps the flags, not live latches.
 Opening Insert, Plus/Minus, focus loss, rebinding and Reset to defaults clear latches. Background pad presses can
-latch again when Controller in background permits them. Linux's other game dialogs are not guaranteed resets;
-Insert always releases the latch.
+latch again when Controller in background permits them. On Linux, `hos_oot_menu_focus` clears latches whenever
+`f_802ed660` runs for a menu screen's pane focus, not only the pause page (`nx2/oot_patches.py`
+`patch_menu_focus`). This describes the hook; individual title, save and game-over transitions have not been
+separately verified in play. Insert always releases the latch.
 
 | Key | Values |
 |---|---|
@@ -618,7 +637,7 @@ Insert always releases the latch.
 | `resolution` | 0 Auto, 1 100%, 2 75%, 3 67%, 4 50% |
 | `output_res` | A size, `<width>x<height>`: 2048x1152 (the game's own reduced size), one of the screen's display modes (the menu's Aspect ratio and Output resolution rows), or any other with each side a multiple of 8 (rounded down), at least 640x360, at most 5120x2880's pixels, 5:4 to 48:9; anything else is 2048x1152. No line: 2560x1440, the game's own picture, or the screen's size where that has fewer pixels, at the screen's shape (2560x1080 and 2256x1504 start at their own size, as 1280x800 and 1920x1200 did before). The menu marks 2048x1152 "(reduced)". A size more than 1 % off 16:9 sets the picture's shape (`host/hos_wide_size.h` `hos_output_own_shape`). The Aspect ratio row saves `ultrawide=` 1 for the monitor's own shape, else 0; another shape is `output_res`'s own. The numbers saved before (0 2048x1152, 1 2560x1440, 2 3840x2160, 3 1920x1080, 4 5120x1440, 5 5120x2880) are still read |
 | `upscaling` | 0 Off, 1 Catmull-Rom, 2 Lanczos |
-| `sharpness`, `rumble_strength`, `motion_sensitivity_x`, `motion_sensitivity_y` | percent |
+| `sharpness`, `rumble_strength`, `motion_sensitivity_x`, `motion_sensitivity_y`, `walk_speed` | percent |
 | `mouse_sensitivity` | hundredths: 100 is 1.00 |
 | `field_of_view` | 50 to 150 percent of the current vertical gameplay FOV; 100 is the original. Applies immediately, before projection and culling. The resulting vertical angle stays within 5 to 140 degrees |
 | `robust_buffers` | 0 Auto (on), 1 Off, 2 On |
@@ -627,11 +646,21 @@ Insert always releases the latch.
 | `text_speed` | 0 Normal, 1 2x, 2 4x, 3 Instant |
 | `microphone` | 0 Off, 1 Default, 2 and up a microphone (the name in `microphone_device` decides which) |
 | `mouse_camera` | 0 As the stick, 1 Native, 2 Off (the mouse is never captured) |
+| `walk_mode` | 0 Hold, 1 Toggle |
 | `layout_preset` | 0 Nintendo, 1 Xbox / PC, 2 Swap Face, 3 Custom |
 
 The other rows are 0 Off and 1 On. Some are read at the start, before the menu exists, by the code that needs them:
 `handheld_profile` and `output_res` (`host/nn_applet.c`), `ultrawide` (`host/hos_main.c`), `robust_buffers`
 (`gpu/vk/vk_main.cpp`) and the controls (`host/nn_hid.c`).
+
+These named keys, including `walk_mode` and `walk_speed`, are independent of the internal host/renderer option IDs in
+`gpu/vk/vk_api.h`; renumbering an option does not require changing a player's saved options file.
+Walk mode and Walk speed use IDs 85 and 86 respectively (49 and 50 stay reserved for upstream's own Walk); 52 is Skip opening's. The input regression check compiles the real header
+with the host's reads and checks the renderer's answers and menu rows against those names.
+Hold-to-toggle uses ID 54 and latches the final Switch-button word. Walk reads its raw bound key earlier and scales
+only the movement-key stick, so it never receives a latched Switch button as another toggle input. `toggle_walk` is
+not accepted; choose `walk_mode` instead. Walk's Toggle selection survives Insert, focus loss and Switch-button latch
+resets; a key held across Insert/focus return must be released before it can switch walking again.
 
 `HOS_CONTROL=<socket path>` turns on the control bridge: a local socket a tool or coding agent drives the running game
 through (inputs timed in frames, screenshots, waits for the game's state, the Insert menu's settings, quit), with

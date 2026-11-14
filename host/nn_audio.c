@@ -1028,6 +1028,7 @@ static void dump_finish(void) {
     fflush(dump);
 }
 static void output_frame(const int16_t *pcm) {
+    const int mixed = out_channels;   /* (renderer_main mixed this frame for the device open now) */
     if (dump) {
         fwrite(pcm, (size_t)(2 * out_channels), FRAME, dump);
         dump_bytes += (uint32_t)(FRAME * 2 * out_channels);
@@ -1051,6 +1052,7 @@ static void output_frame(const int16_t *pcm) {
             if (!wout) return;
         }
     }
+    if (out_channels != mixed) return;   /* (another channel count opened: this frame is dropped, the next is mixed for it) */
     for (int i = 0; i < FRAME * out_channels; i++) {
         const unsigned a = (unsigned)(pcm[i] < 0 ? -pcm[i] : pcm[i]);
         if (a > out_peak) out_peak = a;
