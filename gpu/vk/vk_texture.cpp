@@ -4425,6 +4425,14 @@ void texture_rendered(Texture* tex) {
             it = it->second.first <= hi ? gpu_owned.erase(it) : std::next(it);
         gpu_owned[lo] = {hi, memory_generation()};
         if (gpu_owned.size() > 65536) gpu_owned.erase(gpu_owned.begin());   // (bounded; the oldest addresses go)
+        // (hookshot) and a GPU buffer's write into its storage from an earlier submission is older than this drawing:
+        // gpu_wrote_into took it for newer the first time the game sampled the image after finalizing it, and the whole
+        // image was uploaded from guest memory over what the pass drew (1920x1080 and 2560x1440 targets made over a
+        // buffer's old storage after an area load). A write in this submission still counts: which came first is not
+        // known here. Passes only, once a frame: the parallel replay holds its lock here then (texture_marked).
+        // RX_VK_NO_DRAWN_OVER_BUFFER_WRITE=1: as before
+        static const bool older = !env_on("RX_VK_NO_DRAWN_OVER_BUFFER_WRITE");
+        if (older && rec_value) tex->gpu_wrote_seen = std::max(tex->gpu_wrote_seen, rec_value - 1);
     }
 }
 uint64_t texture_frame_no() {
