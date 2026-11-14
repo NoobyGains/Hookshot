@@ -204,7 +204,7 @@ int main(int argc, char** argv) {
 
 def text_checks(text, shader):
     errors = []
-    for fn in ('void cap_spare_make(', 'bool cap_buf_get('):
+    for fn in ('void cap_spare_worker(', 'bool cap_buf_get('):
         body = block(text, fn)
         calls = re.findall(r'create_buffer_cached\(\s*[^,]+,\s*([^,]+),', body)
         if not calls:
