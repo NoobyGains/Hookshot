@@ -635,7 +635,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | Tab | Option | Choices | Default |
 |---|---|---|---|
 | Graphics | Quality preset | Custom, Minimum (4GB), Low (6GB), Balanced (8GB), High (12GB), Ultra (16GB+), Auto (this PC) | Auto (this PC) on a first start; Custom in an options file from before it |
-| | Aspect ratio | The shapes your screen's resolutions have, narrowest first (5:4, 4:3, 16:10, 16:9, 21:9, 32:9, ...), your monitor's own marked "(monitor's)" (after a restart) | Your monitor's |
+| | Aspect ratio | The shapes your screen's resolutions have, narrowest first (5:4, 4:3, 16:10, 16:9, 21:9, 32:9, ...), your monitor's own marked "(monitor's)", or Window to fill the actual window (after a restart) | Your monitor's |
 | | Output resolution | The Aspect ratio's sizes: your screen's resolutions and the common ones (1440p, 4K, 5K at 16:9; 1920x1200, 2560x1600 at 16:10; 3440x1440 at 21:9; ...), and 2048x1152 (the game's own reduced size, 80% of its 2560x1440, marked "(reduced)") at 16:9 (after a restart) | 2560x1440, the game's own picture, or your screen's size where it is smaller (a Steam Deck's 1280x800, a 1080p monitor), at its own shape; Auto (this PC) leaves it as it is |
 | | Custom output size | A size of your own, typed as `<width>x<height>` (after a restart) | None |
 | | Profile | Docked, Handheld (after a restart) | Docked |
@@ -805,6 +805,17 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   Changing the Upscaler keeps your chosen render scale, including across a restart. An engine without that scale
   temporarily uses and shows its nearest supported size: DLSS Balanced (58%) shows 50% with the game's own, then 58%
   again on returning to DLSS. Changing Render resolution or choosing a Quality preset replaces that saved scale.
+- **Window aspect ratio** (opt-in): fills the actual window. Wider than 16:9 shows more at the sides (Hor+);
+  narrower or taller shows more above and below (Vert+), keeping the 16:9 horizontal view. Select Window in
+  Graphics, Aspect ratio, then restart (`ultrawide=2` in `hookshot_options.ini`; 1 keeps Monitor's shape,
+  0 keeps the chosen output shape). Later window resizes update the camera and presentation without a restart;
+  the picture size is set by the window's shape at start. Only the Output resolution's height is used.
+  A windowed start is normally 1280x720: widening it later stretches the fixed-size picture, so it can look softer
+  than Monitor's shape. Start full screen or set `HOS_WINDOW_SIZE` to choose another startup shape.
+  Startup and live shapes are clamped to 5:4 through 48:9 (2448x1848 is within this range).
+  Narrow windows render more pixels at startup and may run slower.
+  The UI keeps its 16:9 proportions in the centre, including after resizing. HUD docking and size controls are not added.
+  The existing monitor modes, including their narrow-screen HUD behavior (https://github.com/NotRexed/Hookshot/pull/2015), stay unchanged.
 - **Aspect ratio** and **Output resolution:** the menu lists the resolutions your screen offers (its display modes, as
   Windows lists them, DSR's included), with the common sizes of each of those shapes your screen does not list (1440p, 4K
   and 5K at 16:9, 1920x1200 and 2560x1600 at 16:10, 3440x1440 at 21:9, ...), grouped by shape. **Aspect ratio** lists

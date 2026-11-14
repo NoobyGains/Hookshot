@@ -65,7 +65,7 @@ struct VkSemaphoreCreateInfo { int type; };
 struct Extent { uint32_t width,height; };
 struct Device { int device=1;uint64_t swapchain=0;int swap_format=0;Extent swap_extent{};bool swap_mutable=false;std::atomic<uint32_t> swap_spare{0};
     std::vector<VkImage> swap_images;std::vector<VkSemaphore> swap_rendered;
-    std::atomic<uint64_t> swap_resize{0};std::mutex present_mu;uint64_t swapchain_generation=0;
+    std::atomic<uint64_t> swap_resize{0};std::atomic<float> window_aspect{16.0f/9.0f};std::mutex present_mu;uint64_t swapchain_generation=0;
     int instance=1;uint64_t surface=1;bool present_queue_supported=true; } dev;
 struct { int hdr=0; } opts;   // (the Insert menu's HDR row: present_image remakes the swapchain when it changes)
 unsigned image_count=4, made=0, fail_at=0;uint64_t serial=1000;
@@ -121,8 +121,8 @@ void vkDestroySurfaceKHR(int, uint64_t surface, void*) {
     ++surfaces_destroyed;
 }
 ''' + retire + '\n' + loss + r'''
-bool recreate() {
-    uint32_t n=0,width=640,height=480; struct {int format=1;} fmt;
+bool recreate(uint32_t width=640,uint32_t height=480) {
+    uint32_t n=0; struct {int format=1;} fmt;
     struct {uint32_t minImageCount=2;} caps;   // (the surface's: present ahead holds images past it, vk_framegen.cpp)
     CreateInfo ci;int mode=0;VkResult result;
 ''' + tail + r'''
@@ -136,7 +136,7 @@ bool create_swapchain(unsigned width,unsigned height) {
     called_width=width;called_height=height;
     if(newer_resize)dev.swap_resize.store(newer_resize);
     if(preflight_fail)return false;
-    return recreate();
+    return recreate(width,height);
 }
 bool reflex_swapchain_stale() {return stale;}
 int menu_vsync() {return 0;}   // (vk_menu.cpp: the V-Sync row, Auto)
@@ -184,6 +184,7 @@ uint64_t choose(unsigned index,unsigned frame_slot) {
 }
 int main() {
     if(!recreate())return 1;
+    if(dev.window_aspect.load()!=640.0f/480)return 33;
     uint64_t pending[16]{};unsigned owner[16]{},count=0;
     // Only reacquiring image i releases its previous presentation wait.
     unsigned images[]={0,1,2,3,0,1,2,3,3,1,0,2};
@@ -233,14 +234,17 @@ int main() {
     if(!recreate())return 18;
     dev.swap_resize.store(pack(1720,720));preflight_fail=true;
     count=acquires;auto active=dev.swapchain;
+    const float before_failed_resize=dev.window_aspect.load();
     present_begin();
     if(acquires!=count || dev.swap_resize.load()!=pack(1720,720) || dev.swapchain!=active)return 19;
+    if(dev.window_aspect.load()!=before_failed_resize)return 34;
     newer_resize=pack(3440,1440);
     present_begin();
     if(acquires!=count || dev.swap_resize.load()!=newer_resize)return 20;
     preflight_fail=false;newer_resize=0;
     present_begin();
     if(acquires!=count+1 || called_width!=3440 || called_height!=1440 || dev.swap_resize.load())return 21;
+    if(dev.window_aspect.load()!=3440.0f/1440)return 35;
     create_result=-1;dev.swap_resize.store(pack(1920,1080));count=acquires;
     present_begin();
     if(acquires!=count || dev.swapchain || dev.swap_resize.load()!=pack(1920,1080))return 22;
@@ -298,5 +302,5 @@ with tempfile.TemporaryDirectory(prefix='present-semaphores-') as directory:
     folder = Path(directory)
     cpp, exe = folder/'fixture.cpp', folder/'fixture.exe'
     cpp.write_text(fixture)
-    subprocess.run([a.cxx, '-std=c++20', '-include', ENV_ON_H, '-O1', str(cpp), '-o', str(exe)], check=True)
+    subprocess.run([a.cxx, '-std=c++20', '-include', ENV_ON_H, '-include', str(source/'host/hos_wide_size.h'), '-O1', str(cpp), '-o', str(exe)], check=True)
     raise SystemExit(subprocess.run([str(exe)]).returncode)

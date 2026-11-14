@@ -12,6 +12,7 @@ typedef DWORD (*ThreadProc)(void *);
 #define WINAPI
 #define TRUE 1
 #define FALSE 0
+#define INFINITE (~0UL)
 #define CreateWindowA(...) (window_result)
 #define CreateEventA mock_CreateEventA
 #define CreateThread mock_CreateThread
@@ -32,7 +33,8 @@ static DWORD error_result, exit_code;
 static ThreadProc thread_proc;
 static void *thread_arg;
 static char log_line[256];
-static HANDLE renderer_up, hwnd, window_result;
+static HANDLE renderer_up, window_up, hwnd, window_result;
+static int fail_event, window_waits;
 static DWORD display_main(void *arg) { (void)arg; return 0; }
 
 char *getenv(const char *name) {
@@ -41,12 +43,16 @@ char *getenv(const char *name) {
 HANDLE CreateEventA(void *security, int manual, int initial, const char *name) {
     (void)security; (void)manual; (void)initial; (void)name;
     event_calls++;
-    return event_result;
+    return event_calls == fail_event ? NULL : event_result;
 }
 HANDLE CreateThread(void *security, size_t stack, ThreadProc proc, void *arg, DWORD flags, DWORD *id) {
     (void)security; (void)stack; (void)flags; (void)id;
     thread_calls++; thread_proc = proc; thread_arg = arg;
     return thread_result;
+}
+DWORD WaitForSingleObject(HANDLE handle, DWORD timeout) {
+    CHECK("waits for actual window readiness", handle == window_up && timeout == INFINITE);
+    window_waits++; return 0;
 }
 int CloseHandle(HANDLE handle) { close_calls++; closed_handle = handle; return 1; }
 DWORD GetLastError(void) { return error_result; }
@@ -65,6 +71,7 @@ static void run_startup(void (*start)(void)) {
 
 static void reset(void) {
     headless = event_calls = thread_calls = close_calls = flush_calls = exit_calls = renderer_calls = 0;
+    fail_event = window_waits = 0;
     event_result = (HANDLE)1; thread_result = (HANDLE)2; window_result = (HANDLE)3;
     hwnd = NULL; error_result = 0; exit_code = 0;
     thread_proc = NULL; thread_arg = NULL; closed_handle = NULL; log_line[0] = 0;
@@ -86,10 +93,15 @@ int main(void) {
 
     reset(); thread_result = NULL; error_result = 202; run_startup(hos_display_start);
     failed("CreateThread", 202);
-    CHECK("thread failure follows event creation", event_calls == 1);
+    CHECK("thread failure follows both readiness events", event_calls == 2);
+
+    reset(); fail_event = 2; error_result = 102; run_startup(hos_display_start);
+    failed("CreateEventA window", 102);
+    CHECK("second event failure stops before thread", event_calls == 2 && thread_calls == 0 && !window_waits);
 
     reset(); run_startup(hos_display_start);
-    CHECK("successful startup stays asynchronous", event_calls == 1 && thread_calls == 1 && thread_proc != NULL);
+    CHECK("startup creates both events and a window thread", event_calls == 2 && thread_calls == 1 && thread_proc != NULL);
+    CHECK("guest waits for window sizing before continuing", window_waits == 1);
     CHECK("successful startup does not exit", exit_calls == 0);
     CHECK("owned thread handle is closed", close_calls == 1 && closed_handle == thread_result);
     reset(); window_result = NULL; error_result = 303; run_startup(create_window);

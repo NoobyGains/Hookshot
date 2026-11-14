@@ -92,6 +92,7 @@ int step_output_choice(int v, int dir) { return v + dir; }
 int output_for_aspect(int) { return opts.output_res; }
 int aspect_for_choice(int) { return opts.ultrawide; }
 int ultrawide_read = 0, aspect_started = 0;
+/* ASPECT_WINDOW */
 bool aspect_follows_host(int) { return false; }
 Out size_of(Out o) { return o; }
 namespace dm { int ratio_name(Out) { return 0; } }
@@ -393,6 +394,7 @@ def fixture(source):
         "ROW": block(menu, menu.index("struct Row {")) + ";",
         "OVERRIDES": menu[menu.index("struct EnvOverride {"):menu.index("std::string ini_path() {")],
         "LOAD": init[load_at:init.index("    first_start = !has_options;", load_at)],
+        "ASPECT_WINDOW": definition(menu, "int aspect_window_value"),
         "SCALE": definition(menu, "int twelfths") + "\n" + definition(menu, "void game_size"),
         "TEXT": definition(menu, "const char* tx_resolution") + "\n" + definition(menu, "const char* hn_resolution"),
         "WALK": block(menu, walk_at),

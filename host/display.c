@@ -12,6 +12,7 @@
    wheel for that menu (hos_mouse_game_pointer). */
 #include "hos.h"
 void hos_input_clear_toggles(void);
+#include "hos_wide.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,6 +125,7 @@ static void pointer_update(HWND w, uint32_t pressed, int wheel) {
     pointer_publish_at(w, at, pressed, wheel);
 }
 
+static HANDLE window_up;
 static HANDLE renderer_up;
 static int fullscreen;
 static WINDOWPLACEMENT windowed_place;
@@ -521,8 +523,7 @@ static DWORD WINAPI display_main(void *p) {
     RegisterClassA(&wc);
     dpi_aware_thread();
     extern float hos_aspect_ratio;
-    /* (the picture's shape when Monitor's shape set one, wider or narrower than 16:9: 960 x 720 for 4:3, 1720 x 720 for 21:9) */
-    int win_w = hos_aspect_ratio > 0.0f ? (int)(720 * hos_aspect_ratio + 0.5f) : 1280, win_h = 720;
+    int win_w = !hos_wide_window && hos_aspect_ratio > 0.0f ? (int)(720 * hos_aspect_ratio + 0.5f) : 1280, win_h = 720;
     if (getenv("HOS_WINDOW_SIZE")) {
         int w = 0, h = 0;
         if (sscanf(getenv("HOS_WINDOW_SIZE"), "%dx%d", &w, &h) == 2 && w >= 64 && h >= 64) win_w = w, win_h = h;
@@ -545,6 +546,10 @@ static DWORD WINAPI display_main(void *p) {
     else
         ShowWindow(hwnd, SW_SHOW);
     if (getenv("HOS_FULLSCREEN") && atoi(getenv("HOS_FULLSCREEN"))) set_fullscreen(hwnd, 1);
+    RECT actual;
+    GetClientRect(hwnd, &actual);
+    hos_wide_start(actual.right, actual.bottom);
+    SetEvent(window_up);
     RAWINPUTDEVICE rid = {1, 2, 0, hwnd};   /* generic desktop mouse: WM_INPUT while the window is in front */
     RegisterRawInputDevices(&rid, 1, sizeof rid);
     pointer_update(hwnd, 0, 0);
@@ -574,8 +579,11 @@ void hos_display_start(void) {
         return;
     }
     renderer_up = CreateEventA(NULL, TRUE, FALSE, NULL);
-    if (!renderer_up) display_start_failed("CreateEventA");
+    if (!renderer_up) display_start_failed("CreateEventA renderer");
+    window_up = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if (!window_up) display_start_failed("CreateEventA window");
     HANDLE thread = CreateThread(NULL, 0, display_main, NULL, 0, NULL);
     if (!thread) display_start_failed("CreateThread");
     CloseHandle(thread);
+    WaitForSingleObject(window_up, INFINITE);
 }

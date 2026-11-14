@@ -307,7 +307,7 @@ def main():
     if "early_in_place_write(p.lo + off, p.lo + std::min(off + size, p.hi - p.lo), mem_rec_value);" not in mem_note.split("if (size <=")[0]:
         raise SystemExit("FAIL: note_direct_write does not note every write in place for the early wait, whatever its size")
     draw = (ROOT / "gpu/vk/vk_draw.cpp").read_text(encoding="utf-8")
-    if "const bool same_desc = !no_reuse && !early_rebind && " not in draw or "if (d.is_written) return true;" not in draw or \
+    if "const bool same_desc = last_desc_aspect == ui_aspect && !no_reuse && !early_rebind && " not in draw or "if (d.is_written) return true;" not in draw or \
             "const bool early_rebind = early && memory_readback_early_active() && [&] {" not in draw:
         raise SystemExit("FAIL: vk_draw.cpp: a draw of a program that writes storage buffers may keep the set before, its write not noted")
     if "if (early && !dry && memory_rb_waited_range(host->gpu_guest(u.dst), u.size)) split_after = true;" not in rep:

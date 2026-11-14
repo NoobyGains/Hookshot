@@ -71,6 +71,7 @@ class InstallTests(unittest.TestCase):
 
 
 HEAD = r'''
+#include "host/hos_wide.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -158,6 +159,23 @@ int main(void) {
     menu = 50; c = input(0.01f); site(&c); CHECK(near(output(&c), 0.087266463f));
     menu = 150; unchanged(NAN); unchanged(INFINITY); unchanged(0.0f); unchanged(-1.0f); unchanged(3.2f);
 
+    /* Actual FOV hook followed by Window projection: live slider changes do not
+       accumulate Vert+, and returning wide restores the FOV slider's tangent. */
+    setup();
+    HosWideProjection projection = {0};
+    for (int percent = 50; percent <= 150; percent += 25) {
+        menu = percent; c = input(1.0f); site(&c);
+        const float authored = tanf(output(&c) / 2);
+        float tangent = authored, aspect = 16.0f/9.0f;
+        CHECK(hos_wide_perspective(&projection, 4.0f/3.0f, &tangent, &aspect));
+        CHECK(near(tangent * aspect, authored * 16.0f/9.0f));
+        const float once = tangent;
+        CHECK(hos_wide_perspective(&projection, 4.0f/3.0f, &tangent, &aspect));
+        CHECK(tangent == once);
+        CHECK(hos_wide_perspective(&projection, 32.0f/9.0f, &tangent, &aspect));
+        CHECK(near(tangent, authored));
+    }
+    menu = 150;
     /* Other views and scripted events retain their angles. Null links stop safely. */
     put64(main_camera + 120, view + 0x100); unchanged(1.0f); setup();
     put64(events + 104, 1); unchanged(1.0f); setup();
@@ -189,7 +207,7 @@ def main():
         source = Path(temporary) / "fixture.c"
         executable = Path(temporary) / "fixture.exe"
         source.write_text(HEAD + body + MAIN.replace("SITE_C", oot_fov.HOOK), encoding="utf-8")
-        subprocess.run([args.cc, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", str(source), "-lm", "-o", str(executable)], check=True)
+        subprocess.run([args.cc, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT), str(source), "-lm", "-o", str(executable)], check=True)
         subprocess.run([str(executable)], check=True)
 
 

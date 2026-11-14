@@ -39,7 +39,8 @@ constexpr int SM_CXSCREEN = 0, SM_CYSCREEN = 1;
 int GetSystemMetrics(int) { return 0; }
 volatile uint64_t hos_wide_out = 0;   // (host/hos_main.c: the widescreen picture, 0 = none; nn_applet.c reads it)
 struct { int handheld, output_res, ultrawide; } opts;
-#include "host/hos_wide_size.h"
+#include "host/hos_wide.h"
+struct { struct { unsigned width, height; } swap_extent; } dev;
 // (the main screen tx_output_res shapes its sizes for: none unless a check sets one)
 static uint32_t screen_w = 0, screen_h = 0;
 bool screen_size(uint32_t* w, uint32_t* h) { return screen_w ? (*w = screen_w, *h = screen_h, true) : false; }
@@ -61,6 +62,20 @@ std::vector<display_modes::Size> screen_modes() { return {}; }
 ''' + host[host.index("int hos_ini_option(const char *key, int otherwise);"):host.index("HLE(_ZN2nn2oe16GetOperationModeEv)")] + menu[
         menu.index("struct Out {"):menu.index("/// The Render resolution: the value chosen")] + menu[
         menu.index("const char* tx_output_res("):menu.index("const char* tx_speed(")] + r'''
+bool env_holds(const int*) { return false; }
+const char* ini_key(int) { return "ultrawide"; }
+int ultrawide_read = 1;
+static void check_window_saved(int selected) {
+    const int v = selected, r = 0;
+    FILE* f = tmpfile();
+    assert(f);
+    /* SAVE_ASPECT */
+    rewind(f);
+    char line[80] = {};
+    assert(fgets(line, sizeof line, f));
+    assert(strcmp(line, "ultrawide=2\n") == 0);
+    fclose(f);
+}
 int main(int argc, char **argv) {
     assert(argc == 7);
     const int mode = atoi(argv[1]), pool = atoi(argv[5]);   // (mode: the menu's choice, 6 the player's own size)
@@ -124,12 +139,34 @@ int main(int argc, char **argv) {
                aspect_of_choice(1, 1) == 2 && aspect_of_choice(0, 1) == 2);
         // (the control bridge's way to a size: its own shape, 16:9 for a 16:9 one)
         assert(aspect_for_choice(4) == 1 && aspect_for_choice(1) == 0 && aspect_for_choice(5) == 0);
+        assert(aspect_of_choice(0, 2) == aspect_window_value());
+        assert(strcmp(tx_ultrawide(aspect_window_value()), "Window") == 0);
+        assert(!aspect_is_monitors(aspect_window_value()) && !aspect_follows_host(aspect_window_value()));
+        if (!opts.handheld) {
+            const int before = opts.ultrawide;
+            opts.ultrawide = aspect_window_value();
+            dev.swap_extent = {2448, 1848};
+            const int output = output_choice_of(2560, 1440);
+            const Out tall = picture_for(output);
+            assert(tall.w == 2560 && tall.h == 1936);
+            window_start_aspect = 2448.0f / 1848;
+            dev.swap_extent = {2560, 1080};
+            const Out resized = picture_for(output);
+            assert(resized.w == tall.w && resized.h == tall.h);
+            window_start_aspect = 0;
+            dev.swap_extent = {};
+            opts.ultrawide = before;
+        }
         const int was = opts.output_res, was_aspect = opts.ultrawide;
         opts.output_res = 4;
         // (with no screen size known: the largest of the shape; Monitor's shape, 16:9's sizes)
         assert(output_for_aspect(1) == 4 && output_for_aspect(0) == 5 && output_for_aspect(2) == 5);
+        const int window_before_screen_known = aspect_of_choice(0, 2);
         screen_w = 2560, screen_h = 1440;   // (a 16:9 screen: 16:9 is the monitor's, at the screen's own size; no value of its own)
-        assert(monitor_shape() == "16:9" && aspect_monitor_value() == -1 && aspect_last() == 1);
+        // SDL can report its screen only after menu_init. A saved Window must not become a monitor choice.
+        check_window_saved(window_before_screen_known);
+        assert(window_before_screen_known == aspect_window_value());
+        assert(monitor_shape() == "16:9" && aspect_monitor_value() == -2 && aspect_last() == 1);
         assert(aspect_is_monitors(0) && !aspect_is_monitors(1));
         assert(strcmp(tx_ultrawide(0), "16:9 (monitor's)") == 0 && strcmp(tx_ultrawide(1), "32:9") == 0);
         assert(output_for_aspect(0) == 2 && aspect_of_choice(1, 1) == 0);
@@ -356,6 +393,9 @@ int main() {
         source.write_text(rule, encoding="utf-8")
         subprocess.run([args.cxx, "-std=c++17", "-I", str(ROOT), str(source), "-o", str(exe)], check=True)
         subprocess.run([str(exe)], check=True)
+    save_line = next(line.strip() for line in menu.splitlines()
+                     if 'fprintf(f, "%s=%d\\n", ini_key(r), env_holds(&opts.output_res)' in line)
+    fixture = fixture.replace("/* SAVE_ASPECT */", save_line)
     with tempfile.TemporaryDirectory(prefix="output-resolution-") as tmp:
         work = Path(tmp)
         source, exe = work / "fixture.cpp", work / "fixture.exe"

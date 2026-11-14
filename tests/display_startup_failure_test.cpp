@@ -18,11 +18,14 @@ constexpr unsigned HOS_SDL_VIDEO = 1, HOS_SDL_EVENTS = 2;
 struct HosSdlEvent {};
 struct ProcessExit { int code; };
 static int sdl_ready, start_asked, visible_window_started;
-static int game_argc, game_token, event_token;
+static int game_argc, game_token, event_token, window_event_token;
+static unsigned event_calls, window_waited;
 static char** game_argv;
 static int hos_posix_window[4];
 [[maybe_unused]] static HANDLE renderer_up;
+static HANDLE window_up;
 static void* window;
+int hos_wide_window = 1;
 float hos_aspect_ratio = 16.0f / 9;
 static std::string mode;
 static unsigned loads, inits, windows, threads, offscreen, signals, sleeps, flushes, waited, prepares;
@@ -59,7 +62,14 @@ static void* hos_sdl_window(const char*, int w, int h) {
 static void hos_sdl_wait_event(HosSdlEvent*, int) {
     throw std::runtime_error("unexpected startup event wait");
 }
-static HANDLE CreateEventA(void*, int, int, void*) { return &event_token; }
+using DWORD = unsigned long;
+static DWORD GetLastError() { return 123; }
+static HANDLE CreateEventA(void*, int, int, void*) {
+    ++event_calls;
+    if ((mode == "renderer_event_failure" && event_calls == 1) ||
+        (mode == "window_event_failure" && event_calls == 2)) return nullptr;
+    return event_calls == 1 ? &event_token : &window_event_token;
+}
 [[maybe_unused]] static void SetEvent(HANDLE h) {
     require(h == &event_token, "wrong readiness event");
     ++signals;
@@ -95,7 +105,9 @@ static HANDLE CreateThread(void*, unsigned, unsigned (*entry)(void*), void* arg,
 }
 static void SetThreadDescription(HANDLE h, const wchar_t*) { require(h == &game_token, "wrong game thread"); }
 static void WaitForSingleObject(HANDLE h, unsigned timeout) {
-    require(h == &game_token && timeout == INFINITE, "changed game-thread wait");
+    require(timeout == INFINITE, "changed readiness wait timeout");
+    if (h == window_up) { ++window_waited; return; } // Authored window handoff; no real thread is started.
+    require(h == &game_token, "changed game-thread wait");
     ++waited;
 }
 static void load_hookshot_env() {}
@@ -141,6 +153,11 @@ int main(int argc, char** argv) {
                     "unexpected startup failure continued offscreen or signaled success");
             require(threads == (mode == "window_failure" ? 1u : 0u),
                     "SDL initialization failure started game work");
+        } else if (mode == "renderer_event_failure" || mode == "window_event_failure") {
+            require(status == 1 && flushes == 1 && logs.size() == 1, "readiness allocation failure did not exit and flush");
+            require(logs[0].find(mode == "renderer_event_failure" ? "CreateEventA renderer" : "CreateEventA window") != std::string::npos,
+                    "wrong readiness allocation failure diagnostic");
+            require(!start_asked && !windows && !offscreen && !window_waited, "allocation failure started window work");
         } else if (mode == "headless") {
             require(status == 0 && threads == 1 && offscreen == 1 && waited == 1,
                     "changed explicit headless/offscreen behavior");
@@ -150,6 +167,7 @@ int main(int argc, char** argv) {
             require(status == 0 && threads == 1 && waited == 1 && loads && inits == 1 && windows == 1 &&
                     visible_window_started == 1 && !offscreen && !flushes && !sleeps,
                     "changed successful visible startup handshake");
+            require(event_calls == 2 && window_waited == 1, "guest sizing did not wait for window readiness");
         } else if (mode == "thread_failure") {
             require(status == 1 && !threads && !windows && !offscreen && !waited,
                     "changed game-thread creation failure behavior");

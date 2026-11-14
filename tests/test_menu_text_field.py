@@ -56,7 +56,8 @@ MENU_FIXTURE = r'''#define _CRT_SECURE_NO_WARNINGS
 #include <cstdlib>
 #include <cstring>
 #include <iterator>
-#include "host/hos_wide_size.h"
+#include "host/hos_wide.h"
+struct { struct { unsigned width, height; } swap_extent; } dev;   // (vk_menu.cpp's picture_for: the window's shape, Aspect ratio Window)
 #include "host/hold_toggle.h"
 #include "gpu/vk/display_modes.h"
 #include "gpu/vk/menu_restart.h"
@@ -70,8 +71,11 @@ enum { HOS_PAD_SOUTH, HOS_PAD_EAST, HOS_PAD_WEST, HOS_PAD_NORTH, HOS_PAD_BACK, H
 enum { HOS_MOUSE_LEFT = 1, HOS_MOUSE_RIGHT = 2 };
 @@TEXT_ENUMS@@
 struct { int output_res, preset, ultrawide, handheld, audio_output; } opts;
-struct Row { int* value; int hi; bool restart; };
-Row rows[] = {{&opts.ultrawide, 0, true}, {&opts.output_res, 0, true}, {&opts.audio_output, 3, true}};
+struct Row { int* value; int lo, hi; bool restart; };
+struct HostStub { uint32_t (*pad_raw)(); float (*aspect_ratio)(void); };   // (aspect_ratio: Window, the shape the game started with, outputs_sync)
+extern HostStub host_value;
+HostStub* host = &host_value;
+Row rows[] = {{&opts.ultrawide, 0, 0, true}, {&opts.output_res, 0, 0, true}, {&opts.audio_output, 0, 3, true}};
 constexpr int kRows = 3;
 int restart_slot[kRows] = {0, 1, 2};
 namespace mr = menu_restart;
@@ -154,7 +158,7 @@ void tap(int button, int count = 1) {
 // The host's raw pad callback and the menu's edge/repeat path, not a latched game-button word.
 uint32_t pad_raw_now = 0;
 @@PAD_RAW@@
-struct { uint32_t (*pad_raw)(); } host_value{hos_pad_raw}, *host = &host_value;
+HostStub host_value{hos_pad_raw, nullptr};
 void routed_tick() {
     const bool mine = true;
     bool pad_last = false, held[5] = {}, keyboard_enabled[5] = {true, true, true, true, true};

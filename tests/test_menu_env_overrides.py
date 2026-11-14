@@ -58,6 +58,7 @@ bool screen_size(uint32_t*, uint32_t*) { return false; }
 bool host_screen_size(uint32_t*, uint32_t*) { return false; }
 std::string monitor_shape() { return {}; }
 int ultrawide_read = 1, aspect_started = -1;
+int aspect_window_value() { return -1; }
 bool aspect_follows_host(int) { return false; }
 #ifdef _WIN32
 static int setenv(const char* name, const char* value, int) { return _putenv_s(name, value); }
@@ -82,6 +83,7 @@ Options opts;
 /* OUTPUTS */
 const char* tx(int) { return ""; }
 Row rows[] = {
+    {TAB_GRAPHICS, "Aspect ratio", &opts.ultrawide, 0, 2, 1, tx, ""},
     {TAB_GRAPHICS, "Frame generation", &opts.framegen, 0, 8, 1, tx, ""},
     {TAB_GRAPHICS, "Frame pacing", &opts.pace, 0, 1, 1, tx, ""},
     {TAB_GRAPHICS, "Output resolution", &opts.output_res, 0, 0, 1, tx, ""},   // (its end: the sizes offered, unused here)
@@ -211,6 +213,12 @@ int main(int argc, char** argv) {
     opts.hold_toggle = 1;
     save();
     CHECK(has("toggle_a=1\n") && !has("toggle_a=0\n"));
+    opts.ultrawide = aspect_window_value();
+    save();
+    CHECK(has("ultrawide=2\n"));
+    opts.ultrawide = 0;
+    save();
+    CHECK(has("ultrawide=0\n"));
     std::puts("PASS: the environment's rows last for the run; the options file keeps the player's, also when a save fails");
 }
 """

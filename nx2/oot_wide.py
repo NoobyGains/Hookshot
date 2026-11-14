@@ -27,7 +27,7 @@ UI_M00, UI_M11 = "(2.0f / 3840.0f)", "(2.0f / 2160.0f)"   # (the UI's full-scree
 KEEP_VTABLES = (MAIN + 0x4bed098, MAIN + 0x4be4fb0, MAIN + 0x4be61c8, MAIN + 0x4be7b30)
 
 
-def _ratio(vreg, base=None):
+def _ratio_fixed(vreg, base=None):
     """A ratio just loaded into s<vreg>: when it is 16:9 (within 0.01), the picture's; with base, also stored back at +0xb0
     (sead's perspective projection keeps it there, and culling reads it)."""
     store = ("recomp_store32(c, c->x[%d] + 0xb0, _u); " % base) if base is not None else ""
@@ -36,13 +36,37 @@ def _ratio(vreg, base=None):
             "uint32_t _u; memcpy(&_u, &_w, 4); a64_vset64(c->vreg[%d], _u); %s} } }   /* (nx2/oot_wide.py: camera ratio) */"
             % (vreg, vreg, store))
 
+def _ratio(vreg, base):
+    """sead's matrix load: tan(fovy/2) is the scalar before the aspect.
+
+    The host remembers original tangents so storing Vert+ values for culling
+    does not increase the FOV again on later matrix updates. Culling uses the
+    angle, sine and cosine at +0xa0..+0xa8 too (as in Savage Wind's camera fix).
+    Hookshot's camera setter writes these at main+0x4c5300..0x4c5324.
+    Leave the camera's
+    source aspect alone: a fresh projection is recognized by its original 16:9
+    aspect, not by coincidentally matching the window (e.g. square shadow views).
+    """
+    live = ("{ extern int hos_wide_projection(uint64_t, float *, float *); float _t, _a; "
+            "memcpy(&_t, c->vreg[%d], 4); memcpy(&_a, c->vreg[%d], 4); const float _original_t = _t; "
+            "if (hos_wide_projection(c->x[%d], &_t, &_a)) { uint32_t _u; "
+            "memcpy(&_u, &_t, 4); a64_vset64(c->vreg[%d], _u); recomp_store32(c, c->x[%d] + 0xac, _u); "
+            "memcpy(&_u, &_a, 4); a64_vset64(c->vreg[%d], _u); recomp_store32(c, c->x[%d] + 0xb0, _u); "
+            "if (_t != _original_t) { extern float atanf(float), sinf(float), cosf(float); "
+            "const float _h = atanf(_t), _fsc[3] = {2.0f * _h, sinf(_h), cosf(_h)}; "
+            "for (int _k = 0; _k < 3; _k++) { memcpy(&_u, &_fsc[_k], 4); "
+            "recomp_store32(c, c->x[%d] + 0xa0 + _k * 4, _u); } } "
+            "} }   /* (nx2/oot_wide.py: live perspective and culling) */"
+            % (vreg - 1, vreg, base, vreg - 1, base, vreg, base, base))
+    return "{ extern int hos_wide_window; if (hos_wide_window) " + live + " else " + _ratio_fixed(vreg, base) + " }"
+
 
 def _size(name):
     return ("{ extern volatile uint64_t %s; const uint64_t _s = %s; if (_s) c->x[8] = _s; }   /* (nx2/oot_wide.py: %s) */"
             % (name, name, name))
 
 
-HUD = ("{ extern volatile float hos_wide_squeeze; const float _q = hos_wide_squeeze; if (_q > 0.0f) { float _m00, _m11; "
+HUD_FIXED = ("{ extern volatile float hos_wide_squeeze; const float _q = hos_wide_squeeze; if (_q > 0.0f) { float _m00, _m11; "
        "memcpy(&_m00, c->vreg[1], 4); memcpy(&_m11, (const uint8_t *)c->vreg[4] + 4, 4); "
        "if (_m00 == %s && _m11 == %s) { const uint64_t _vt = recomp_load64(c, c->x[0] - 0x1b8); "
        "extern volatile uint32_t hos_wide_keep_mask; const uint32_t _kb = %s; "
@@ -50,6 +74,21 @@ HUD = ("{ extern volatile float hos_wide_squeeze; const float _q = hos_wide_sque
        "if (!(_kb & hos_wide_keep_mask)) { float _row[4]; memcpy(_row, c->vreg[1], 16); for (int _k = 0; _k < 4; _k++) _row[_k] *= _q; "
        "memcpy(c->vreg[1], _row, 16); } } } }   /* (nx2/oot_wide.py: HUD in the middle 16:9) */"
        % (UI_M00, UI_M11, " : ".join("_vt == 0x%xULL ? %du" % (v, 1 << k) for k, v in enumerate(KEEP_VTABLES)) + " : 0u"))
+
+HUD = ("{ extern float hos_wide_aspect(void); const float _w = hos_wide_aspect(); if (_w > 0.0f) { float _m00, _m11; "
+       "memcpy(&_m00, c->vreg[1], 4); memcpy(&_m11, (const uint8_t *)c->vreg[4] + 4, 4); "
+       "if (_m00 == %s && _m11 == %s) { const uint64_t _vt = recomp_load64(c, c->x[0] - 0x1b8); "
+       "extern volatile uint32_t hos_wide_keep_mask; const uint32_t _kb = %s; "
+       "if (!(_kb & hos_wide_keep_mask)) { const float _shape = _w / (16.0f / 9.0f); "
+       "const int _v = _shape < 1.0f ? 4 : 1; const float _q = _shape < 1.0f ? _shape : 1.0f / _shape; "
+       "float _row[4]; memcpy(_row, c->vreg[_v], 16); for (int _k = 0; _k < 4; _k++) _row[_k] *= _q; "
+       "memcpy(c->vreg[_v], _row, 16); "
+       "float _x[4]; memcpy(_x, c->vreg[1], 16); for (int _k = 0; _k < 4; _k++) _x[_k] *= 1.0f + 1.0f / 65536.0f; "
+       "memcpy(c->vreg[1], _x, 16); "
+       "} } } }   /* (nx2/oot_wide.py: centred UI: gpu/vk/oot_ui_squeeze.h) */"
+       % (UI_M00, UI_M11, " : ".join("_vt == 0x%xULL ? %du" % (v, 1 << k) for k, v in enumerate(KEEP_VTABLES)) + " : 0u"))
+
+HUD = "{ extern int hos_wide_window; if (hos_wide_window) " + HUD + " else " + HUD_FIXED + " }"
 
 MOVIE = ("{ extern volatile float hos_wide_margin; const float _m = hos_wide_margin; if (_m > 0.0f) { "
          "const uint64_t _vp = c->x[29] - 40; uint32_t _ua = (uint32_t)recomp_load32(c, _vp + 8), _ub = (uint32_t)recomp_load32(c, _vp + 16); "
@@ -63,7 +102,7 @@ MOVIE = ("{ extern volatile float hos_wide_margin; const float _m = hos_wide_mar
 # ratio over 16:9, centred: the middle 16:9 fills the texture (the scissor keeps the texture's), as a 16:9 window would show.
 # Narrower than 16:9 (4:3, 16:10) it is made taller instead, by 16:9 over the picture's ratio: the picture's middle band fills
 # the texture at its own shape, neither squeezed nor with bars.
-THUMB = ("{ extern volatile float hos_wide_ratio; const float _r = hos_wide_ratio; if (_r > 0.0f && (uint32_t)c->x[1] == 0 "
+THUMB = ("{ extern float hos_wide_thumb_ratio(void); const float _r = hos_wide_thumb_ratio(); if (_r > 0.0f && (uint32_t)c->x[1] == 0 "
          "&& (uint32_t)c->x[2] == 0 && (uint32_t)c->x[3] == 543 && (uint32_t)c->x[4] == 306) { "
          "if (_r > 16.0f / 9.0f) { const int _w = (int)(543.0f * _r / (16.0f / 9.0f) + 0.5f); "
          "c->x[1] = (uint32_t)((543 - _w) / 2); c->x[3] = (uint32_t)_w; } "
@@ -79,7 +118,7 @@ SITES = (
     # the scene the game's upscaler takes in, {1920, 1080}
     (0x31f3a04, 0xf2c08708, _size("hos_wide_scene")),
     # the camera update copies the camera's ratio (ldr s0, [x19, #0x140]) into the projection the renderer reads
-    (0x4c5334, 0xbd414260, _ratio(0)),
+    (0x4c5334, 0xbd414260, "{ extern int hos_wide_window; if (!hos_wide_window) " + _ratio_fixed(0) + " }"),
     # sead's perspective projection's matrix update (ldp s0, s1, [x0, #0xac]) and its three inlined copies
     (0x3485cc0, 0x2d558400, _ratio(1, 0)),
     (0x4f1e8, 0x2d558ea0, _ratio(3, 21)),
@@ -87,6 +126,8 @@ SITES = (
     (0x33b82c, 0x2d558440, _ratio(1, 2)),
     # the 2D canvas setup: the layout's projection rows (ldp q1, q4, [x2]); the canvas is x0, its screen 0x1b8 before it
     (0x774368, 0xad401041, HUD),
+    # #95's pane size site: fill only the loading fade, leaving its centred icon alone.
+    (0x152ac40, 0x2d4b0400, "{ extern void hos_wide_fade_size(Ctx *, uint64_t); hos_wide_fade_size(c, c->x[0]); }"),
     # the movie layer's draw: its viewport (min x at x29 - 32, max x at x29 - 24) after ldp x9, x8, [x19, #0x18]
     (0x3b5c758, 0xa941a269, MOVIE),
     # the viewport helper's SetViewport, after the call's address is loaded (ldr x8, [x8]), before blr x8

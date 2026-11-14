@@ -27,6 +27,7 @@
 #include "vk_draw.h"
 #include "vk_framegen.h"
 #include "vk_internal.h"
+#include "../../host/hos_wide_size.h"
 #include "presenter_queue.h"
 static_assert(mkwvk::kQueueGraphics == VK_QUEUE_GRAPHICS_BIT && mkwvk::kQueueCompute == VK_QUEUE_COMPUTE_BIT);
 #include "gpu_choice.h"
@@ -1161,6 +1162,7 @@ bool create_swapchain(uint32_t width, uint32_t height) {
     dev.swap_rendered = std::move(rendered);
     dev.swap_format = fmt.format;
     dev.swap_extent = {width, height};
+    dev.window_aspect.store((float)hos_wide_clamp((double)width / height), std::memory_order_relaxed);
     dev.swap_images = std::move(images);
     dev.swap_spare = n > caps.minImageCount ? n - caps.minImageCount : 0;
     logf("vk: swapchain %ux%u, %u images, %s (V-Sync %s)", width, height, n,

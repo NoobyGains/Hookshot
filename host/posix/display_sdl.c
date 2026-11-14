@@ -11,6 +11,7 @@
    the game gets none of it; the capture it had comes back when the menu closes. */
 #include "../hos.h"
 void hos_input_clear_toggles(void);
+#include "../hos_wide.h"
 #include "../hos_sdl.h"
 
 /* (the window's app id: the applications menu's entry names it as its StartupWMClass, builder/linux/hookshot_builder.py) */
@@ -140,6 +141,7 @@ static void text_key(const HosSdlEvent *e) {
 
 /* ---- the window ---- */
 static volatile int renderer;   /* the renderer presents into the window */
+static HANDLE window_up;
 static HANDLE renderer_up;   /* (set once rx_start has returned, ready or not: hos_renderer_wait) */
 static int fullscreen;
 
@@ -282,6 +284,13 @@ int hos_display_init(void) {
     return 1;
 }
 
+static void display_start_failed(const char *operation) {
+    const DWORD error = GetLastError();
+    hos_log("display: %s failed (error %lu)", operation, (unsigned long)error);
+    hos_log_flush();
+    ExitProcess(1);
+}
+
 /* the game's thread, when NVN is up (hos_main.c): the window is made on the main thread, which waits for this */
 void hos_display_start(void) {
     if (env_on("HOS_HEADLESS") || !sdl_ready) {   /* no window: the renderer still draws, offscreen (screenshots) */
@@ -289,7 +298,11 @@ void hos_display_start(void) {
         return;
     }
     renderer_up = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if (!renderer_up) display_start_failed("CreateEventA renderer");
+    window_up = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if (!window_up) display_start_failed("CreateEventA window");
     __atomic_store_n(&start_asked, 1, __ATOMIC_RELEASE);
+    WaitForSingleObject(window_up, INFINITE);
 }
 
 /* the main thread's loop, until the process ends: the window once asked for, then its events */
@@ -300,8 +313,7 @@ void hos_display_loop(void) {
     HosSdlEvent e;
     while (!__atomic_load_n(&start_asked, __ATOMIC_ACQUIRE)) hos_sdl_wait_event(&e, 10);   /* (nothing to show yet) */
     extern float hos_aspect_ratio;
-    /* (the picture's shape when Monitor's shape set one, wider or narrower than 16:9: 960 x 720 for 4:3, 1720 x 720 for 21:9) */
-    int win_w = hos_aspect_ratio > 0.0f ? (int)(720 * hos_aspect_ratio + 0.5f) : 1280, win_h = 720;
+    int win_w = !hos_wide_window && hos_aspect_ratio > 0.0f ? (int)(720 * hos_aspect_ratio + 0.5f) : 1280, win_h = 720;
     if (getenv("HOS_WINDOW_SIZE")) {
         int w = 0, h = 0;
         if (sscanf(getenv("HOS_WINDOW_SIZE"), "%dx%d", &w, &h) == 2 && w >= 64 && h >= 64) win_w = w, win_h = h;
@@ -324,6 +336,10 @@ void hos_display_loop(void) {
         hos_sdl_icon(window, png);
     }
     if (getenv("HOS_FULLSCREEN") && atoi(getenv("HOS_FULLSCREEN"))) set_fullscreen(1);
+    int pixel_w = 0, pixel_h = 0;
+    hos_sdl_pixel_size(window, &pixel_w, &pixel_h);
+    hos_wide_start(pixel_w, pixel_h);
+    SetEvent(window_up);
     __atomic_store_n(&refresh_now, hos_sdl_refresh_mhz(window), __ATOMIC_RELAXED);
     {   /* (the desktop's size, before the renderer starts: the Quality preset Auto (this PC) reads it once, desktop_size) */
         int dw, dh;

@@ -26,7 +26,9 @@ def main():
     need("return {it->second.first, it->second.second, n};" in uniform, "a c1 upload is served from the current stream")
     need("c.buf = cur->stream" in uniform and uniform.count("return {c.buf, c.at, n};") == 2,
          "a bank-cache hit names the stream it was kept in")
-    overlay = uniform.index("ub_overlay(u.addr")
+    # Canvas refit reads into local scratch before reserving a stream; only the
+    # overlay that writes cur->mapped must reserve before taking that mapping.
+    overlay = uniform.index("ub_overlay(u.addr, n, cur->mapped")
     need("stream_reserve(n, align)" in uniform[:overlay], "the overlay takes its mapping before its room is reserved")
     nxt = block(draw, "bool stream_next(")
     need("r.streams[r.si].buffer" in nxt and "r.before += r.used" in nxt, "a stream move does not switch the buffer")

@@ -4,6 +4,7 @@
    device leaves the WebGPU renderer in place (logged). */
 #include "hos.h"
 #include <stdio.h>
+#include "hos_wide.h"
 #include <stdlib.h>
 #include <string.h>
 #define WIN32_LEAN_AND_MEAN
@@ -53,7 +54,6 @@ int hos_gpu_pools(uint64_t (*out)[2], int max);
 uint32_t hos_gpu_maps_generation(void);
 uint32_t nvn_vmap_generation(void);
 uint64_t hos_reserved_cpus(void);   /* hos_thread.c */
-extern float hos_aspect_ratio;      /* hos_main.c: the guest camera aspect applied at startup, or 0 */
 uint32_t hos_pad_raw(void);         /* nn_hid.c: the gamepads and the controls, for the Insert menu */
 int hos_binding(int set, int button, int slot);
 int hos_mic_count(void);            /* nn_audio_in.c: the microphones, for the Insert menu */
@@ -195,7 +195,8 @@ static uint64_t host_guest_alloc(uint64_t size) {
 
 void hos_watch_guest_writes(const uint8_t *data, uint64_t size);   /* nvn_native.c */
 static void host_watch_guest_writes(uint64_t guest, uint64_t size) { hos_watch_guest_writes(hos_guest_base() + guest, size); }
-static float host_aspect_ratio(void) { return hos_aspect_ratio; }
+extern float hos_wide_aspect(void);
+static float host_aspect_ratio(void) { return hos_wide_aspect(); }
 #ifndef _WIN32
 int hos_sdl_desktop_size(int *width, int *height);   /* hos_sdl.c */
 #endif
@@ -455,7 +456,14 @@ void rx_close_asked(void) {
     void (*close_asked)(void) = (void (*)(void))(void *)GetProcAddress(vk_module, "mkwvk_close_asked");
     if (close_asked) close_asked();
 }
-void rx_resize(int width, int height) { vk ? vk->resize(width, height) : wgr_resize(width, height); }
+void rx_resize(int width, int height) {
+    if (width <= 0 || height <= 0) return;   /* minimized windows keep the last valid shape */
+    /* Keep the game's allocated targets: its projections and UI use normalized
+       coordinates, and present maps the complete picture to the new window.
+       No target recreation, guest heap growth or restart is needed. */
+    hos_wide_resize((unsigned)width, (unsigned)height);
+    vk ? vk->resize(width, height) : wgr_resize(width, height);
+}
 const char *rx_describe(void) { return vk ? vk->describe() : wgr_describe(); }
 void rx_stats(int64_t *draws, int64_t *skipped, int64_t *pipelines) {
     vk ? vk->stats(draws, skipped, pipelines) : wgr_stats(draws, skipped, pipelines);
