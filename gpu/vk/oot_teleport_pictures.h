@@ -1,7 +1,7 @@
 /* The Teleport page's pictures (gpu/vk/vk_menu.cpp): one line a destination, in the order of oot_destinations in
    host/hos_main.c (tests/test_teleport_pictures.py checks both). */
 #pragma once
-/* each Teleport destination's child and adult map (a screenshot's name in teleport_captures.bin), or nullptr */
+/* each Teleport destination's child and adult map (a picture's file name in the game folder's teleport_pictures folder), or nullptr */
 constexpr const char* teleport_maps[][2] = {
     {"KokiriForest_Child", "KokiriForest_Adult"},
     {"HyruleField_Child", "HyruleField_Adult"},
