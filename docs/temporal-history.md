@@ -6,6 +6,21 @@ Validate both input matrices and each result coefficient before converting to fl
 
 The game-free fixture compiles actual reprojection math, both preparation policies, the shared frame reset and all three consumer assignments (DLSS, FSR4, FSR3.1). It covers singular and non-finite inputs, float overflow/boundaries, recovery, frame gaps, FSR3.1 size changes and valid perspectives at16:9 and ultrawide. Engine SDKs and a GPU are not required. CPU cases do not prove in-game frequency, visual gains or GPU handling of injected invalid matrices.
 
+## DLSS feature creation and dynamic input sizes
+
+NGX feature creation uses the selected quality mode's recommended render dimensions from
+`NGX_DLSS_GET_OPTIMAL_SETTINGS`. The minimum and maximum dimensions returned by that call describe
+the supported dynamic-resolution range; they size the shared input images and decide when an existing
+feature can be reused. Each evaluation still receives the frame's actual render subrect. Native AA
+creates its feature at the full render/output size.
+
+Keep those dimensions separate: creating at the dynamic maximum instead of the recommendation can
+increase the cost of models L and M even when the evaluation's render subrect is smaller. NVIDIA's
+[Streamline DLSS implementation](https://github.com/NVIDIA-RTX/Streamline/blob/main/source/plugins/sl.dlss/dlssEntry.cpp)
+also creates the feature using the recommended dimensions. `tests/test_dlss_feature_size.py` compiles
+the actual preparation function with a recording SDK stand-in and checks creation, input allocations,
+range reuse, rounded sizes, native AA and failed queries for K, L and M.
+
 ## PsychoV35 with DLSS/DLAA and FSR 4 (opt-in)
 
 `RX_VK_PSYCHOV35_DLSS=1` lets NVIDIA DLSS/DLAA and AMD FSR 4 (and its Native AA) take the Native HDR PsychoV35 scene, whose gameplay network input and output are RGBA16F (`upscaler_rows.h` `takes_psychov35`: the engines the chain gives linear light in an HDR context). It is off by default. Vanilla's packed B10G11R11 route is unchanged; this switch does not enable PsychoV35 for FSR 3.1 or TAAU.
