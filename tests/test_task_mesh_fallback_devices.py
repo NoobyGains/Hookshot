@@ -1,8 +1,9 @@
 """The GPUs whose task + mesh draws take the compute fallback by default (gpu/vk/vk_main.cpp, issue 996).
 
 On AMD's Windows driver the native task + mesh path timed out the driver on Navi 22 (#1747) and on Navi 21: an RX 6800 XT lost
-the device within minutes at Hyrule Castle's entrance, and played 25 minutes there with none through the fallback. This checks
-that both chips are in the default, only for AMD and only on Windows, and that RX_VK_TASK_MESH_FALLBACK still decides over it.
+the device within minutes at Hyrule Castle's entrance, and played 25 minutes there with none through the fallback; Navi 23 and 24
+(RX 6600, 6650 XT, 6500 XT) on the same driver report device losses too. This checks that RDNA 2's consumer chips are in the
+default, only for AMD and only on Windows, and that RX_VK_TASK_MESH_FALLBACK still decides over it.
 
 python -I -B tests/test_task_mesh_fallback_devices.py
 """
@@ -15,6 +16,9 @@ DEVICES = {
     0x73AF: "Navi 21 (RX 6900 XT, XTXH)",
     0x73A5: "Navi 21 (RX 6950 XT)",
     0x73DF: "Navi 22 (RX 6700 XT)",
+    0x73FF: "Navi 23 (RX 6600, 6600 XT)",
+    0x73EF: "Navi 23 (RX 6650 XT)",
+    0x743F: "Navi 24 (RX 6400, 6500 XT)",
 }
 
 

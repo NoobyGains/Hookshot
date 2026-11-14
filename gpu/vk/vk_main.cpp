@@ -712,10 +712,14 @@ bool create_device() {
     // Navi 22 can time out on task + mesh draws in the AMD Windows driver (issue 996), and so can Navi 21: on an RX 6800 XT
     // (driver 0x800161) the native path lost the device within minutes at Hyrule Castle's entrance, while the fallback played
     // 25 minutes there with none. Navi 21 is 0x73bf (RX 6800, 6800 XT, 6900 XT), 0x73af (RX 6900 XT, XTXH boards) and 0x73a5
-    // (RX 6950 XT): the same chip on the same driver, not tested on their own. Navi 22 is 0x73df (RX 6700 XT)
+    // (RX 6950 XT): the same chip on the same driver, not tested on their own. Navi 22 is 0x73df (RX 6700 XT). And the rest of
+    // RDNA 2's consumer cards, Navi 23 (0x73ff: RX 6600, 6600 XT; 0x73ef: RX 6650 XT) and Navi 24 (0x743f: RX 6400, 6500 XT):
+    // RX 6600, 6600 LE and 6650 XT owners report device losses on Windows (docs/worklist.md), and Ocarina Reborn keeps every
+    // RDNA 2 card off the native path there. The same architecture and driver as the two above, not tested on their own
     task_mesh_fallback = dev.props.vendorID == 0x1002 &&
                          (dev.props.deviceID == 0x73bf || dev.props.deviceID == 0x73af || dev.props.deviceID == 0x73a5 ||
-                          dev.props.deviceID == 0x73df);
+                          dev.props.deviceID == 0x73df || dev.props.deviceID == 0x73ff || dev.props.deviceID == 0x73ef ||
+                          dev.props.deviceID == 0x743f);
 #endif
     if (mesh_mode == 1) task_mesh_fallback = false;   // (Native: the card's own mesh shaders for every draw)
     if (const char* e = getenv("RX_VK_TASK_MESH_FALLBACK")) task_mesh_fallback = atoi(e) != 0;
