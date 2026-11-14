@@ -111,8 +111,8 @@ else:
     thin = min(range(3), key=lambda i: dims[i])
     root.rotation_euler = (math.radians(90), 0, 0) if thin == 2 else (0, 0, math.radians(90)) if thin == 0 else (0, 0, 0)
     bpy.context.view_layer.update()
-    # The project's own letter in the crest's place: the crest (and the three triangles in it) is Nintendo's mark, so
-    # its mesh is left out of the render and a gold H stands on the face instead.
+    # A blank shield: the crest (and the three triangles in it) is Nintendo's mark, so its mesh is left out of the
+    # render and its bird is painted out of the face.
     for o in meshes:
         if any("Triforce" in (s.material.name if s.material else "") for s in o.material_slots):
             o.hide_render = True
@@ -122,7 +122,8 @@ else:
     for img in bpy.data.images:
         if "main_d" in img.name.lower():
             px = np.array(img.pixels[:], dtype=np.float32).reshape(-1, 4)
-            red = (px[:, 0] > px[:, 2] * 1.15) & (px[:, 0] > 0.2)
+            # (red and the purple of its soft edge: more red than green, and not the face's near-pure blue)
+            red = (px[:, 0] > px[:, 2] * 0.45) & (px[:, 0] > px[:, 1] * 1.2) & (px[:, 0] > 0.12)
             blue = (px[:, 2] > px[:, 0] * 1.6) & (px[:, 2] > 0.3)
             if red.any() and blue.any():
                 px[red, :3] = np.median(px[blue, :3], axis=0)
@@ -135,29 +136,6 @@ else:
             for link in list(mat.node_tree.links):
                 if link.to_socket.name == "Normal" and link.to_node.type == "BSDF_PRINCIPLED":
                     mat.node_tree.links.remove(link)
-    shown = [o for o in meshes if not o.hide_render]
-    front = min((o.matrix_world @ Vector(c)).y for o in shown for c in o.bound_box)
-    gold = bpy.data.materials.new("letter")
-    gold.use_nodes = True
-    gb = next(n for n in gold.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
-    gb.inputs["Base Color"].default_value = (0.95, 0.66, 0.16, 1)
-    gb.inputs["Metallic"].default_value = 0.55   # (all metal, it mirrored the black studio and went dark)
-    gb.inputs["Roughness"].default_value = 0.32
-    gb.inputs["Emission Color"].default_value = (0.95, 0.6, 0.12, 1)
-    gb.inputs["Emission Strength"].default_value = 0.25
-    # the H: two posts and a bar, as boxes (a font's extruded outline came out with torn faces)
-    high, wide, stroke, deep = size * 0.44, size * 0.36, size * 0.105, size * 0.035
-    for x, w, h in ((-(wide - stroke) / 2, stroke, high), ((wide - stroke) / 2, stroke, high), (0, wide, stroke)):
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(x, front - deep / 2, -size * 0.03))
-        part = bpy.context.object
-        part.scale = (w, deep, h)
-        bevel = part.modifiers.new("bevel", "BEVEL")
-        bevel.width, bevel.segments = size * 0.006, 3
-        part.data.materials.append(gold)
-        bpy.context.view_layer.update()
-        m = part.matrix_world.copy()
-        part.parent = root
-        part.matrix_world = m
     START = float(os.environ.get("EMBLEM_START", "-25"))
     turner.rotation_euler = (math.radians(-8), 0, math.radians(START))
 

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/brand/banner.webp" alt="Hookshot: Ocarina of Time running natively on Windows and Linux, with no emulator" width="800">
+  <img src="assets/brand/hero-banner.webp" alt="Hookshot: Ocarina of Time running natively on Windows and Linux, with no emulator" width="800">
 </p>
 
 <p align="center">

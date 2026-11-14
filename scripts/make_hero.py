@@ -156,9 +156,9 @@ def main():
         # animated WebP, not GIF: a GIF's 256 colours band the wordmark's gradient and the renders' shading
         frames = [compose(base, Image.open(h), Image.open(s), mask).resize((1200, 450), Image.LANCZOS)
                   for h, s in zip(hooks, shields)]
-        out = BRAND / "banner.webp"
+        out = BRAND / "hero-banner.webp"
         frames[0].save(out, save_all=True, append_images=frames[1:], duration=a.frame_ms, loop=0, quality=86, method=6)
-        print("wrote banner.webp: %d frames, %.0f KB" % (len(frames), out.stat().st_size / 1024))
+        print("wrote hero-banner.webp: %d frames, %.0f KB" % (len(frames), out.stat().st_size / 1024))
 
 
 if __name__ == "__main__":
