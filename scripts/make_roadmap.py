@@ -17,20 +17,20 @@ TEXT, MUTED = (226, 232, 240), (140, 150, 170)
 
 STAGES = [
     ("MERGED HERE", "ahead of the release", (59, 130, 246), [
-        "Fixes from the Longshot fork",
-        "Occlusion queries with real GPU counts",
-        "Moving floors above 100 FPS",
-        "Several users, with a user selector",
-        "Each game in its own folders",
-        "FSR images kept until GPU is done",
+        "Shader prep no longer stalls at 99%",
+        "Gohma, slow motions, water above 60",
+        "View distance, grass, shadow rows",
+        "FXAA, bloom and colour grade",
+        "Speedrun timer, death counter",
+        "Fixes from Longshot and Reborn",
     ]),
     ("NEXT", "the most reported problems", (34, 211, 238), [
         "Memory filling up in long sessions",
-        "Game logic above a 60 FPS cap",
-        "Builder stalling at shader prep",
+        "Link's jump loop after Gohma",
         "AMD crashes on Windows",
         "Low FPS in Castle Town, Hyrule Field",
         "Objects and doors turning invisible",
+        "amiibo support",
     ]),
     ("LATER", "wider reach", (251, 191, 36), [
         "A signed Builder (antivirus flags)",

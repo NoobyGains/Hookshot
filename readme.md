@@ -87,21 +87,22 @@ many players it reaches), so it changes as reports come in. Nothing here is a pr
   <tr>
     <td valign="top">
       <ul>
-        <li>Fixes from the Longshot fork, and occlusion queries answered with the GPU's real counts</li>
-        <li>A moving floor carries Link above 100 FPS as it does at 60</li>
-        <li>Several users with a user selector, and each game in its own game, work and save folders</li>
-        <li>Service sessions answered properly; a headless run ends on Ctrl+C again; a benchmark never leaves its game running</li>
-        <li>A cheaper texture upload path, and FSR's shared images kept until the GPU has finished with them</li>
+        <li>The Builder's "Preparing shaders" step no longer waits forever on a shader the driver never finishes, and closing the game while shaders build no longer counts as a failed start</li>
+        <li>Above a 60 FPS cap: Gohma steers instead of sticking to the walls, slow motions keep their length, and water, ice and sand keep moving</li>
+        <li>New Graphics rows from Ocarina Reborn: View distance, Grass and Shadow distance (memory locations by hotoni), FXAA, Bloom and Colour grade</li>
+        <li>New Gameplay rows: Classic counters, Speedrun timer and Death counter</li>
+        <li>Fixes from the Longshot fork, occlusion queries answered with the GPU's real counts, a moving floor that carries Link above 100 FPS, the water's per-light shadow maps (YakuzaFanA), and a log deadlock fixed</li>
+        <li>Several users with a user selector, each game in its own folders, and the task + mesh fallback for the RX 6600, 6650 XT and 6500 XT</li>
       </ul>
     </td>
     <td valign="top">
       <ul>
         <li>Memory that fills up over a long session until the game slows or stops: the most reported problem</li>
-        <li>Game logic that misbehaves above a 60 FPS cap (the Scarecrow's Song, looping animations in dialogue)</li>
-        <li>The Builder stalling at "Preparing shaders"</li>
+        <li>Link looping a jump animation in dialogue after Gohma above a 60 FPS cap (the Scarecrow's Song is fixed)</li>
         <li>Crashes and lost devices on AMD cards on Windows</li>
         <li>Low frame rates with an idle GPU in Castle Town and Hyrule Field; stutter on camera turns in Kokiri Forest</li>
         <li>Objects, walls and doors that turn invisible</li>
+        <li>amiibo, from Ocarina Reborn</li>
       </ul>
     </td>
     <td valign="top">
