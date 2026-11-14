@@ -97,13 +97,21 @@ public static class ReleaseManifest
         return versions[0];
     }
 
-    /// Hookshot's Linux builder in a release: the AppImage named for the version (scripts/linux/appimage.sh,
-    /// &lt;project&gt;-&lt;version&gt;-x86_64.AppImage), the one SHA256SUMS names
+    /// Hookshot's Linux builder in a release, among the names SHA256SUMS gives: the AppImage named for the version
+    /// (scripts/linux/appimage.sh, &lt;project&gt;-&lt;version&gt;-x86_64.AppImage); for a git describe version, the one named for its
+    /// commit alone (a fork with no tags may name it so, Hookshot-179d8124-x86_64.AppImage). Null when none, or more than one,
+    /// fits: an AppImage of another version is never taken for this one
     public static string? AppImageOf(IEnumerable<string> names, string version)
     {
-        var name = new Regex("^[A-Za-z0-9._+-]+-" + Regex.Escape(version) + @"-x86_64\.AppImage$", RegexOptions.CultureInvariant);
-        var found = names.Where(n => name.IsMatch(n)).ToList();
-        return found.Count == 1 ? found[0] : null;
+        var all = names.Where(n => n.EndsWith("-x86_64.AppImage", StringComparison.Ordinal)).ToList();
+        string? Named(string v)
+        {
+            var name = new Regex("^[A-Za-z0-9._+-]+-" + Regex.Escape(v) + @"-x86_64\.AppImage$", RegexOptions.CultureInvariant);
+            var found = all.Where(n => name.IsMatch(n)).ToList();
+            return found.Count == 1 ? found[0] : null;
+        }
+        var commit = Regex.Match(version, @"-g([0-9a-f]{7,40})(-dirty)?$", RegexOptions.CultureInvariant);
+        return Named(version) ?? (commit.Success ? Named(commit.Groups[1].Value + commit.Groups[2].Value) : null);
     }
 
     public static IReadOnlyList<ListedRelease> ParseList(string json)

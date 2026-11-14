@@ -324,6 +324,15 @@ static partial class Program
         Require(await forkLinux.NewestAsync("nightly") == "179d8124" && await forkLinux.NewestAsync("stable") == null
                 && await forkLinux.NewestAsync("rc") == null && forkLinux.Problem == null && forkLinux.Answered,
                 "A fork's nightly by its commit; no stable or release candidate, and nothing wrong.");
+        // (a list whose tag is git describe's while the AppImage is named by the commit alone: the AppImage of that commit)
+        var describeList = Builder("179d8124");
+        describeList["hookshot-linux.txt"] = Encoding.UTF8.GetBytes("tag v0.0.0-0-g179d8124\n");
+        fork.Add("nightly", files: describeList);
+        Require(await new Releases(fork.Server, Platform.Linux, unsigned, NoWait, fork.Hookshot).NewestAsync("nightly") == "v0.0.0-0-g179d8124"
+                && ReleaseManifest.AppImageOf(new[] { "Hookshot-aaaaaaaa-x86_64.AppImage" }, "v0.0.0-0-g179d8124") == null
+                && ReleaseManifest.AppImageOf(new[] { "Hookshot-v2.3.0-x86_64.AppImage", "Hookshot-v2.3.0-x86_64.AppImage.zsync" }, "v2.3.0") == "Hookshot-v2.3.0-x86_64.AppImage"
+                && ReleaseManifest.AppImageOf(new[] { "A-v2.3.0-x86_64.AppImage", "B-v2.3.0-x86_64.AppImage" }, "v2.3.0") == null,
+                "The AppImage of the list's version, or of its commit; never another version's, nor one of two.");
         fork.Add("nightly", files: Builder("v0.0.0-0-g179d8124"));
         Require(await new Releases(fork.Server, Platform.Windows, unsigned, NoWait, fork.Hookshot).NewestAsync("nightly") == "v0.0.0-0-g179d8124",
                 "A fork's Windows nightly, git describe's with no tag.");

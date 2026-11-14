@@ -231,7 +231,7 @@ public sealed class LauncherService
     /// (Windows) The saves the builds kept in their own folders brought into the shared one (Saves.Gather): when the window opens
     /// and before a game starts. The folders: every build's, every Hookshot game folder in the builds folder (a version an update
     /// replaced before it took its saves along is no longer listed, its saves still there; only Hookshot's, never another game's
-    /// such as Longshot's), and the 2.x Builder's (not for a portable launcher). Done: what it did (null: nothing to bring, or
+    /// such as Longshot's), the 2.x Builder's, and the one the Hookshot Builder last built into (not for a portable launcher). Done: what it did (null: nothing to bring, or
     /// Hookshot runs); Problem: why it could not, with nothing changed
     public (SaveGathered? Done, string? Problem) GatherSaves()
     {
@@ -246,7 +246,10 @@ public sealed class LauncherService
                     : Enumerable.Empty<string>();
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { inBuilds = Enumerable.Empty<string>(); }
-            var old = Saves.OldUserFolders(SaveEnv, Registry.Builds.Select(b => b.Folder).Concat(inBuilds),
+            // (and the folder the Hookshot Builder last built into, when the player chose one other than its default)
+            var builder = Home.Portable ? null : Saves.BuilderGameFolder(SaveEnv);
+            var old = Saves.OldUserFolders(SaveEnv, Registry.Builds.Select(b => b.Folder).Concat(inBuilds)
+                                                   .Concat(builder != null ? new[] { builder } : Array.Empty<string>()),
                                            Home.Portable ? null : LauncherSettings.DefaultBuildsFolder(SaveEnv.Getenv));
             return (Saves.Gather(SaveEnv, old), null);
         }

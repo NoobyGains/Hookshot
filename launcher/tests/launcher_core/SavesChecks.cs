@@ -516,6 +516,22 @@ static class SavesChecks
                 "Never the shared folder itself; no 2.x Builder's for a portable launcher.");
         Require(Saves.Gather(c.Windows, old, () => c.Busy) == null && Saves.Gather(c.Linux, old, () => c.Busy) == null, "Nothing to gather.");
 
+        // (the folder the Hookshot Builder last built into, from its builder-settings.json: only a full path to a game folder)
+        var settings = P(c.LocalAppData, "HookshotBuilder", "builder-settings.json");
+        Require(Saves.BuilderGameFolder(c.Windows) == null, "No Hookshot Builder settings: no folder.");
+        var chosen = P(c.Home, "D-drive", "Hookshot");
+        Directory.CreateDirectory(P(chosen, "bin"));
+        File.WriteAllText(P(chosen, GameFolder.StampName), "version=v2.2.0\n");
+        Directory.CreateDirectory(Path.GetDirectoryName(settings)!);
+        File.WriteAllText(settings, System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, object?> { ["Out"] = chosen, ["Dlss"] = false }));
+        Require(Saves.BuilderGameFolder(c.Windows) == chosen && Saves.BuilderGameFolder(c.Linux) == null, "The Builder's chosen game folder (Windows only).");
+        foreach (var bad in new[] { "{\"Out\": \"relative\\\\Hookshot\"}", "{\"Out\": 3}", "not json", "[]", "{\"Out\": \"" + P(c.Home, "nothing").Replace("\\", "\\\\") + "\"}" })
+        {
+            File.WriteAllText(settings, bad);
+            Require(Saves.BuilderGameFolder(c.Windows) == null, "A Builder setting that is no game folder was taken: " + bad);
+        }
+        File.Delete(settings);
+
         var when = new DateTime(2026, 11, 13, 9, 0, 0);
         var sharedSave = P(c.Windows.HookshotUser, "save");
         MakeSave(P(builds, "user", "save", Uid), "OLD");

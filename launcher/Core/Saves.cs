@@ -59,6 +59,8 @@ public sealed record SaveEnvironment(Platform Platform, Func<string, string?> Ge
 
     string AppData => Getenv("APPDATA") is { Length: > 0 } a ? a : Path.Combine(Home, "AppData", "Roaming");
     string LocalAppData => Getenv("LOCALAPPDATA") is { Length: > 0 } a ? a : Path.Combine(Home, "AppData", "Local");
+    /// (Windows) %LOCALAPPDATA%, where the Hookshot Builder keeps its settings
+    public string LocalAppDataFolder => LocalAppData;
 
     /// Where the backups go instead of BackupRoot's default (a portable launcher's own folder); null: the default
     public string? BackupFolder { get; init; }
@@ -589,6 +591,25 @@ public static class Saves
     /// (&lt;folder&gt;\user, until the launcher started every build with --user) and the 2.x Builder's game folder's, oldBuilder
     /// (%USERPROFILE%\Games\Hookshot; null for a portable launcher, which writes nothing outside its own folder). None on Linux,
     /// where the game has always shared them
+    /// (Windows) The game folder the Hookshot Builder last built into, when the player chose one: the "Out" of its
+    /// builder-settings.json in %LOCALAPPDATA%\HookshotBuilder (builder/HookshotBuilder/BuilderSettings.cs). Its saves are that
+    /// folder's user\, as the 2.x Builder's default folder's are; null when there is none, or it is not a full path to a game folder
+    public static string? BuilderGameFolder(SaveEnvironment env)
+    {
+        if (env.Platform != Platform.Windows) return null;
+        var settings = System.IO.Path.Combine(env.LocalAppDataFolder, "HookshotBuilder", "builder-settings.json");
+        try
+        {
+            if (!File.Exists(settings) || new FileInfo(settings).Length > 1 << 20) return null;
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(settings));
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object
+                || !doc.RootElement.TryGetProperty("Out", out var o) || o.ValueKind != System.Text.Json.JsonValueKind.String) return null;
+            var out_ = o.GetString();
+            return out_ != null && System.IO.Path.IsPathFullyQualified(out_) && GameFolder.IsGameFolder(out_, Platform.Windows) ? out_ : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or ArgumentException) { return null; }
+    }
+
     public static IReadOnlyList<string> OldUserFolders(SaveEnvironment env, IEnumerable<string> buildFolders, string? oldBuilder)
     {
         if (env.Platform != Platform.Windows) return Array.Empty<string>();
