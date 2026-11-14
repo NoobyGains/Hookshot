@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define MKWVK_API_VERSION 27   /* (27: main's Mods page (mod, mod_shared, mods_save, MkwVkMod: 23 on main) joined with the input batch's 23-26; 26: the NFC tags, nfc_count to nfc_scan_name; 25: MkwVkHost.rumble_test; 24: HOS_KEY_SPRINT, a control past the Switch's buttons with gamepad inputs: binding and bind take them) */
+#define MKWVK_API_VERSION 28   /* (28: MkwVkHost.take_text, the Insert menu's text fields; 27: main's Mods page (mod, mod_shared, mods_save, MkwVkMod: 23 on main) joined with the input batch's 23-26; 26: the NFC tags, nfc_count to nfc_scan_name; 25: MkwVkHost.rumble_test; 24: HOS_KEY_SPRINT, a control past the Switch's buttons with gamepad inputs: binding and bind take them) */
 enum { HOS_OPT_CHEAT_HEARTS = 32, HOS_OPT_CHEAT_FLIGHT, HOS_OPT_CHEAT_ACTION, HOS_OPT_CHEAT_CAMERA, HOS_OPT_CHEAT_SPEED };
 /* (hookshot) the Gameplay tab's Text size (host/oot_text_size.c): 0 the game's, 1 110%, 2 125%, 3 150%, 4 175% */
 enum { HOS_OPT_TEXT_SIZE = 10 };
@@ -149,6 +149,12 @@ typedef struct MkwVkMod {
     int32_t renamed;    /* off by its folder's name ('-' or '_' first, its own or a folder's it is in): not the menu's to turn on */
     int32_t exefs;      /* it has an exefs folder (left out: the game's code is compiled ahead of time) */
 } MkwVkMod;
+/* (hookshot, version 28) typed text for the Insert menu's text fields (MkwVkHost.take_text, host/rx_backend.c): a character
+   comes as its Unicode code point, an editing key as HOS_TEXT_KEY | its Windows key code (VK_LEFT, VK_RIGHT, VK_HOME, VK_END,
+   VK_BACK, VK_DELETE, VK_RETURN, VK_ESCAPE). The focus take_text is given: none, a field has the keyboard, or that and a paste
+   asked (the clipboard's first line comes as typed) */
+enum { HOS_TEXT_KEY = 0x40000000 };
+enum { HOS_TEXT_OFF, HOS_TEXT_ON, HOS_TEXT_PASTE };
 
 /* what the executable gives the back end */
 typedef struct MkwVkHost {
@@ -276,6 +282,13 @@ typedef struct MkwVkHost {
        seconds, 4 the tag is not a figure's, 5 no such controller over USB, 6 it could not be read or written */
     int (*nfc_scan)(int start);
     const char *(*nfc_scan_name)(void);
+    /* (version 28, hookshot) the Insert menu's text fields.
+       focus HOS_TEXT_OFF while none has the keyboard (the window takes no text then: no input method opens over the game,
+       and what was queued is dropped), HOS_TEXT_ON while one has it,
+       HOS_TEXT_PASTE to paste the clipboard's first line into it; then what was typed since the last call into out, at most
+       max, in order (characters and HOS_TEXT_KEY editing keys, repeats included; Ctrl+V and Shift+Insert paste): the count.
+       host/display.c (WM_CHAR, WM_KEYDOWN) and host/posix/display_sdl.c (SDL's text input and key events) put them in */
+    int (*take_text)(int focus, uint32_t *out, int max);
 } MkwVkHost;
 
 /* One completed temporal-upscale sample; all zero while inactive. */

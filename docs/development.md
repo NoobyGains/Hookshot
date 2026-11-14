@@ -191,7 +191,7 @@ See [the format and history rules](temporal-history.md#psychov35-with-dlssdlaa-a
 | `HOS_INPUT_EXCLUSIVE`, `HOS_INPUT_BACKGROUND` (set) | As above |
 | `HOS_INPUT_SCRIPT_BACKGROUND` (set) | No longer needed, only said in the log: scripted and control-bridge presses count with the window behind another one anyway, and the player's keyboard and mouse never do (it used to let them through, so typing in another window reached a test run) |
 | `HOS_SPRINT_STILL_MS=<ms>` | With the Controls tab's Sprint row on: a sprint starts with the stick let go for that long (0 to 2000, default 0), the older way round the roll for a game built without `nx2/oot_patches.py`'s Sprint patch (`host/nn_hid.c` `sprint_step`) |
-| `RX_VK_MENU_SCRIPT=<seconds>:<key>,...` | Timed Insert menu keys: `INS`, `UP`, `DOWN`, `LEFT`, `RIGHT`, `ESC`, `ENTER`, `TABL`, `TABR`; `SHOT`, the Screenshot key (F12) |
+| `RX_VK_MENU_SCRIPT=<seconds>:<key>,...` | Timed Insert menu keys: `INS`, `UP`, `DOWN`, `LEFT`, `RIGHT`, `ESC`, `ENTER`, `TABL`, `TABR`, the pad's face buttons `PADS`, `PADE`, `PADW`, `PADN`; `SHOT`, the Screenshot key (F12); and for a text field, `TYPE:<text>` (typed as the keyboard would, up to the next comma) and, while it has the keyboard, `HOME`, `END`, `BACK`, `DEL` besides `LEFT`, `RIGHT`, `ENTER`, `ESC` |
 | `RX_VK_UI_PROMPTS=pad` or `keys` | The menu's button prompts for a controller or the keys, whatever was used last (screenshots) |
 | `RX_VK_UI_GAME_FONT=0` | The menu, the counter and the start-up screen in the included Libertinus, not the game's own font |
 
@@ -636,8 +636,13 @@ menu's order, with its choices and default: `tests/test_readme_menu_rows.py` fai
 `hookshot_options.ini`, in the game folder, holds the Insert menu's rows as `<key>=<number>`: the row's name in lower
 case with `_` for spaces (`frame_generation=2`, `invert_camera_x=1`), except Output resolution, which is `output_res`.
 `gpu/vk/vk_menu.cpp` writes the whole file at every change (`save`), with `options_version=5`,
-`microphone_device=<name>` when a microphone is chosen by name, and the controls (`pad_<button>`, `key_<button>` and
-`toggle_<button>`: the README's [Controls](../readme.md#controls)). A value outside a row's range is clamped when it is read. Where the
+`microphone_device=<name>` when a microphone is chosen by name, and the controls (`pad_<button>`, `key_<button>` and `toggle_<button>`:
+the README's [Controls](../readme.md#controls)). A value outside a row's range is clamped when it is read. A text field
+(Custom output size: printable ASCII, with full-width digits and `ｘ` folded to ASCII) is saved as its setting is:
+Custom output size as `output_res`. A pad can edit it without a keyboard: D-pad Left/Right moves the caret, Up/Down
+cycles the character, the right shoulder inserts a digit and the left shoulder removes a character. The end caret
+can also append with Up/Down. Confirm commits, Back cancels, and the shown Paste button still pastes. No platform
+screen keyboard is requested. Where the
 number is not the obvious one:
 
 `toggle_<button>=0|1` is the Controls page's Toggle column: 0 Off (default), 1 press once to hold and again to release.
@@ -648,6 +653,14 @@ latch again when Controller in background permits them. On Linux, `hos_oot_menu_
 `f_802ed660` runs for a menu screen's pane focus, not only the pause page (`nx2/oot_patches.py`
 `patch_menu_focus`). This describes the hook; individual title, save and game-over transitions have not been
 separately verified in play. Insert always releases the latch.
+Text fields use physical pad edges, not latched gameplay buttons: a held confirm
+or shoulder does not commit or add another character when editing starts. Fresh presses and D-pad repeats still edit,
+and keyboard editing keys reach the field while the game receives none.
+
+Custom output size's restart state tracks the actual width and height, not just the custom choice's list index.
+Audio output keeps its separate channel-layout state: Mono and Stereo share a restart value, so switching between
+them does not renew a size change's declined restart prompt. Choosing a different channel layout still does.
+`tests/test_menu_text_field.py` exercises these changes together, including restoring the original size.
 
 | Key | Values |
 |---|---|
