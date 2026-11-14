@@ -110,10 +110,26 @@ side, updates them and itself, and carries your saves (from Longshot and the emu
 same 3D Hookshot turning while it builds ([Quick start](#hookshot-launcher)). Its checks pass and it installs the builder;
 a full build through it is the next test.
 
+### New in the menu: mods, Hero mode, skipping the title, toggle buttons, rupees
+
+<img src="docs/images/features/menu-features.jpg" alt="Four menu pages in the game: the Gameplay tab with Hero mode, Navi callouts and Skip title screen; the Mods page listing three mods with their load order and the file two of them share; the Controls page with its new Toggle column; the Debug tab with the Rupees row">
+
+**The Mods page** (Gameplay > Mods) lists every mod in your `mods` folder with On and Off, moves them up and down the
+load order, and says which mod wins when two replace the same file, saved in `mods/hookshot-mods.ini` (no more renaming
+folders). **Skip title screen** (Gameplay) goes straight into your newest save at start: in the game, it loaded the save
+and Link was running with no button pressed. Also new in the menu: **Hero mode** and **Navi callouts** rows, a **Toggle**
+column on the Controls page (tap a button to hold it), a **Rupees** row and pictures of the **Teleport** page's places
+(taken from your own game the first time you stand there) on the Debug tab.
+
+<p align="center">
+  <img src="docs/images/features/frame-time-graph.png" alt="The FPS counter's Graph: 60 FPS, 16.7 ms, the 1% low at 52 and the slowest frame at 19.7 ms above a frame-time line" width="420">
+</p>
+
+**FPS counter > Graph** draws the last few seconds' frame times under the frame rate, with the 1% low and now the slowest
+frame of the last 10 s. **Field of view** goes up to 300%.
+
 **Just landed, being tested in the game now** (on `main`; the game builds and runs with all of them at 60 FPS):
 
-- **Mod manager:** Gameplay > Mods lists your mods, turns them on and off, sets their load order and names the files two
-  mods both replace, saved in `mods/hookshot-mods.ini` (no more renaming folders)
 - **Hero mode and quiet Navi:** double damage and no recovery hearts; Navi's "Hey! Listen!" area hints off
 - **Toggle buttons and Mono:** a Toggle column on the Controls page (tap to hold the shield or aim), Mono on Audio output
 - **Walk, sprint and mouse look:** a walk key and speed, a sprint button, the mouse aiming, locking on and riding
@@ -188,7 +204,7 @@ when the game closes.
 ## Roadmap
 
 <p align="center">
-  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 8 done, 13 in progress, 13 coming next, each as a card. The same items are listed as text below." width="820">
+  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 10 done, 12 in progress, 13 coming next, each as a card. The same items are listed as text below." width="820">
 </p>
 
 **Done** is on `main` now. **In progress** is being worked on at the moment. **Coming next** is planned but not
@@ -210,12 +226,13 @@ reaches.
 - **A better CRT look:** scanline beams, a phosphor mask, glow and curvature for the Retro look, each set in the menu
 - **Brightness and colour vision:** a brightness slider for screens without HDR, and colour-blind modes
 - **Screenshot key:** F12 saves the picture as you see it, as a PNG beside the game
+- **Mod manager:** your mods in the menu, on and off, their load order and the files two of them share
+- **Skip the title screen:** straight into your newest save at start
 - Also: the one-click Windows HDR launcher, the water's per-light shadow maps, several users, each game in its own
   folders, the RX 6600 / 6650 XT / 6500 XT fallback
 
 **🟡 In progress**: most are on `main` now and being tested in the game; the rest are being built
 
-- **Mod manager:** your own mods listed in the menu, on and off, their load order and conflicts
 - **Hero mode and quiet Navi:** double damage and no recovery hearts; Navi's callouts off
 - **Hookshot Launcher:** several builds side by side, stable, release-candidate and nightly channels, saves imported
   and exported, an installer and updates of its own, in Hookshot's 3D look
@@ -230,7 +247,7 @@ reaches.
 - **Pro Controller and amiibo:** the Switch 2 Pro Controller over USB, and NFC tags from your own files
 - **Every screen shape:** the HUD placed right on ultrawide screens, filling the window, any output size, field of view
   up to 300%
-- **Straight into play:** skip the title screen into your newest save, and open the menu from the pause screen
+- **Menu from the pause screen:** a Recomp Options button on the pause screen opens the Insert menu
 - **Hundreds of fixes:** renderer, runtime and build fixes, each checked by tests
 
 **⚪ Coming next**: planned, not started
