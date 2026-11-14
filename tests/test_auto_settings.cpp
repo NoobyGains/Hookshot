@@ -236,6 +236,69 @@ int main() {
             expect(l.output_w == s[2] && l.output_h == s[3] && listed, "a screen not a multiple of 8: its size as the menu offers it");
         }
     }
+    // (the Steam Deck profile: RX_VK_STEAM_DECK over steam_deck=, else on where a Deck is found)
+    expect(deck_mode(nullptr, DECK_AUTO) == DECK_AUTO && deck_mode(nullptr, 7) == DECK_AUTO, "neither set: Auto");
+    expect(deck_mode(nullptr, DECK_ON) == DECK_ON && deck_mode(nullptr, DECK_OFF) == DECK_OFF, "steam_deck= alone");
+    expect(deck_mode("1", DECK_OFF) == DECK_ON && deck_mode("on", DECK_AUTO) == DECK_ON, "RX_VK_STEAM_DECK=1 over steam_deck=0");
+    expect(deck_mode("0", DECK_ON) == DECK_OFF && deck_mode(" Off\r\n", DECK_ON) == DECK_OFF && deck_mode("NO", DECK_AUTO) == DECK_OFF &&
+           deck_mode("", DECK_ON) == DECK_OFF && deck_mode("false", DECK_AUTO) == DECK_OFF,
+           "RX_VK_STEAM_DECK=0, off, no, false or empty over steam_deck=1");
+    expect(!value_off("1") && !value_off("yes") && !value_off("none") && value_off("  ") && value_off("FALSE\n"), "the switches' rule");
+    expect(deck_on(DECK_AUTO, true) && !deck_on(DECK_AUTO, false) && !deck_on(DECK_OFF, true) && deck_on(DECK_ON, false),
+           "Auto: on where a Deck is found; On and Off whatever the hardware");
+    {
+        Hardware sd = deck;   // (the Steam Deck above, as the renderer reports it)
+        sd.integrated = true, sd.ram_mb = 15232, sd.threads = 8, sd.refresh_hz = 60;
+        const Choice off = choose(sd);
+        expect(off.tier == 1 && off.framegen == -1 && !off.vram_auto && !std::strstr(off.why, "Steam Deck profile"),
+               "a Deck with the profile off: Minimum as before, Frame generation and the VRAM budget left alone");
+        Hardware on_hw = sd;
+        on_hw.deck = true;
+        const Choice on = choose(on_hw);
+        expect(on.tier == 1 && on.upscaler == GAME && on.resolution == 0 && on.framegen == 2 && on.vram_auto,
+               "the Steam Deck profile: Minimum, the game's own, 2x, VRAM Auto");
+        expect(std::strstr(on.why, "Steam Deck profile") && std::strstr(on.why, "Frame generation 2x"), on.why);
+        expect(fingerprint(on_hw, 0x1002, 0x1435) != fingerprint(sd, 0x1002, 0x1435), "the profile on or off: another fingerprint");
+        Hardware docked = on_hw;   // (docked to a 1080p screen: still Minimum's memory and the profile)
+        docked.screen_w = 1920, docked.screen_h = 1080;
+        const Choice tv = choose(docked);
+        expect(tv.tier == 1 && tv.framegen == 2 && tv.vram_auto, "the profile docked: the same choice");
+        Hardware other = r6600;   // (RX_VK_STEAM_DECK=1 on a PC that is no Deck: the profile all the same)
+        other.deck = true;
+        const Choice o = choose(other);
+        expect(o.tier == 1 && o.framegen == 2 && o.vram_auto, "the profile turned on elsewhere: its settings");
+    }
+    {
+        // (when the profile's Frame generation 2x and VRAM budget Auto are set: when it is chosen, not at each choice again)
+        Hardware sd = deck;
+        sd.deck = true;
+        Hardware plain = deck;
+        const uint64_t with = fingerprint(sd, 0x1002, 0x1435), without = fingerprint(plain, 0x1002, 0x1435);
+        expect(deck_turned(without, sd, 0x1002, 0x1435) && deck_turned(with, plain, 0x1002, 0x1435), "turned on or off: seen");
+        expect(!deck_turned(with, sd, 0x1002, 0x1435) && !deck_turned(0, sd, 0x1002, 0x1435), "the same, or a first start: not turned");
+        Hardware docked = sd;   // (docked to another screen: the hardware changed, the profile did not)
+        docked.screen_w = 1920, docked.screen_h = 1080;
+        expect(!deck_turned(with, docked, 0x1002, 0x1435), "another screen with the profile on all along: not turned");
+        expect(deck_settings(true, false, false).apply, "a first start or Auto picked on the row: the profile's settings");
+        expect(deck_settings(true, true, true).apply, "the profile just turned on (this update on a Deck): its settings once");
+        expect(!deck_settings(true, true, false).apply, "Auto choosing again for another screen: Frame generation stays the player's");
+        expect(!deck_settings(false, false, false).apply && !deck_settings(false, true, true).apply, "the profile off: none of it");
+        expect(deck_settings(false, true, true).restore_cap && !deck_settings(false, true, false).restore_cap &&
+               !deck_settings(true, true, true).restore_cap, "turned off: Minimum's VRAM cap comes back");
+    }
+    {
+        // (the profile off: the fingerprint is the one from before the profile, so no other PC's Auto chooses again)
+        const auto before = [](const Hardware& x, uint32_t vendor_id, uint32_t device_id) {
+            uint64_t f = 1469598103934665603ull;
+            const uint64_t parts[] = {vendor_id, device_id, x.vram_mb >> 8, (uint64_t)x.screen_w, (uint64_t)x.screen_h,
+                                      (uint64_t)x.dlss_built, (uint64_t)x.fsr4_built, (uint64_t)x.mesh_native};
+            for (uint64_t p : parts) f = (f ^ p) * 1099511628211ull;
+            return f;
+        };
+        expect(fingerprint(h, 0x10de, 0x2782) == before(h, 0x10de, 0x2782) && fingerprint(deck, 0x1002, 0x1435) ==
+               before(deck, 0x1002, 0x1435) && fingerprint(amd, 0x1002, 0x7550) == before(amd, 0x1002, 0x7550),
+               "the profile off: the fingerprint as before");
+    }
 
     if (failures) return EXIT_FAILURE;
     std::printf("auto settings: all checks passed\n");

@@ -29,6 +29,7 @@ struct Hardware {
     int threads = 0;            // (0: not known)
     int screen_w = 0, screen_h = 0;   // (the desktop's size in pixels; 0: not known)
     int refresh_hz = 0;
+    bool deck = false;          // (the Steam Deck profile is on: deck_on, below)
 };
 
 // What the profile sets. Indices are the menu's own: the Upscaler (upscaler_rows.h, ur::GAME...) and the Render resolution
@@ -39,8 +40,44 @@ struct Choice {
     int upscaler = 0;
     int resolution = 0;         // (0: the tier's own, as the preset sets it)
     int output_w = 0, output_h = 0;
+    int framegen = -1;          // (the Frame generation row's value; -1: as the player set it. The Steam Deck profile's 2x)
+    bool vram_auto = false;     // (the VRAM budget row at Auto, the renderer's own rule, over the tier's: the Steam Deck profile)
     char why[480] = {};
 };
+
+// The Steam Deck profile: what ran fastest on a Steam Deck OLED (Kokiri Forest, docked at 60 Hz, 2026-11). The frame there is
+// the CPU's, a serial chain of the replay (~52 ms) and the game's main thread (~15 ms): ~15 fps at stock clocks. Over the
+// Minimum tier Auto (this PC) sets:
+// - Frame generation 2x: ~34 fps shown, the 95th percentile ~47 ms; Auto paced worse (~31 fps, 54-66 ms) and cost ~1 real fps
+// - the VRAM budget row at Auto: the integrated GPU's own rule, 2560 MB with 16 GB of RAM, not Minimum's 2.2 GB cap and its
+//   dropped mips; a cap of 1200 MB dropped panning to 6 fps
+// and the renderer, whatever the preset, each only while its own switch is unset (vk_main.cpp deck_profile_decide):
+// - the command recorder on a thread of its own (RX_VK_RECORDER=thread): the replay's commands 9.6 -> 6.0 ms
+// - no graphics pipelines kept ready before the title (RX_VK_PRECOMPILE_GRAPHICS=none, vk_draw.cpp precompile_run; the compute
+//   programs still are): the ~25,000 the precompile keeps pushed the Deck's 16 GB into earlyoom's kills
+// RX_VK_STEAM_DECK=1 or 0 over the options file's steam_deck=1 or 0 (a line the menu keeps, no row); neither: on where a Deck is
+// found (vk_main.cpp deck_found: the Deck's APU, LCD or OLED)
+enum DeckMode : int { DECK_AUTO = -1, DECK_OFF = 0, DECK_ON = 1 };
+// (hookshot_env.h's rule, kept here so the rules compile on their own: "", "0", "false", "off" or "no", any case, is off)
+inline bool value_off(const char* v) {
+    static const char* const off[] = {"0", "false", "off", "no"};
+    while (*v == ' ' || *v == '\t') v++;
+    size_t n = std::strlen(v);
+    while (n && (v[n - 1] == ' ' || v[n - 1] == '\t' || v[n - 1] == '\r' || v[n - 1] == '\n')) n--;
+    if (!n) return true;
+    for (const char* w : off) {
+        size_t k = 0;
+        while (k < n && w[k] && (v[k] | 0x20) == w[k]) k++;
+        if (k == n && !w[k]) return true;
+    }
+    return false;
+}
+// env: RX_VK_STEAM_DECK's value or null; saved: steam_deck= in the options file (DECK_AUTO when there is none)
+inline int deck_mode(const char* env, int saved) {
+    if (env) return value_off(env) ? DECK_OFF : DECK_ON;
+    return saved == DECK_OFF || saved == DECK_ON ? saved : DECK_AUTO;
+}
+inline bool deck_on(int mode, bool found) { return mode == DECK_ON || (mode == DECK_AUTO && found); }
 
 constexpr int kGameW = 2048, kGameH = 1152;   // (the game's own output)
 // The least tier an output of this size is chosen at: the memory a larger frame's targets take. Up to the game's own size any
@@ -64,7 +101,7 @@ constexpr int kTierResolution[] = {0, 4, 2, 1, 1, 1};
 // Minimum whatever its memory says: the memory it reports is shared with the system, or the fallback costs the frame more than
 // the memory saves
 inline int tier_of(const Hardware& h) {
-    if (h.integrated || h.handheld || !h.mesh_native) return 1;
+    if (h.integrated || h.handheld || h.deck || !h.mesh_native) return 1;
     const uint32_t mb = h.vram_mb;
     int t = mb <= 4608 ? 1 : mb <= 6656 ? 2 : mb <= 11776 ? 3 : mb <= 13312 ? 4 : 5;
     // (under 12 GB of RAM the game's memory and the copies the driver keeps of its textures leave little: a lower tier's
@@ -82,7 +119,8 @@ inline Choice choose(const Hardware& h) {
     Choice c;
     c.tier = tier_of(h);
     char b[160];
-    if (h.integrated) add(c, "integrated GPU: Minimum");
+    if (h.deck) add(c, "the Steam Deck profile: Minimum");
+    else if (h.integrated) add(c, "integrated GPU: Minimum");
     else if (h.handheld) add(c, "handheld: Minimum");
     else if (!h.mesh_native) add(c, "no mesh shaders (the compute fallback): Minimum");
     else {
@@ -121,6 +159,10 @@ inline Choice choose(const Hardware& h) {
     } else {
         add(c, "output 2048x1152");
     }
+    if (h.deck) {
+        c.framegen = 2, c.vram_auto = true;
+        add(c, "Frame generation 2x; the VRAM budget Auto (the integrated GPU's own)");
+    }
     return c;
 }
 
@@ -143,7 +185,31 @@ inline uint64_t fingerprint(const Hardware& h, uint32_t vendor_id, uint32_t devi
     const uint64_t parts[] = {vendor_id, device_id, h.vram_mb >> 8, (uint64_t)h.screen_w, (uint64_t)h.screen_h,
                               (uint64_t)h.dlss_built, (uint64_t)h.fsr4_built, (uint64_t)h.mesh_native};
     for (uint64_t p : parts) f = (f ^ p) * 1099511628211ull;
+    // (the Steam Deck profile only when it is on: every other PC keeps the fingerprint it had, and turning the profile on or off
+    // makes Auto choose again)
+    if (h.deck) f = (f ^ 0x5DEC) * 1099511628211ull;
     return f;
+}
+
+// The Steam Deck profile's settings as Auto chooses (vk_menu.cpp apply_auto). Its Frame generation 2x and VRAM budget Auto are set
+// when the profile is chosen: a first start, Auto picked on its row (keep_own false), or the profile turned on for this PC since
+// Auto chose last (turned). When Auto chooses again for other hardware (another screen, a build with DLSS or FSR 4) they are the
+// player's, as every preset leaves Frame generation. turned: the fingerprint Auto chose for (auto_for) is this hardware's with the
+// profile the other way; when it turned off (restore_cap), the VRAM budget Auto it set is not taken for the player's: the tier's
+// cap comes back. Frame generation stays as it is, a row no preset sets
+struct DeckSettings {
+    bool apply = false;        // (set Frame generation 2x and the VRAM budget Auto)
+    bool restore_cap = false;  // (the profile turned off: a VRAM budget at Auto is the profile's, not the player's)
+};
+inline bool deck_turned(uint64_t auto_for, Hardware h, uint32_t vendor_id, uint32_t device_id) {
+    h.deck = !h.deck;
+    return auto_for != 0 && auto_for == fingerprint(h, vendor_id, device_id);
+}
+inline DeckSettings deck_settings(bool profile_on, bool keep_own, bool turned) {
+    DeckSettings d;
+    d.apply = profile_on && (!keep_own || turned);
+    d.restore_cap = !profile_on && keep_own && turned;
+    return d;
 }
 
 // The measured tuning in play: the render resolution moved toward what this PC holds at its frame rate cap. Each window is the

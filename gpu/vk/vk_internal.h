@@ -382,6 +382,11 @@ void retire_swapchain();   // (dev.present_mu held)
 bool invalidate_lost_surface(VkResult result);   // (dev.present_mu held)
 bool replay_start();                          // vk_replay.cpp
 bool precompile_wanted();                     // vk_draw.cpp
+/// (hookshot) RX_VK_PRECOMPILE_GRAPHICS=none, or the Steam Deck profile: the precompile keeps no graphics pipeline ready
+bool precompile_graphics_none();              // vk_draw.cpp
+/// (hookshot) The Steam Deck profile is on (auto_settings.h deck_mode), as decided when the card was picked
+bool deck_profile_on();                       // vk_main.cpp
+bool recorder_profile_thread();               // vk_replay.cpp (the profile's RX_VK_RECORDER=thread while the variable is unset)
 void precompile_run(void (*progress)(size_t done, size_t total));
 bool prepare_run(void (*progress)(size_t done, size_t total), bool background, bool refresh_states = false);
 bool prepare_is_update();

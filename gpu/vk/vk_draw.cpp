@@ -8286,6 +8286,16 @@ bool precompile_wanted() {
     if (const char* e = getenv("RX_VK_PRECOMPILE")) on = atoi(e) != 0;
     return on;
 }
+/// (hookshot) RX_VK_PRECOMPILE_GRAPHICS=none: the precompile keeps no graphics pipeline ready before the title (precompile_run);
+/// =all, as before. Unset: none with the Steam Deck profile (vk_main.cpp deck_profile_on), else all. Never in a preparation's own
+/// process (HOOKSHOT_PREPARE_ONLY), whose work is filling the driver's cache with them. Only where programs load at the start
+/// (RX_VK_LOAD=start: the default where mesh programs go through the compute fallback, as on the Steam Deck): loading at their
+/// create calls keeps none ready anyway (precompile_warm builds each into the driver's cache and lets it go), and is left as it is
+bool precompile_graphics_none() {
+    if (env_on("HOOKSHOT_PREPARE_ONLY")) return false;
+    if (const char* e = getenv("RX_VK_PRECOMPILE_GRAPHICS")) return !strcmp(e, "none");
+    return deck_profile_on();
+}
 namespace {
 std::atomic<bool> prepare_halt{false};
 }
@@ -9024,6 +9034,9 @@ void precompile_run(void (*progress)(size_t done, size_t total)) {
     // caches alone never meets a pipeline the prepare should have compiled. The first start after a preparation builds them
     // there and lets each go, precompile_warm: before the game, and never more of them alive than workers)
     if (programs_load_at_create()) {
+        if (precompile_graphics_none())
+            logf("vk: precompile: RX_VK_PRECOMPILE_GRAPHICS=none%s left as it is: programs load at their create calls, which keep no "
+                 "graphics pipeline ready before the title anyway", getenv("RX_VK_PRECOMPILE_GRAPHICS") ? "" : " (the Steam Deck profile's)");
         // (the pipeline cache's files dropped at this start, pcache_drop_stale: what the marker says is in them is gone)
         if (pcache_drop_stale()) remove(precompile_built_path().c_str());
         const bool warm_gone_on = !precompile_covers_notes() && precompile_warm(progress);
@@ -9067,6 +9080,17 @@ void precompile_run(void (*progress)(size_t done, size_t total)) {
     if (!env_on("RX_VK_NO_STATE_LIST")) {
         std::lock_guard lk(state_mu);
         if (!state_file) state_open_locked();
+    }
+    // (hookshot, RX_VK_PRECOMPILE_GRAPHICS=none, the Steam Deck profile's: no graphics pipeline kept ready before the title, nor a
+    // program only they would read in; the compute programs and the mesh fallback's are, as before. The ~25,000 noted, kept
+    // ready, pushed a Steam Deck's 16 GB into earlyoom's kills; https://github.com/NotRexed/Hookshot/pull/2814 halved its memory
+    // there (7.5 to 3.8 GB) and its hitches (99 to 12). Each is made at its first draw in play instead, from the driver's own
+    // cache where it has it. The notes stay noted (notes_open_locked, above): play notes none twice)
+    const bool graphics_none = precompile_graphics_none();
+    if (graphics_none) {
+        logf("vk: precompile: graphics pipelines: none kept ready before the title (%zu noted; RX_VK_PRECOMPILE_GRAPHICS=none%s)",
+             notes.size(), getenv("RX_VK_PRECOMPILE_GRAPHICS") ? "" : ", the Steam Deck profile's");
+        notes.clear();
     }
     std::unordered_set<uint64_t> wanted, wanted_variants;
     for (const auto& n : notes) wanted.insert(n->prog), wanted_variants.insert(mix(n->prog, n->variant));
@@ -9211,7 +9235,8 @@ void precompile_run(void (*progress)(size_t done, size_t total)) {
     logf("vk: precompile: compute pipelines: %zu kept ready (%zu from the pipeline caches, %zu compiled now), %zu not made",
          cs_cached + cs_compiled, cs_cached, cs_compiled, cs_failed);
     // (every note built, by a run that got to its end: RX_VK_LOAD=create may load them from the caches from the next start on)
-    if (!gone_on && !prepare_stopped()) precompile_built_write(graphics_n);
+    // (none built, RX_VK_PRECOMPILE_GRAPHICS=none: no marker, which would tell RX_VK_LOAD=create they are in the caches)
+    if (!gone_on && !prepare_stopped() && !graphics_none) precompile_built_write(graphics_n);
     predicted_check();
 }
 

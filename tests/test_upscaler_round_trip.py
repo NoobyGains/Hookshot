@@ -125,6 +125,10 @@ void logf(const char*, ...);
 // (hookshot: the fork's frame generation rows, which the reader and set_row name; none of them is in these round trips)
 static void fork_options_moved(int, bool, int, bool) {}
 int framegen_by_pick(int, int want, int) { return want; }
+// (the Steam Deck profile's state, which menu_init and apply_auto read and set: off here, as on a PC that is no Deck)
+int steam_deck_saved = -1;
+bool auto_deck_turned = false;
+inline bool env_value_off(const char* v) { return !v || !*v || !std::strcmp(v, "0"); }
 ::auto_settings::Choice auto_choice{};
 ::auto_settings::Tuning auto_tuning{};
 /* SAVE */

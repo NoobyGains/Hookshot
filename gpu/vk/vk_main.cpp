@@ -135,6 +135,10 @@ void logf_at(LogLevel level, const char* fmt, ...) {
     va_end(a);
 }
 
+/// (hookshot) The Steam Deck profile (auto_settings.h deck_mode): decided once, as the card is picked (deck_profile_decide)
+static bool deck_profile_now = false;
+bool deck_profile_on() { return deck_profile_now; }
+
 namespace {
 
 bool has_extension(const std::vector<VkExtensionProperties>& all, const char* name) {
@@ -220,6 +224,45 @@ bool create_instance() {
     return true;
 }
 
+/// (hookshot) A Steam Deck, LCD or OLED, by its APU: AMD's 0x163F (LCD) or 0x1435 (OLED), or as RADV names them. Not SteamOS's
+/// SteamDeck=1, which Steam's Deck-style session sets on other handhelds too (a ROG Ally or Legion Go on Bazzite or ChimeraOS)
+bool deck_found(const VkPhysicalDeviceProperties& p) {
+    return (p.vendorID == 0x1002 && (p.deviceID == 0x163F || p.deviceID == 0x1435)) || strstr(p.deviceName, "Custom GPU 0405") ||
+           strstr(p.deviceName, "Custom GPU 0932");
+}
+/// (hookshot) A handheld for Auto's tier (Hardware::handheld): a Steam Deck, or a PC in Steam's Deck-style session (SteamDeck=1)
+bool handheld_found(const VkPhysicalDeviceProperties& p) {
+    const char* deck = getenv("SteamDeck");
+    return (deck && atoi(deck) == 1) || deck_found(p);
+}
+/// (hookshot) The Steam Deck profile (auto_settings.h): decided as the card is picked, before the device and its first command
+/// buffer, so the recorder's mode holds from the first vkCmd*. Its settings are Auto (this PC)'s (auto_profile,
+/// menu_auto_for_gpu); its renderer parts, here and in the precompile (vk_draw.cpp precompile_graphics_none), each only while
+/// its own switch is unset
+void deck_profile_decide() {
+    const char* env = getenv("RX_VK_STEAM_DECK");
+    const int mode = ::auto_settings::deck_mode(env, menu_steam_deck());
+    const bool found = deck_found(dev.props);
+    deck_profile_now = ::auto_settings::deck_on(mode, found);
+    const char* why = env ? "RX_VK_STEAM_DECK" : mode != ::auto_settings::DECK_AUTO ? "steam_deck= in hookshot_options.ini"
+                    : found ? "a Steam Deck" : nullptr;
+    if (!deck_profile_now) {
+        if (why) logf("vk: Steam Deck profile: off (%s)", why);
+        return;
+    }
+    const char* recorder = "the recorder as RX_VK_RECORDER says";
+    if (!getenv("RX_VK_RECORDER")) {
+        const char* par = getenv("RX_VK_PARALLEL");
+        recorder = par && atoi(par) >= 2 ? "the recorder off, as RX_VK_PARALLEL records on several threads"
+                   : recorder_profile_thread() ? "the command recorder on a thread of its own (RX_VK_RECORDER=thread)"
+                                               : "the recorder's mode was read already, so as before";
+    }
+    logf("vk: Steam Deck profile: on (%s): %s; %s; with the Quality preset Auto (this PC), Frame generation 2x and the VRAM "
+         "budget Auto (RX_VK_STEAM_DECK=0 turns the profile off)", why, recorder,
+         getenv("RX_VK_PRECOMPILE_GRAPHICS") ? "graphics pipelines precompiled as RX_VK_PRECOMPILE_GRAPHICS says"
+                                             : "no graphics pipelines kept ready before the title (RX_VK_PRECOMPILE_GRAPHICS=none)");
+}
+
 bool pick_device() {
     menu_init();
     uint32_t n = 0;
@@ -286,6 +329,7 @@ bool pick_device() {
     dev.physical = all[best];
     vkGetPhysicalDeviceProperties(dev.physical, &dev.props);
     vkGetPhysicalDeviceMemoryProperties(dev.physical, &dev.memory);
+    deck_profile_decide();   // (before the device: the recorder's mode from the first vkCmd*)
     return true;
 }
 
@@ -1558,9 +1602,9 @@ void auto_profile() {
     hw.rtx = hw.vendor == ::auto_settings::NVIDIA && strstr(p.deviceName, "RTX");
     // (RDNA 4: "AMD Radeon RX 9070 XT", RADV's "(RADV GFX1201)")
     hw.rdna4 = hw.vendor == ::auto_settings::AMD && (strstr(p.deviceName, "RX 9") || strstr(p.deviceName, "GFX12"));
-    // (the Steam Deck's APU, LCD and OLED, or SteamOS's own flag)
-    const char* deck = getenv("SteamDeck");
-    hw.handheld = (deck && atoi(deck) == 1) || strstr(p.deviceName, "Custom GPU 0405") || strstr(p.deviceName, "Custom GPU 0932");
+    // (the Steam Deck's APU, LCD and OLED, or SteamOS's own flag; and whether its profile is on, as pick_device decided)
+    hw.handheld = handheld_found(p);
+    hw.deck = deck_profile_now;
     hw.dlss_built = dlss_built();
     hw.fsr4_built = fsr4_built();
     hw.threads = (int)std::thread::hardware_concurrency();
