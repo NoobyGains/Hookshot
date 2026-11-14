@@ -1,0 +1,201 @@
+# The Hookshot Launcher (launcher/, from the Magic Bean team's Longshot Launcher: docs/launcher.md). On every push and pull request
+# that touches it: compiled with warnings as errors from the packages its lock files pin, its checks run (no game, no network but
+# the package restore), and every page drawn (launcher/tools/screens, headless), on Windows and on Linux. On a push to main it is
+# also packaged (the Windows setup, the portable zip and the AppImage, as launcher/scripts/package.sh makes them, with the
+# repository this runs in stamped in, so a fork's launcher follows the fork) and published to the launcher-nightly pre-release
+# with its SHA256SUMS, the files the launcher's own update reads (Core/Releases.cs). Nothing of a game is involved.
+name: Launcher
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'launcher/**'
+      - 'assets/hookshot_turn.png'
+      - 'assets/brand/**'
+      - 'builder/HookshotBuilder/Repository.cs'
+      - 'nx2/version.py'
+      - 'nx2/make_game.py'
+      - 'tests/test_launcher_repository.py'
+      - '.github/workflows/launcher.yml'
+  pull_request:
+    paths:
+      - 'launcher/**'
+      - 'assets/hookshot_turn.png'
+      - 'assets/brand/**'
+      - 'builder/HookshotBuilder/Repository.cs'
+      - 'nx2/version.py'
+      - 'nx2/make_game.py'
+      - 'tests/test_launcher_repository.py'
+      - '.github/workflows/launcher.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: launcher-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  check:
+    name: Compile and test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Compile (warnings are errors; the packages the lock files pin)
+        working-directory: launcher
+        run: dotnet build HookshotLauncher.slnx --configuration Release -p:RestoreLockedMode=true
+      # (its own checks, and what it copies from this repository: make_game.py's languages, the DLSS and FSR 4 licence commits,
+      # the player id host/nn_applet.c opens)
+      - name: The launcher's checks
+        run: python -I -B launcher/tests/test_launcher_core.py --strict
+      - name: The repository the launcher and the builder take releases from
+        run: python -I -B tests/test_launcher_repository.py
+      - name: Every page draws
+        working-directory: launcher
+        run: dotnet run --project tools/screens --configuration Release -p:RestoreLockedMode=true -- "$RUNNER_TEMP/screens"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: launcher-screens-${{ matrix.os }}
+          path: ${{ runner.temp }}/screens
+          if-no-files-found: error
+
+  package:
+    name: The nightly launcher, both systems
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: '10.0.x'
+      # (nightly-<commits on main>-<commit>: Core/Versions.cs orders the launcher's nightlies by the count, which only grows on main)
+      - id: version
+        name: The version
+        run: |
+          tag="nightly-$(git rev-list --count HEAD)-$(git rev-parse --short=8 HEAD)"
+          [[ $tag =~ ^nightly-[0-9]{1,9}-[0-9a-f]{8}$ ]] || { echo "::error::not a nightly's name: $tag"; exit 1; }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "$tag"
+      - name: The Windows setup, the portable zip and the AppImage
+        env:
+          WINE_CHECK_EXE: ${{ runner.temp }}/wine-check/HookshotLauncher.exe
+          HOOKSHOT_REPOSITORY: ${{ github.repository }}
+        run: launcher/scripts/package.sh "${{ steps.version.outputs.tag }}" dist
+      # (Wine cannot load the shipped single file, whose code .NET maps straight from it: the same program built to unpack itself is
+      # started instead, package.sh's WINE_CHECK_EXE)
+      - name: The Windows program starts (--self-check, under Wine)
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo dpkg --add-architecture i386 || true
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends wine wine64 >/dev/null
+          wine=$(command -v wine64 || command -v wine)
+          export WINEDEBUG=-all WINEPREFIX="$RUNNER_TEMP/wine"
+          "$wine" wineboot --init >/dev/null 2>&1 || true
+          out=$("$wine" "$RUNNER_TEMP/wine-check/HookshotLauncher.exe" --self-check | tr -d '\r')
+          echo "$out"
+          grep -qxF "HookshotLauncher $TAG" <<<"$out" || { echo "::error::the Windows launcher does not answer --self-check with $TAG"; exit 1; }
+      - name: SHA256SUMS
+        run: |
+          cd dist
+          sha256sum HookshotLauncher-* > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: HookshotLauncher
+          path: |
+            dist/HookshotLauncher-*
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+  publish:
+    name: To the launcher-nightly pre-release
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # (one at a time, never cancelled half way: the release's files are replaced in an order that always leaves one whole set)
+    concurrency:
+      group: launcher-nightly
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.package.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: HookshotLauncher
+          path: dist
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/SHA256SUMS
+      # (launcher-nightly only moves forward along main: a run for a commit older than the one it holds changes nothing. Then the
+      # new files, then SHA256SUMS, which names them, then the old files go: SHA256SUMS always names files that are there, and the
+      # launcher reads the version from the names SHA256SUMS gives)
+      - name: Publish
+        run: |
+          set -euo pipefail
+          held=$(gh api "repos/$GH_REPO/git/ref/tags/launcher-nightly" --jq .object.sha 2>/dev/null) || held=
+          if [[ -n $held && $held != "$GITHUB_SHA" ]]; then
+            status=$(gh api "repos/$GH_REPO/compare/$held...$GITHUB_SHA" --jq .status)
+            if [[ $status == behind ]]; then
+              echo "launcher-nightly holds $held, which comes after $GITHUB_SHA: nothing to do"
+              exit 0
+            fi
+          fi
+          if [[ -z $held ]]; then
+            gh api -X POST "repos/$GH_REPO/git/refs" -f ref=refs/tags/launcher-nightly -f sha="$GITHUB_SHA" >/dev/null
+          elif [[ $held != "$GITHUB_SHA" ]]; then
+            gh api -X PATCH "repos/$GH_REPO/git/refs/tags/launcher-nightly" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          fi
+          notes="The Hookshot Launcher's nightly, $TAG, built from $GITHUB_SHA. Windows: HookshotLauncher-$TAG-windows-x64-setup.exe (or the portable zip); Linux and Steam Deck: HookshotLauncher-$TAG-x86_64.AppImage. Every file is in SHA256SUMS. Not signed yet."
+          if ! gh release view launcher-nightly >/dev/null 2>&1; then
+            gh release create launcher-nightly --prerelease --latest=false --verify-tag --title "Hookshot Launcher (nightly)" --notes "$notes"
+          else
+            gh release edit launcher-nightly --prerelease --latest=false --notes "$notes"
+          fi
+          gh release upload launcher-nightly dist/HookshotLauncher-* --clobber
+          gh release upload launcher-nightly dist/SHA256SUMS --clobber
+          keep=$(cd dist && ls HookshotLauncher-* SHA256SUMS)
+          gh release view launcher-nightly --json assets --jq '.assets[].name' | while read -r name; do
+            if ! grep -qxF "$name" <<<"$keep"; then
+              echo "removing $name"
+              gh release delete-asset launcher-nightly "$name" --yes
+            fi
+          done

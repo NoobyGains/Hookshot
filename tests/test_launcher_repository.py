@@ -50,12 +50,13 @@ def main():
           "launcher/App/HookshotLauncher.csproj does not stamp HookshotRepository")
     check(one(r'public const string StampKey = "([^"]+)";', launcher, "launcher/Core/Repository.cs") == "HookshotRepository",
           "launcher/Core/Repository.cs reads another stamp than the one the project writes")
-    workflow = ROOT / ".github" / "workflows" / "launcher.yml"
-    if workflow.is_file():
-        text = workflow.read_text(encoding="utf-8")
-        stamps = re.findall(r"-p:HookshotRepository=(\S+)", text)
-        check(stamps and all(s.strip("\"'") in ("${{ github.repository }}", "$GITHUB_REPOSITORY") for s in stamps),
-              ".github/workflows/launcher.yml does not stamp the repository it runs in: %r" % stamps)
+    # (the release build is stamped with the repository its workflow runs in: launcher.yml hands it to package.sh, which passes it on)
+    workflow = read(".github/workflows/launcher.yml")
+    check(re.search(r"HOOKSHOT_REPOSITORY: \$\{\{ github\.repository \}\}\n\s+run: launcher/scripts/package\.sh ", workflow),
+          ".github/workflows/launcher.yml does not give package.sh the repository it runs in (HOOKSHOT_REPOSITORY)")
+    package = read("launcher/scripts/package.sh")
+    check('-p:HookshotRepository="$HOOKSHOT_REPOSITORY"' in package and '"${repository[@]}"' in package,
+          "launcher/scripts/package.sh does not stamp HOOKSHOT_REPOSITORY into the program")
     print("launcher repository: %s, as the builder's; stamped from the workflow's repository" % name)
 
 

@@ -1,19 +1,21 @@
 #!/bin/bash
-# The Hookshot Launcher as a release ships it (docs/releases.md), both from Linux with the .NET 10 SDK:
+# The Hookshot Launcher as a release ships it (docs/launcher.md), both from Linux with the .NET 10 SDK:
 #   HookshotLauncher-<tag>-windows-x64-setup.exe     a self-contained single-file program (no .NET to install), which offers to
 #                                                    install itself (or run portable) when it is first started
 #   HookshotLauncher-<tag>-windows-x64-portable.zip  the same program as HookshotLauncher.exe, with its "portable" file
 #   HookshotLauncher-<tag>-x86_64.AppImage           the same for Linux and the Steam Deck, in an AppImage
 # Each launcher is one file, so the launcher's own update replaces one file (Core/SelfUpdate.cs; a portable one takes it out of
-# the zip). The tag is stamped into the program (-p:HookshotTag), which compares it with its channel's newest.
+# the zip). The tag is stamped into the program (-p:HookshotTag), which compares it with its channel's newest; and, with
+# HOOKSHOT_REPOSITORY=<owner/name> (CI: the repository it runs in), the repository whose releases it follows (-p:HookshotRepository,
+# Core/Repository.cs), so a fork's launcher follows the fork.
 #
-#     scripts/package.sh <tag> <out folder>
+#     launcher/scripts/package.sh <tag> <out folder>
 #
 # The AppImage is packed with the appimagetool and runtime pinned below (downloaded and checked by their SHA-256 into
 # <out folder>/../.appimagetool), or APPIMAGETOOL and APPIMAGE_RUNTIME. Nothing of a game is involved.
 #
 # WINE_CHECK_EXE=<path> also writes there the Windows program built to unpack all of itself to disk when it starts, for CI to start
-# under Wine (release.yml): Wine cannot load the shipped program, whose code .NET maps straight from the uncompressed file
+# under Wine (.github/workflows/launcher.yml): Wine cannot load the shipped program, whose code .NET maps straight from the uncompressed file
 # ("Failed to load System.Private.CoreLib.dll ... Incorrect alignment (0x8007046C)"). It is the same code; it is not released.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -42,6 +44,11 @@ trap cleanup EXIT
 
 # (a release's MSBuild version is its tag without the v; a nightly keeps the projects' own, its tag says which it is)
 version=()
+repository=()
+if [ -n "${HOOKSHOT_REPOSITORY:-}" ]; then
+    [[ $HOOKSHOT_REPOSITORY =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ ]] || { echo "not owner/name: $HOOKSHOT_REPOSITORY" >&2; exit 1; }
+    repository=(-p:HookshotRepository="$HOOKSHOT_REPOSITORY")
+fi
 if [[ $TAG =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?)$ ]]; then version=(-p:Version="${BASH_REMATCH[1]}"); fi
 
 publish() {
@@ -49,7 +56,7 @@ publish() {
     shift 2
     "$DOTNET" publish "$ROOT/App/HookshotLauncher.csproj" -c Release -r "$rid" --self-contained "$@" \
         -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none \
-        -p:HookshotTag="$TAG" "${version[@]}" -o "$dir" -nologo
+        -p:HookshotTag="$TAG" "${version[@]}" "${repository[@]}" -o "$dir" -nologo
 }
 
 # (not compressed inside: a compressed single file unpacks its code into memory when it starts, which antivirus programs'
@@ -118,7 +125,7 @@ if [ -z "$tool" ] || [ -z "$runtime" ]; then
     printf '%s  %s\n%s  %s\n' "$APPIMAGETOOL_SHA256" "$tool" "$APPIMAGE_RUNTIME_SHA256" "$runtime" | sha256sum -c - >&2
     chmod 755 "$tool"
 fi
-# (no update information: the launcher updates itself from the signed release files, not with AppImageUpdate)
+# (no update information: the launcher updates itself from its release's checked files, not with AppImageUpdate)
 ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$tool" --no-appstream --runtime-file "$runtime" "$app" \
     "$OUT/HookshotLauncher-$TAG-x86_64.AppImage" >&2
 chmod 755 "$OUT/HookshotLauncher-$TAG-x86_64.AppImage"
