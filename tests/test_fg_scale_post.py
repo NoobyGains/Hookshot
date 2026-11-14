@@ -179,7 +179,7 @@ class PostTests(unittest.TestCase):
         # (the Retro look: its sharp 0, the push constants' last field; the small picture its 240 lines, no more than the picture)
         push = re.search(r"ScalePush pc\{(.*?)\};", body, re.S).group(1)
         self.assertIn("retro ? 0.0f : opts.sharpness / 100.0f", push)
-        self.assertTrue(" ".join(push.split()).endswith("fxaa, retro, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f"), push)
+        self.assertTrue(" ".join(push.split()).endswith("fxaa, retro, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, gamma"), push)
         self.assertIn("const uint32_t rh = std::min(source.h, kRetroLines);", body)
         self.assertIn("const uint32_t rw = std::clamp((uint32_t)std::lround((double)rh * dw / dh), 1u, source.w);", body)
         self.assertIn("const uint32_t smw = retro ? rw : std::max(1u, source.w / 8), smh = retro ? rh : std::max(1u, source.h / 8);",
@@ -187,7 +187,26 @@ class PostTests(unittest.TestCase):
 
     # (framegen_scale's early-out terms that are rows of the pass's own, and the option each reads: scale_post_wanted must
     # ask each, or do_present makes no view and the pass never runs on the plain window copy)
-    EARLY_OUT_ROWS = {"!look": "opts.grade", "bloom <= 0.0f": "opts.bloom", "!fxaa": "opts.fxaa", "!retro": "opts.retro"}
+    EARLY_OUT_ROWS = {"!look": "opts.grade", "bloom <= 0.0f": "opts.bloom", "!fxaa": "opts.fxaa", "!retro": "opts.retro",
+                      "gamma == 1.0f": "opts.brightness"}
+
+    def test_brightness(self):
+        # (the row next to the Colour grade, 70% to 150% in 5s, 100% the game's picture, saved as brightness; for an SDR window
+        # only, nor on pq; the pass skipped at 100% with nothing else on; last on every pixel written but the small picture's)
+        self.assertIn('{TAB_GRAPHICS, "Brightness", &opts.brightness, 70, 150, 5, tx_percent,', self.menu)
+        self.assertLess(self.menu.index('{TAB_GRAPHICS, "Colour grade"'), self.menu.index('{TAB_GRAPHICS, "Brightness"'))
+        row = " ".join(re.sub(r'"\s*"', "", block(self.menu, '{TAB_GRAPHICS, "Brightness"')).split())
+        self.assertIn("with HDR on, set HDR paper white instead", row)
+        self.assertTrue(row.endswith("nullptr, false, true}"))
+        self.assertIn("int brightness = 100;", self.options)
+        self.assertNotIn("&opts.brightness", block(self.menu, "const char* ini_key(const Row& r)"))
+        body = block(self.fg, "VkImage framegen_scale(")
+        self.assertIn("const float gamma = pq || dev.hdr ? 1.0f : 100.0f / (float)std::clamp(opts.brightness, 70, 150);", body)
+        self.assertIn("opts.brightness != 100", block(self.fg, "bool scale_post_wanted()"))
+        main = block(self.comp, "void main()")
+        self.assertEqual(main.count("imageStore(dst, g, vec4(finish("), 2, "the sides' store and the picture's")
+        self.assertIn("imageStore(dst, g, vec4(sum / 16.0, 1.0));", main, "the small picture is not finished")
+        self.assertIn("if (pc.gamma != 1.0) c = brighten(c, pc.gamma);", block(self.comp, "vec3 finish(vec3 c)"))
 
     def test_view_made_for_the_rows(self):
         replay = (VK / "vk_replay.cpp").read_text(encoding="utf-8")

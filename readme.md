@@ -493,6 +493,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | FXAA | Off, On (on the finished picture, in the Window scaling filter's place; not with HDR set to Native; changes at once) | Off |
 | | Bloom | Off, Low, Medium, High (a glow around bright light; not with HDR set to Native; changes at once) | Off |
 | | Colour grade | Off, Rich, Vivid, Warm, Cool, Cinematic (not with HDR set to Native; changes at once) | Off |
+| | Brightness | 70% to 150% (a gamma curve: the mid-tones lighter or darker, black and white kept; for SDR, with HDR on set HDR paper white instead; changes at once) | 100% |
 | | Retro look | Off, N64 (the picture at the Nintendo 64's 240 lines, soft, its colours cut to 16 bits with the console's dither), N64 + CRT (that picture on a CRT, after Timothy Lottes' CRT shader, set by the five CRT rows below); in the Window scaling filter's, FXAA's and Sharpness's place, the menu left sharp; not with HDR set to Native; changes at once | Off |
 | | CRT scanlines | Off, Light, Medium, Strong (the dark between the lines of light; bright parts fill out; with Retro look N64 + CRT) | Medium |
 | | CRT mask | Off, Aperture grille, Slot mask, Shadow mask (the screen's red, green and blue on your screen's pixels; with N64 + CRT) | Aperture grille |

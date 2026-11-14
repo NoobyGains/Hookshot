@@ -1426,6 +1426,11 @@ Row rows[] = {
     {TAB_GRAPHICS, "Colour grade", &opts.grade, 0, kGrades - 1, 1, tx_grade,
      "A colour grade on the finished picture: richer colour and contrast, a warm or cool tone, a soft vignette. Off shows the "
      "game's own colours. Not with HDR set to Native. Changes at once.", nullptr, false, true},
+    // (hookshot: in the same pass, last on the picture: vk_framegen.cpp framegen_scale, fg_scale.comp finish())
+    {TAB_GRAPHICS, "Brightness", &opts.brightness, 70, 150, 5, tx_percent,
+     "The picture's mid-tones lighter or darker, its black and white kept: a gamma curve, as a TV's or ReShade's Levels "
+     "gamma. 100% is the game's picture. For SDR: with HDR on, set HDR paper white instead. Changes at once.", nullptr, false,
+     true},
     // (hookshot: in the same pass, after the three above)
     {TAB_GRAPHICS, "Retro look", &opts.retro, 0, kRetroLooks - 1, 1, tx_retro,
      "The picture as a Nintendo 64 made it: 240 lines, soft, its colours cut to the console's 16 bits with its dither. N64 + "

@@ -40,6 +40,8 @@ struct Options {
     int fxaa = 0;         // (hookshot, from Ocarina Reborn) FXAA on the finished picture: 0 Off, 1 On (vk_framegen.cpp framegen_scale)
     int bloom = 0;        // a glow around bright light on the finished picture: 0 Off, 1 Low, 2 Medium, 3 High (fg_scale_post.h)
     int grade = 0;        // the Colour grade: 0 Off, 1 Rich, 2 Vivid, 3 Warm, 4 Cool, 5 Cinematic (fg_scale_post.h)
+    int brightness = 100;   // (hookshot) Brightness, 70 to 150 (%): the SDR picture's code to the power 100 / brightness, black and
+                            // white kept (vk_framegen.cpp framegen_scale; with HDR on, HDR paper white does this)
     int retro = 0;        // (hookshot) the Retro look: 0 Off, 1 N64, 2 N64 + CRT (fg_scale_post.h; vk_framegen.cpp framegen_scale)
     // (N64 + CRT's rows, shown with it: fg_scale_post.h's kCrtScan, the masks, kCrtGlow, kCrtCurve)
     int crt_scanlines = 2;       // Off, Light, Medium, Strong

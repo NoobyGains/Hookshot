@@ -13,6 +13,7 @@ struct ScalePush {
     // and its strength 0..1, the glow, the curvature and its corners (kCrtCurve). No semicolons in these comments: the check
     // that matches the fields to the shader's splits on them)
     float scan; int mask; float mask_str; float glow; float warp_x, warp_y; float corner;
+    float gamma;   // (the Brightness row: the picture's code to this power, 1 none. SDR only)
 };
 inline constexpr int kGrades = 6, kBloomSteps = 4;   // (the Colour grade's looks and the Bloom's steps: Options grade, bloom)
 // (the Colour grade's looks: saturation, contrast, warmth, vignette. Off, Rich, Vivid, Warm, Cool, Cinematic)

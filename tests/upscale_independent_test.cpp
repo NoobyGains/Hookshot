@@ -48,7 +48,7 @@ struct VkImageBlit { Layers srcSubresource, dstSubresource; Offset srcOffsets[2]
 struct Extent { uint32_t width = 0, height = 0, depth = 0; };
 struct VkImageCopy { Layers srcSubresource; Offset srcOffset; Layers dstSubresource; Offset dstOffset; Extent extent; };
 struct {
-    int upscale = 0, sharpness = 0, framegen = 0, fxaa = 0, bloom = 0, grade = 0, retro = 0;
+    int upscale = 0, sharpness = 0, framegen = 0, fxaa = 0, bloom = 0, grade = 0, retro = 0, brightness = 100;
     int crt_scanlines = 2, crt_mask = 1, crt_mask_strength = 30, crt_glow = 2, crt_curvature = 1;   // (vk_menu.h's defaults)
 } opts;
 // (hookshot) The Upscaling row carries two things: 0-2 filter the finished picture and 3-4 name a
@@ -62,7 +62,7 @@ struct SpyMutex {
     void lock() { CHECK(!held); held = true; }
     void unlock() { CHECK(held); held = false; }
 };
-struct { bool push_descriptor = true, offscreen = false; int device = 1; SpyMutex present_mu; } dev;
+struct { bool push_descriptor = true, offscreen = false, hdr = false; int device = 1; SpyMutex present_mu; } dev;
 // Only used by framegen_on and by the original scaler's negative control. No interpolation is initialized.
 struct {
     bool init = false, failed = false, thread_started = false;
@@ -145,7 +145,7 @@ void pass(int, const Pipe& p, std::initializer_list<std::pair<VkImageView, VkSam
 void logf(const char*, ...) { CHECK(dispatches > 0); ++logs; }
 // PRODUCTION_FUNCTIONS
 void reset() {
-    scale = {}; fg = {}; opts = {}; wide_now = WideSides{}; dev.push_descriptor = true; vkCmdPushDescriptorSetKHR = true;
+    scale = {}; fg = {}; opts = {}; wide_now = WideSides{}; dev.push_descriptor = true; dev.hdr = false; vkCmdPushDescriptorSetKHR = true;
     pipe_calls = sampler_calls = image_calls = dispatches = blits = copies = waits = flushes = 0;
     destroyed_pipes = destroyed_layouts = destroyed_sets = 0;
     pipe_fail = sampler_fail = image_fail = pq_pipe_fail = false;
@@ -206,6 +206,16 @@ int main() {
     reset(); opts.retro = 1; CHECK(draw());
     CHECK(dispatched_pc.scan == 0.0f && dispatched_pc.mask == 0 && dispatched_pc.glow == 0.0f && dispatched_pc.warp_x == 0.0f);
     reset(); opts.retro = 2; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
+    // (Brightness: at 100% no pass and the gamma 1; else the pass alone, the code to the power 100 / brightness, cut to 70..150;
+    // never for an HDR window, where HDR paper white does it, nor on the game's own HDR10 picture)
+    reset(); CHECK(!draw()); CHECK(dispatches == 0);
+    reset(); opts.brightness = 150; CHECK(draw()); CHECK(dispatches == 1 && dispatched_pc.gamma == 100.0f / 150.0f && dispatched_retro == 0);
+    reset(); opts.brightness = 70; opts.grade = 1; CHECK(draw()); CHECK(dispatched_pc.gamma == 100.0f / 70.0f && dispatched_look == 1);
+    reset(); opts.brightness = 400; CHECK(draw()); CHECK(dispatched_pc.gamma == 100.0f / 150.0f);
+    reset(); opts.brightness = 150; dev.hdr = true; CHECK(!draw()); CHECK(dispatches == 0);
+    opts.grade = 2; CHECK(draw()); CHECK(dispatched_pc.gamma == 1.0f); dev.hdr = false;
+    reset(); opts.brightness = 150; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
+    reset(); opts.grade = 1; CHECK(draw()); CHECK(dispatched_pc.gamma == 1.0f);
     reset(); opts.retro = -3; CHECK(!draw()); CHECK(dispatches == 0);
     reset(); opts.retro = 2; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
     // (a picture under 240 lines: its own size, never more pixels than it has, however wide the window)
