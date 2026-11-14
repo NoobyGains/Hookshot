@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/brand/hero.gif" alt="Hookshot: Ocarina of Time running natively on Windows and Linux, with no emulator" width="800">
+  <img src="assets/brand/hero.webp" alt="Hookshot: Ocarina of Time running natively on Windows and Linux, with no emulator" width="800">
 </p>
 
 <p align="center">
@@ -16,13 +16,13 @@
 </p>
 
 <p align="center">
+  <a href="#roadmap">Roadmap</a> •
   <a href="#project-status">Status</a> •
   <a href="#install-and-play">Install and play</a> •
   <a href="#in-game-menu">In-game menu</a> •
   <a href="#if-something-goes-wrong">Problems</a> •
   <a href="#build-from-source">Build from source</a> •
   <a href="#how-it-works">How it works</a> •
-  <a href="#roadmap">Roadmap</a> •
   <a href="#want-to-help">Want to help?</a> •
   <a href="#credits">Credits</a> •
   <a href="#license">License</a>
@@ -66,6 +66,57 @@
   </tr>
 </table>
 
+## Roadmap
+
+Where the work is going. The order follows the scored [worklist](docs/worklist.md) (how bad a problem is, times how
+many players it reaches), so it changes as reports come in. Nothing here is a promise or a date.
+
+<p align="center">
+  <img src="assets/brand/roadmap.png" alt="Roadmap in three stages: merged here ahead of the release, next, and later. The same items are listed as text below." width="800">
+</p>
+
+<details>
+<summary><b>The roadmap as text</b></summary>
+
+<table>
+  <tr>
+    <th width="33%">✅ Merged here, ahead of the release</th>
+    <th width="33%">🔨 Next</th>
+    <th width="33%">🔭 Later</th>
+  </tr>
+  <tr>
+    <td valign="top">
+      <ul>
+        <li>Fixes from the Longshot fork, and occlusion queries answered with the GPU's real counts</li>
+        <li>A moving floor carries Link above 100 FPS as it does at 60</li>
+        <li>Several users with a user selector, and each game in its own game, work and save folders</li>
+        <li>Service sessions answered properly; a headless run ends on Ctrl+C again; a benchmark never leaves its game running</li>
+        <li>A cheaper texture upload path, and FSR's shared images kept until the GPU has finished with them</li>
+      </ul>
+    </td>
+    <td valign="top">
+      <ul>
+        <li>Memory that fills up over a long session until the game slows or stops: the most reported problem</li>
+        <li>Game logic that misbehaves above a 60 FPS cap (the Scarecrow's Song, looping animations in dialogue)</li>
+        <li>The Builder stalling at "Preparing shaders"</li>
+        <li>Crashes and lost devices on AMD cards on Windows</li>
+        <li>Low frame rates with an idle GPU in Castle Town and Hyrule Field; stutter on camera turns in Kokiri Forest</li>
+        <li>Objects, walls and doors that turn invisible</li>
+      </ul>
+    </td>
+    <td valign="top">
+      <ul>
+        <li>A signed Builder, so antivirus programs stop flagging it</li>
+        <li>Intel cards, which have few reports and many black screens</li>
+        <li>Cards without mesh shaders, which today miss parts of the picture</li>
+        <li>More games on the same engine (<a href="docs/one-engine.md">one engine</a>)</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+</details>
+
 ## Quick start
 
 1. Download `HookshotBuilder.exe` (Windows) or the AppImage (Linux) from the
@@ -106,36 +157,6 @@ This repository is developed and play-tested on a GeForce RTX 5090 and a Ryzen 9
 | Linux | ✅ Works with the AppImage. Tested on several distributions (CachyOS, Fedora, Bazzite, SteamOS) and cards, with open problems on some AMD cards ([#1000](https://github.com/NotRexed/Hookshot/issues/1000)) |
 
 </details>
-
-## Roadmap
-
-Where the work is going. The order follows the scored [worklist](docs/worklist.md) (how bad a problem is, times how
-many players it reaches), so it changes as reports come in. Nothing here is a promise or a date.
-
-**Merged in this repository, ahead of the release**
-
-- Fixes brought over from the Longshot fork, and the game's occlusion queries answered with the GPU's real counts.
-- A moving floor carries Link above 100 FPS as it does at 60.
-- As many users as a game asks for, with a user selector, and each game in its own game, work and save folders.
-- Smaller fixes: service sessions answered properly, a headless run that ends on Ctrl+C again, a benchmark that never
-  leaves its game running, a cheaper texture upload path, and FSR's shared images kept until the GPU has finished
-  with them.
-
-**Next**
-
-- Memory that fills up over a long play session until the game slows or stops: the most reported problem.
-- Game logic that misbehaves above a 60 FPS cap (the Scarecrow's Song, looping animations in dialogue).
-- The Builder stalling or taking very long at "Preparing shaders".
-- Crashes and lost devices on AMD cards on Windows.
-- Low frame rates with an idle GPU in Castle Town and Hyrule Field, and stutter on camera turns in Kokiri Forest.
-- Objects, walls and doors that turn invisible.
-
-**Later**
-
-- A signed Builder, so antivirus programs stop flagging it.
-- Intel cards, which have few reports and many black screens.
-- Cards without mesh shaders, which today miss parts of the picture.
-- More games on the same engine ([one engine](docs/one-engine.md)).
 
 ## Install and play
 

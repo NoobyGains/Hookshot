@@ -26,10 +26,10 @@ FOOTLINE = "Vulkan  ·  DLSS  ·  FSR 4  ·  HDR  ·  frame generation  ·  ultr
 
 W, H = 1600, 600          # 2x of the 800x300 the README shows
 BG = (6, 7, 11)
-# The emblem's own colours: emerald, cyan, gold.
-C_EMERALD, C_CYAN, C_GOLD = (52, 211, 153), (34, 211, 238), (251, 191, 36)
-C_INDIGO = (16, 120, 96)   # (the glow behind the wordmark)
-GRADIENT = [(248, 250, 252), (226, 232, 240), C_EMERALD, C_CYAN, C_GOLD]
+# The emblem's own colours: the barrel's blue, cyan, the grip cap's gold.
+C_BLUE, C_CYAN, C_GOLD = (59, 130, 246), (34, 211, 238), (251, 191, 36)
+C_INDIGO = (30, 64, 175)   # (the glow behind the wordmark)
+GRADIENT = [(248, 250, 252), (226, 232, 240), C_BLUE, C_CYAN, C_GOLD]
 
 
 def font(name, size):
