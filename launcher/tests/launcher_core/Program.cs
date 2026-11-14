@@ -52,12 +52,18 @@ static partial class Program
         var fixtures = args[1];
         scratch = args[2];
         Directory.CreateDirectory(scratch);
+        // (the checks compare the paths the launcher gives with paths made here from the scratch folder. The launcher's own are
+        // Path.GetFullPath's, which on Windows writes a folder's 8.3 short name (RUNNER~1, GitHub's runners' TEMP) out long: the
+        // scratch folder is taken in that form too, so both sides say one folder alike. ShortPathChecks is where a short name
+        // given to the launcher itself is checked)
+        scratch = Path.TrimEndingDirectorySeparator(Path.GetFullPath(scratch));
 
         RequirementsChecks();
         VersionChecks(vectors.RootElement);
         await ReleaseChecks(Path.Combine(fixtures, "release"));
         await SelfUpdateChecks();
         await InstallChecks();
+        ShortPathChecks();
         await ToolchainChecks();
         RegistryChecks();
         SettingsChecks();
