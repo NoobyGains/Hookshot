@@ -126,6 +126,11 @@ class DeathCounterTests(unittest.TestCase):
         self.assertIn("hud_deaths.store(value, std::memory_order_relaxed);", menu)
         self.assertIn("timer_tick(opts.speedrun_timer && !start, open);", menu)
         self.assertEqual(menu.count("if (timer || deaths) draw_corner(c, timer, deaths);"), 2)
+        # (top centre: in the top left corner the block covered the game's own hearts, seen in the game on 2026-11-14)
+        start = menu.index("void draw_corner(ui::Ctx& c, bool timer, bool deaths) {")
+        corner = menu[start:menu.index("\n}\n", start)]
+        self.assertIn("c.w * 0.5f + tw * 0.5f", corner)
+        self.assertNotIn("c.safe + tw", corner)
 
 
 if __name__ == "__main__":

@@ -1448,10 +1448,10 @@ Row rows[] = {
      "As on the N64: no count over Link when he picks something up, and the rupees always shown in the bottom left corner "
      "once a save is loaded. Changes at once.", nullptr, false, true},
     {TAB_GAMEPLAY, "Speedrun timer", &opts.speedrun_timer, 0, 1, 1, tx_onoff,
-     "Real time in the top left corner, paused while this menu is open. Turn it off and on again to start from zero.", nullptr,
+     "Real time at the top of the screen, in the middle, paused while this menu is open. Turn it off and on again to start from zero.", nullptr,
      false, true},
     {TAB_GAMEPLAY, "Death counter", &opts.death_counter, 0, 1, 1, tx_onoff,
-     "How often Link's hearts ran out since the game started, in the top left corner. A fairy's revive does not count.",
+     "How often Link's hearts ran out since the game started, at the top of the screen, in the middle. A fairy's revive does not count.",
      nullptr, false, true},
     {TAB_GAMEPLAY, "Menu size", &opts.menu_size, 1, 3, 1, tx_menu_size,
      "How large this menu, the FPS counter and the start-up screen are drawn.", hn_menu_size, false, true},
@@ -4275,11 +4275,12 @@ void timer_tick(bool on, bool paused) {
 /// The timer (h:mm:ss.t) and the Death counter under it, outlined, in the top left corner (the top right while the FPS
 /// counter is at the top left)
 void draw_corner(ui::Ctx& c, bool timer, bool deaths) {
-    const bool right = opts.show_fps && opts.fps_corner == 1;
+    // (top centre: the game's own hearts, magic and items fill the top left corner and its buttons the top right, so a block
+    // in either corner covered them; the middle of the top edge is free, and no FPS counter corner reaches it)
     float top = c.safe;
     auto line = [&](float px, ImU32 col, const char* text) {
         const float tw = ui::size_of(c.f.strong, px, text).x;
-        outlined_right(c, c.f.strong, px, right ? c.w - c.safe : c.safe + tw, top, col, text);
+        outlined_right(c, c.f.strong, px, c.w * 0.5f + tw * 0.5f, top, col, text);
         top += px * 1.25f;
     };
     char text[48];
