@@ -1007,7 +1007,7 @@ bool ram_status(uint64_t* total, uint64_t* avail_phys, uint64_t* avail_commit) {
 // RX_VK_CAP_SPARE_MB=<n>: that many, 0: as before (no limit). After a load the retired ones, 40-60 MB each, stayed as spares
 // for good)
 uint64_t cap_spare_max() {
-    static const uint64_t v = [] {
+    static const uint64_t v = []() -> uint64_t {   // (one return type: uint64_t is unsigned long on Linux, ~0ull is not)
         if (const char* e = getenv("RX_VK_CAP_SPARE_MB")) return e[0] && atoll(e) ? (uint64_t)atoll(e) << 20 : ~0ull;
         uint64_t used = 0, allowed = 0, ram = 0, phys = 0, commit = 0;
         if (vram_usage(&used, &allowed) && allowed <= (6ull << 30) + (512ull << 20)) return 32ull << 20;
