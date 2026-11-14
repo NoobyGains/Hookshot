@@ -202,7 +202,7 @@ case-sensitive, and an unknown one is ignored.
 | `RX_VK_PRESENT_AHEAD=0` | Frame generation's copies into the window submitted each at its own time, as before #1702 (default on: a set's copies go to the GPU together). Not `RX_VK_PRESENTS_AHEAD` |
 | `RX_VK_PASS_TIMING=1` or `2` | GPU time per pass (2: per program too), logged every 600 presents |
 | `RX_VK_SLOW_LOG=<ms>` | The replay's times for each frame that took longer than this |
-| `RX_VK_LOG_PROGRAM_LIFE=1` | The programs' life: a log line at each program the game makes (its shaders set) or frees and at each program's first draw or dispatch (what it needed: a program read from the cache, a translation, a pipeline from a cache or compiled, left out, and how long after its create call), and a `program census` line every 600 presents |
+| `RX_VK_LOG_PROGRAM_LIFE=1` | The programs' life: a log line at each program the game makes (its shaders set) or frees and at each program's first draw or dispatch (what it needed: a program read from the cache, a translation, a pipeline from a cache or compiled, left out, and how long after its create call), a `program census` line every 600 presents, and one clock anchor for the host trace |
 | `RX_VK_PRESENT_THREAD=1` | On (off by default: the game's thread presents). Where the device has a second queue that can present to the window (a second queue of the replay's family, else a compute family's): each present is made on a thread and queue of its own once the frame's copy into the window is done, and the game's thread goes on at once (with NVIDIA's driver on Wayland the present otherwise waits ~2.4 ms a frame for the GPU there). One present out at most; under V-Sync On (FIFO) with `VK_KHR_present_wait`, until it is shown. The log has the fence's and the present's time (and how long after it the frame was shown) every 600 presents |
 | `HOS_PGO=<file>` | In a run of an `RX_PGO=gen` build: `<file>.reset` clears the counters, `<file>.dump` writes them to `<file>`. It is read before `hookshot_env.txt`, so set it in the environment |
 
@@ -217,6 +217,12 @@ publication waits, display acquisition/pacing, and blocking hidden inside driver
 still does not prove the GPU is idle: read GPU timestamps, present intervals and CPU profiles together.
 Query-result reads with `VK_QUERY_RESULT_WAIT_BIT` count separately as `queries` (the optional draw-statistics read);
 ordinary timestamp-result polls without that bit do not count.
+
+The program-life clock anchor has `host_before_ns`, `life_ns` and `host_after_ns`: the host readings bracket the relative
+life-clock sample. To place an event on the `HOS_PRESENT_TRACE` host clock, convert its `t` from relative seconds to
+nanoseconds, then add an offset in `[host_before_ns - life_ns, host_after_ns - life_ns]`. Event `t` is printed to 1 ms,
+so allow another 0.5 ms on either side when matching it to a frame interval. These are CPU clock readings, not GPU
+completion or display times.
 
 ### The GPU
 

@@ -529,7 +529,16 @@ void load_at_create(const nvn_prog& prog, const CreatedProgram& made) {
 } // namespace
 
 bool programs_life_on() {
-    static const bool on = env_on("RX_VK_LOG_PROGRAM_LIFE");
+    if (!host) return false; // Initialization can fail before the host is bound; close still asks for the census.
+    static const bool on = [] {
+        if (!env_on("RX_VK_LOG_PROGRAM_LIFE")) return false;
+        const int64_t before = host->now_ns();
+        const int64_t life = now_ns();
+        const int64_t after = host->now_ns();
+        logf("vk: program life: clock host_before_ns %lld life_ns %lld host_after_ns %lld",
+             (long long)before, (long long)life, (long long)after);
+        return true;
+    }();
     programs_life_flag = on;
     return on;
 }
