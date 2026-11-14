@@ -2,9 +2,10 @@
    Unix socket on Linux, a named pipe on Windows. A thread stands in for the game (a controller read, then a present,
    every 2 ms; draws a frame as a case sets them), and the test is the client. tests/test_control.py builds and runs it.
 
-   control_test <folder> [quit | level | mem]: the cases, quit (a child serving while the parent asks it to quit), the
-   HOS_CONTROL_MEM levels, or the memory cases at the level in the environment. (Windows: quitserve <pipe> and
-   servefail <pipe> are the children those start.) */
+   control_test <folder> [quit [slow | fail] | level | mem]: the cases, quit (a child serving while the parent asks it to
+   quit; POSIX: slow, its bridge slow to listen, and fail, a check failing once it serves), the HOS_CONTROL_MEM levels, or
+   the memory cases at the level in the environment. (Windows: quitserve <pipe> and servefail <pipe> are the children those
+   start.) */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
@@ -23,6 +24,7 @@
 #include <errno.h>
 #include <poll.h>
 #include <pthread.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
@@ -31,7 +33,23 @@
 #include <unistd.h>
 #endif
 
-#define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL:%d %s\n", __LINE__, #x); exit(1); } } while (0)
+/* A failed check: said, then this process ends. (POSIX) The bridge quit_case forked ends first: it holds this process's
+   stdout and stderr, so a test that reads them to their end (test_control.py) would wait for it to its time limit, and it
+   would serve on, orphaned. */
+#ifndef _WIN32
+static pid_t forked_bridge;
+#endif
+static _Noreturn void check_failed(int line, const char *what) {
+    fprintf(stderr, "FAIL:%d %s\n", line, what);
+#ifndef _WIN32
+    if (forked_bridge > 0) {
+        kill(forked_bridge, SIGKILL);
+        waitpid(forked_bridge, NULL, 0);
+    }
+#endif
+    exit(1);
+}
+#define CHECK(x) do { if (!(x)) check_failed(__LINE__, #x); } while (0)
 
 /* ---- the platform: sleep, threads, a lock ---- */
 #ifdef _WIN32
@@ -452,19 +470,41 @@ static DWORD wait_exit(HANDLE p, DWORD ms) {
 }
 #endif
 
-static void quit_case(const char *folder) {
+#ifndef _WIN32
+extern void (*hos_control_test_bound)(void);   /* (host/control.c, the test build: between the socket's bind and listen) */
+static void listen_late(void) { sleep_ms(300); }
+#endif
+
+/* quit: a child serves while the parent asks it to quit. how (POSIX): "slow", the child's bridge waits 300 ms between its
+   socket's bind and its listen; "fail", a check fails in the parent once the child serves (test_control.py wants the 1
+   it ends with, and the child gone with it) */
+static void quit_case(const char *folder, const char *how) {
     transport_name(folder, "quit");
 #ifdef _WIN32
+    (void)how;
     HANDLE child = spawn_self("quitserve", sock_path);
 #else
+    if (!strcmp(how, "slow")) hos_control_test_bound = listen_late;
+    int ready[2];   /* (the child's word that its bridge listens, which hos_control_serve returns after. The socket's file
+                       is there before that, from its bind: a connect between the two is refused) */
+    CHECK(pipe(ready) == 0);
     const pid_t child = fork();
     if (child == 0) {
+        close(ready[0]);
         if (!hos_control_serve(sock_path, &game)) _exit(3);
         start_thread(game_thread, NULL);
+        CHECK(write(ready[1], "", 1) == 1);
+        close(ready[1]);
         for (;;) pause();
     }
-    struct stat st;
-    for (int i = 0; i < 500 && stat(sock_path, &st); i++) sleep_ms(2);
+    CHECK(child > 0);
+    forked_bridge = child;
+    close(ready[1]);
+    struct pollfd heard = {ready[0], POLLIN, 0};
+    char word = 1;
+    CHECK(poll(&heard, 1, 10000) == 1 && read(ready[0], &word, 1) == 1 && word == 0);   /* (none: the bridge did not start) */
+    close(ready[0]);
+    if (!strcmp(how, "fail")) CHECK(!"a failure injected once the child serves");
 #endif
     Client *c = dial();
     char line[4096];
@@ -477,8 +517,13 @@ static void quit_case(const char *folder) {
     puts("PASS: quit: the reply, then a clean exit, the pipe gone");
 #else
     int status = 0;
-    CHECK(waitpid(child, &status, 0) == child);
+    pid_t gone = 0;
+    for (int waited = 0; !gone && waited < 5000; waited++)   /* (5 s at most, as on Windows) */
+        if (!(gone = waitpid(child, &status, WNOHANG))) sleep_ms(1);
+    CHECK(gone == child);
+    forked_bridge = 0;
     CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    struct stat st;
     CHECK(stat(sock_path, &st) != 0);   /* (the socket removed) */
     puts("PASS: quit: the reply, then a clean exit, the socket removed");
 #endif
@@ -600,7 +645,7 @@ int main(int argc, char **argv) {
         return hos_control_serve(sock_path, &game) ? 0 : 3;
     }
 #endif
-    if (argc > 2 && !strcmp(argv[2], "quit")) return quit_case(argv[1]), 0;
+    if (argc > 2 && !strcmp(argv[2], "quit")) return quit_case(argv[1], argc > 3 ? argv[3] : ""), 0;
     if (argc > 2 && !strcmp(argv[2], "level")) return level_unit(), 0;
     if (argc > 2 && !strcmp(argv[2], "mem")) return mem_case(argv[1]), 0;
     static char line[70000];

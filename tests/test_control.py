@@ -1,7 +1,8 @@
 """The control bridge (host/control.c) against a fake game, over its real transport: tests/control_test.c is built with
 host/control.c (HOS_CONTROL_NO_GAME: no game behind it) and drives it as a client. Valid commands, malformed JSON, unknown
 commands, oversized lines, clients that disconnect mid-command or never read, too many clients, the socket's mode, a file
-in the way (Linux) or the pipe's name and DACL (Windows), quit, and guest memory at each HOS_CONTROL_MEM level. Linux
+in the way (Linux) or the pipe's name and DACL (Windows), quit (on Linux also with the bridge slow to listen,
+and with a check failing while the forked bridge serves), and guest memory at each HOS_CONTROL_MEM level. Linux
 drives the Unix socket, Windows the named pipe.
 
 python -I -B tests/test_control.py [--cc gcc]
@@ -33,9 +34,12 @@ def main():
                         "-Wno-format-truncation", "-D_GNU_SOURCE", "-DHOS_CONTROL_NO_GAME",
                         str(ROOT / "tests" / "control_test.c"), str(ROOT / "host" / "control.c"), "-o", exe] + libs,
                        check=True)
-        # (the general cases, quit, the level unit, and the memory cases at each HOS_CONTROL_MEM level)
+        # (the general cases, quit, the level unit, and the memory cases at each HOS_CONTROL_MEM level. POSIX, quit's
+        # races too: its bridge slow to listen once the socket's file is there, and a check failing once the child serves)
         runs = [([], None), (["quit"], None), (["level"], None),
                 (["mem"], None), (["mem"], "ro"), (["mem"], "rw"), (["mem"], "bogus")]
+        if not windows:
+            runs[2:2] = [(["quit", "slow"], None), (["quit", "fail"], None)]
         for case, mem in runs:
             folder = tempfile.mkdtemp(dir=tmp)
             env = dict(os.environ)
@@ -43,6 +47,14 @@ def main():
             if mem is not None:
                 env["HOS_CONTROL_MEM"] = mem
             r = subprocess.run([exe, folder] + case, capture_output=True, text=True, timeout=180, env=env)
+            if case == ["quit", "fail"]:   # (its 1, and its output's end: the child, which holds that output too, ended)
+                if r.returncode != 1 or "a failure injected" not in r.stderr:
+                    print(r.stderr, end="", file=sys.stderr)
+                    print("FAIL: control_test quit fail exited %d, not 1 with the injected failure" % r.returncode,
+                          file=sys.stderr)
+                    return 1
+                print("PASS: quit: a check failing once the child serves ends the child with it")
+                continue
             print(r.stdout, end="")
             print(r.stderr, end="", file=sys.stderr)
             if r.returncode:
