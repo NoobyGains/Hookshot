@@ -4,14 +4,16 @@
 #endif
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
 #include <mutex>
-#include "fg_scale_post.h"   // (framegen_scale's push constants and the FXAA, Bloom and Colour grade rows' tables)
-using mkwvk::ScalePush, mkwvk::kGrades, mkwvk::kBloomSteps, mkwvk::kGradeLooks, mkwvk::kBloomLevels;
+#include "fg_scale_post.h"   // (framegen_scale's push constants and the FXAA, Bloom, Colour grade and Retro look rows' tables)
+using mkwvk::ScalePush, mkwvk::kGrades, mkwvk::kBloomSteps, mkwvk::kGradeLooks, mkwvk::kBloomLevels, mkwvk::kRetroLooks,
+    mkwvk::kRetroLines;
 #include <utility>
 #include "vk_present_rect.h"
 using mkwvk::PresentSourceRect;
@@ -44,7 +46,7 @@ struct Layers { int aspect = 0, level = 0, first = 0, count = 0; };
 struct VkImageBlit { Layers srcSubresource, dstSubresource; Offset srcOffsets[2], dstOffsets[2]; };
 struct Extent { uint32_t width = 0, height = 0, depth = 0; };
 struct VkImageCopy { Layers srcSubresource; Offset srcOffset; Layers dstSubresource; Offset dstOffset; Extent extent; };
-struct { int upscale = 0, sharpness = 0, framegen = 0, fxaa = 0, bloom = 0, grade = 0; } opts;
+struct { int upscale = 0, sharpness = 0, framegen = 0, fxaa = 0, bloom = 0, grade = 0, retro = 0; } opts;
 // (hookshot) The Upscaling row carries two things: 0-2 filter the finished picture and 3-4 name a
 // scene upscaler. framegen_scale wants only the first half, exactly as the inline in vk_menu.h
 // gives it, so the spy mirrors that rather than reading opts.upscale raw.
@@ -76,6 +78,8 @@ int dispatched_side = -1;
 float dispatched_cover = -1.0f;
 int dispatched_look = -1, dispatched_fxaa = -1;   // (the Colour grade, Bloom and FXAA rows)
 float dispatched_bloom = -1.0f, dispatched_sat = -1.0f;
+int dispatched_retro = -1;   // (the Retro look row)
+VkImageView small_bound = 0;   // (binding 2 of the last dispatch: the small picture, or the picture itself)
 VkImageView sampled_view = 0;
 VkImageBlit last_blit;
 VkImageCopy last_copy;
@@ -128,6 +132,7 @@ void pass(int, const Pipe& p, std::initializer_list<std::pair<VkImageView, VkSam
     ScalePush pc;
     std::memcpy(&pc, data, sizeof pc);
     dispatched_look = pc.look, dispatched_bloom = pc.bloom, dispatched_fxaa = pc.fxaa, dispatched_sat = pc.sat;
+    dispatched_retro = pc.retro, small_bound = (b.begin() + 2)->first;
     ++dispatches; dispatched_mode = pc.mode; dispatched_sharp = pc.sharp;
     dispatched_side = pc.side; dispatched_x0 = pc.x0; dispatched_x1 = pc.x1; dispatched_cover = pc.cover;
     dispatched_w = w; dispatched_h = h; sampled_view = b.begin()->first; dispatched_pipe = p.pipe;
@@ -173,6 +178,30 @@ int main() {
     reset(); opts.grade = kGrades + 4; CHECK(draw()); CHECK(dispatched_look == kGrades - 1);   // (an options file's value past the last: the last)
     reset(); opts.bloom = 2; CHECK(draw()); CHECK(dispatches == 2 && dispatched_side == 0 && dispatched_bloom == kBloomLevels[2]);
     reset(); opts.bloom = 3; opts.grade = 1; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
+    // (the Retro look alone runs the pass too: first its picture of kRetroLines (240) lines, as wide as the window's picture at
+    // that height (427 for 16:9), then the pass that reads it, unsharpened. None on the game's own HDR10 picture; an options
+    // file's value past the last is the last)
+    reset(); opts.retro = 1; opts.sharpness = 60; CHECK(draw());
+    CHECK(dispatches == 2 && dispatched_retro == 1 && dispatched_side == 0 && dispatched_sharp == 0.0f && dispatched_fxaa == 0);
+    CHECK(image_calls == 2 && made_w == 427 && made_h == kRetroLines && small_bound == scale.small.view && sampled_view == 12);
+    reset(); opts.retro = 2; opts.fxaa = 1; CHECK(draw(nullptr, 3440, 1440));   // (an ultrawide window: 573 x 240)
+    CHECK(dispatched_retro == 2 && made_w == 573 && made_h == 240 && dispatched_fxaa == 1);   // (the shader puts it before FXAA)
+    reset(); opts.retro = kRetroLooks + 2; CHECK(draw()); CHECK(dispatched_retro == kRetroLooks - 1);
+    reset(); opts.retro = -3; CHECK(!draw()); CHECK(dispatches == 0);
+    reset(); opts.retro = 2; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
+    // (a picture under 240 lines: its own size, never more pixels than it has, however wide the window)
+    {
+        const int tiny[] = {0, 0, 320, 180};
+        reset(); opts.retro = 1; CHECK(draw(tiny)); CHECK(made_w == 320 && made_h == 180);
+        reset(); opts.retro = 1; CHECK(draw(tiny, 3440, 1440)); CHECK(made_w == 320 && made_h == 180);
+    }
+    // (with a menu's blurred sides: one small picture, the Retro look's, which the sides read too; Off again, the pass not run
+    // for it, and the sides' small picture back at 1/8)
+    reset(); opts.retro = 1; wide_now = WideSides{0.25f, 1}; CHECK(draw());
+    CHECK(dispatches == 2 && dispatched_side == 1 && dispatched_retro == 1 && made_h == kRetroLines && image_calls == 2);
+    reset(); opts.retro = 1; CHECK(draw()); opts.retro = 0; CHECK(!draw()); CHECK(dispatches == 2);
+    wide_now = WideSides{0.25f, 1}; CHECK(draw());
+    CHECK(dispatches == 4 && dispatched_retro == 0 && made_w == 320 && made_h == 180 && image_calls == 3);
     // (ultrawide's menu sides alone run the pass, with the plain copy, and push the middle 16:9's edges)
     reset(); wide_now = WideSides{0.25f, 2}; CHECK(draw());
     CHECK(dispatches == 1 && dispatched_mode == 0 && dispatched_sharp == 0.0f);

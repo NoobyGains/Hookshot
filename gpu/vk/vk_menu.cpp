@@ -51,7 +51,7 @@
 #include "vk_fsr3.h"      // (the Upscaler row: whether AMD FSR 3.1 runs on this GPU)
 #include "vk_fsr3fi.h"    // (the Frame generation row: whether FSR 3.1 makes the frame)
 #include "vk_fsr4.h"
-#include "fg_scale_post.h"   // (the Bloom and Colour grade rows' steps)
+#include "fg_scale_post.h"   // (the Bloom, Colour grade and Retro look rows' steps)
 #include "vk_temporal.h"
 #include "vk_reflex.h"
 #include "vk_antilag.h"
@@ -837,6 +837,10 @@ const char* tx_grade(int v) {
     static const char* t[kGrades] = {"Off", "Rich", "Vivid", "Warm", "Cool", "Cinematic"};
     return (unsigned)v < kGrades ? t[v] : t[0];
 }
+const char* tx_retro(int v) {   // (the Retro look row)
+    static const char* t[kRetroLooks] = {"Off", "N64", "N64 + CRT"};
+    return (unsigned)v < kRetroLooks ? t[v] : t[0];
+}
 const char* tx_text_speed(int v) {
     static const char* t[] = {"Normal", "2x", "4x", "Instant"};
     if ((unsigned)v >= sizeof t / sizeof t[0]) return t[0];
@@ -1405,6 +1409,11 @@ Row rows[] = {
     {TAB_GRAPHICS, "Colour grade", &opts.grade, 0, kGrades - 1, 1, tx_grade,
      "A colour grade on the finished picture: richer colour and contrast, a warm or cool tone, a soft vignette. Off shows the "
      "game's own colours. Not with HDR set to Native. Changes at once.", nullptr, false, true},
+    // (hookshot: in the same pass, after the three above)
+    {TAB_GRAPHICS, "Retro look", &opts.retro, 0, kRetroLooks - 1, 1, tx_retro,
+     "The picture as a Nintendo 64 showed it on the TVs of its day: 240 lines, soft, its colours cut to the console's 16 bits "
+     "with its dither. N64 + CRT adds faint scanlines and darker corners. While on, it takes the place of the Window scaling "
+     "filter, FXAA and Sharpness; this menu stays sharp. Not with HDR set to Native. Changes at once.", nullptr, false, true},
     {TAB_GRAPHICS, "Texture detail", &opts.texture_detail, 0, 3, 1, tx_texture_detail,
      "How much of the big textures (ground, walls, buildings) is kept in video memory. Lower uses less, for a softer "
      "picture up close: for 6 and 8 GB cards that slow down after a while. Applies to textures made after the change; "
