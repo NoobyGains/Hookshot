@@ -856,8 +856,13 @@ void use_queue_state(uint64_t queue) {
 
 template <class T>
 T payload(const uint8_t* a, uint32_t bytes) {
+    // (a payload at least as long as T, nearly every one, is copied at T's size: a copy the compiler makes inline. A variable size
+    // was a call of the C library's memmove for every op replayed, a few percent of the Steam Deck's render thread)
     T v{};
-    std::memcpy(&v, a, std::min<size_t>(sizeof v, bytes));
+    if (bytes >= sizeof v) [[likely]]
+        std::memcpy(&v, a, sizeof v);
+    else
+        std::memcpy(&v, a, bytes);
     return v;
 }
 
