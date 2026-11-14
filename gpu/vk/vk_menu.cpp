@@ -11,10 +11,11 @@
 // (never a value, wherever the cursor is); a right click is Esc. On the Cheats page and its lists a click is Enter (on a
 // choice's or an amount's left or right half, Left or Right) and a right click goes back. The drawing records each control's
 // place and the mouse is tested against that (vk_menu_hit.h).
-// (hookshot) The rows that take a restart (Row::restart) are tagged "After restart" while their value is not the one the game
-// started with, and the Graphics tab's help lists them. Closing the menu then asks whether to restart now (menu_restart.h):
-// Later keeps the saved settings for the next start and is not asked again until they change; Restart now saves and
-// closes the window as the player would, and the game starts again (WM_APP + 9: host/hos_relaunch.c).
+// (hookshot) The rows that take a restart (Row::restart) say so in their help before they are changed (restart_note), are
+// tagged "After restart" while their value is not the one the game started with, and the Graphics tab's help lists them.
+// Closing the menu then asks whether to restart now (menu_restart.h): Later keeps the saved settings for the next start
+// and is not asked again until they change; Restart now saves and closes the window as the player would, and the game
+// starts again (WM_APP + 9: host/hos_relaunch.c).
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -2243,6 +2244,9 @@ bool restart_changed(const Row& r) {
     const int slot = restart_slot_of(r);
     return r.value && r.restart && slot >= 0 && row_restart_value(r) != restart_state.start[slot];
 }
+/// The help's line for a row that takes a restart (help_box): 0 not such a row, 1 it is one (said before it is changed, so
+/// the player knows what a change will ask for), 2 it is changed and waits for the restart
+int restart_note(const Row& r) { return !(r.value && r.restart) ? 0 : restart_changed(r) ? 2 : 1; }
 void restart_values(int* now) {
     for (int i = 0; i < kRows; i++)
         if (restart_slot[i] >= 0) now[restart_slot[i]] = row_restart_value(rows[i]);
@@ -2253,6 +2257,12 @@ unsigned restart_pending() {
     int now[mr::kMax];
     restart_values(now);
     return restart_state.pending(now);
+}
+/// Whether the help shows the "Restart needed" line with this row selected: something other than the row itself waits for
+/// a restart. The row's own change is said by its note, in gold (restart_note): the line is for what else waits
+bool restart_line_shown(const Row& selected) {
+    const int slot = restart_slot_of(selected);
+    return (restart_pending() & ~(slot >= 0 ? 1u << slot : 0u)) != 0;
 }
 /// Whether closing the menu now asks to restart: something pending, not declined with Later, and a window to close
 bool restart_ask() {
@@ -3528,27 +3538,32 @@ float title_banner(ui::Ctx& c, const char* title, const char* right) {
     return hh;
 }
 /// The help box from (x0, y0) to x1: a title, the help, a line set off by a bar, a gold line at its foot. min_h: its height at
-/// least (the tallest help the page can have, so it does not jump)
+/// least (the tallest help the page can have, so it does not jump). The restart note and the gold line stand in that height
+/// while the help leaves them the room, the gold line at the box's foot: the box grew by them, and moved up when it then
+/// passed y_max, each time a row that takes a restart was changed
 void help_box(ui::Ctx& c, float x0, float x1, float y0, const char* title, const char* help, const char* hint, const char* gold_line,
-              float min_h = 0, bool after_restart = false, float y_min = 0, float y_max = FLT_MAX) {
+              float min_h = 0, int takes_restart = 0, float y_min = 0, float y_max = FLT_MAX) {
     // (y_max: the box ends above it, the prompt strip's top: moved up as far as y_min (under the banner) when it is taller than
     // the room below y0, its reserved height (min_h) given up first, its text cut at its foot only if it still does not fit)
     const float s = c.s, w = x1 - x0 - 48 * s;
     const float th = help ? ui::para(c, c.f.body, 18 * s, ImVec2(), 0, help, w, false) : 0,
                 hh = hint ? ui::para(c, c.f.body, 16 * s, ImVec2(), 0, hint, w - 18 * s, false) : 0;
-    const float text_h = th + (hint ? 14 * s + hh : 0), note = after_restart ? 30 * s : 0;
-    const float fixed = 22 * s + (title ? 32 * s : 0) + note + (gold_line ? 52 * s : 0) + 22 * s;
-    float body = std::max(min_h, text_h);
+    const float text_h = th + (hint ? 14 * s + hh : 0), note = takes_restart ? 30 * s : 0;
+    const float fixed = 22 * s + (title ? 32 * s : 0) + 22 * s, need = note + text_h + (gold_line ? 52 * s : 0);
+    float body = std::max(min_h, need);
     if (y0 + fixed + body > y_max) y0 = std::max(y_min, y_max - fixed - body);
-    if (y0 + fixed + body > y_max) body = std::max(text_h, y_max - y0 - fixed);
+    if (y0 + fixed + body > y_max) body = std::max(need, y_max - y0 - fixed);
     const float y1 = std::min(y0 + fixed + body, y_max);
     ui::box(c, ImVec2(x0, y0), ImVec2(x1, y1));
     c.d->PushClipRect(ImVec2(x0, y0), ImVec2(x1, y1), true);
     float y = y0 + 22 * s;
     if (title) ui::text(c, c.f.heading, 21 * s, ImVec2(x0 + 24 * s, y), ui::kInk, title), y += 32 * s;
-    if (after_restart) {   // (this row's change applies at the next start: said here, not in the row, where it would cut the name)
-        ui::diamond(c, ImVec2(x0 + 29 * s, y + 10 * s), 4 * s, ui::kGoldHi);
-        ui::text_mid(c, c.f.strong, 16 * s, x0 + 42 * s, y + 10 * s, ui::kGoldHi, "Takes effect after a restart");
+    if (takes_restart) {   // (restart_note: a row whose change applies at the next start says so before it is changed, in the
+                           // tone of the hint's bar below, and in gold once it is changed: said here, not in the row, where
+                           // it would cut the name)
+        const ImU32 ink = takes_restart == 2 ? ui::kGoldHi : ui::kAccent;
+        ui::diamond(c, ImVec2(x0 + 29 * s, y + 10 * s), 4 * s, ink);
+        ui::text_mid(c, c.f.strong, 16 * s, x0 + 42 * s, y + 10 * s, ink, "Takes effect after a restart");
         y += note;
     }
     if (help) ui::para(c, c.f.body, 18 * s, ImVec2(x0 + 24 * s, y), ui::kInk, help, w);
@@ -3557,8 +3572,8 @@ void help_box(ui::Ctx& c, float x0, float x1, float y0, const char* title, const
         c.d->AddRectFilled(ImVec2(x0 + 24 * s, hy + 2 * s), ImVec2(x0 + 26.5f * s, hy + hh - 2 * s), ui::kAccent, s);
         ui::para(c, c.f.body, 16 * s, ImVec2(x0 + 40 * s, hy), ui::kSoft, hint, w - 18 * s);
     }
-    if (gold_line) {
-        y += body + 20 * s;
+    if (gold_line) {   // (at the box's foot, whatever the help's height)
+        y = y1 - 22 * s - 32 * s;
         c.d->AddLine(ImVec2(x0 + 24 * s, y), ImVec2(x1 - 24 * s, y), ui::alpha(ui::kEdge, 0.8f), std::max(1.0f, s));
         ui::diamond(c, ImVec2(x0 + 29 * s, y + 20 * s), 4 * s, ui::kGoldHi);
         ui::text_mid(c, c.f.strong, 16 * s, x0 + 42 * s, y + 20 * s, ui::kGoldHi, gold_line);
@@ -4051,7 +4066,7 @@ void draw_options(ui::Ctx& c) {
     if (is_nfc_scan(selr)) hint = nfc_scan_says(-1);
     if (is_share_row(selr) && !share_said.empty()) hint = share_said.c_str();   // (what the last save did)
     if (&selr == &rows[kBugReportRow]) hint = bug_report_hint();   // (the Bug report: where it was saved, or why not)
-    const std::string pending_line = (cur_tab == TAB_GRAPHICS || cur_tab == TAB_DEBUG) && restart_pending() ? restart_line(c, 16 * s, hx1 - hx0 - 66 * s) : "";
+    const std::string pending_line = (cur_tab == TAB_GRAPHICS || cur_tab == TAB_DEBUG) && restart_line_shown(selr) ? restart_line(c, 16 * s, hx1 - hx0 - 66 * s) : "";
     static float help_tall = 0, help_tall_w = 0;
     static std::string help_said;   // (Save my pipeline list's line as measured: measured again when it changes)
     if (help_tall_w != hx1 - hx0 || help_said != share_said)
@@ -4091,10 +4106,9 @@ void draw_options(ui::Ctx& c) {
     }
     const float bar_top = ui::prompt_bar_top(c);   // (the strip itself drawn last, over all: below)
     float bottom = std::min(c.h - c.safe, bar_top) - 10 * s;   // (the rows end above the prompts)
-    const bool after = restart_changed(selr);
+    const int after = restart_note(selr);
     if (narrow) {   // (the help over the column's foot, the rows above it: at most half the room, the rows get the rest)
-        const float help_h = std::min(22 * s + 32 * s + help_tall + (after ? 30 * s : 0) + (pending_line.empty() ? 0 : 52 * s) + 22 * s,
-                                      (bottom - hh) * 0.5f);
+        const float help_h = std::min(22 * s + 32 * s + help_tall + 22 * s, (bottom - hh) * 0.5f);   // (the box's kept height)
         bottom = std::min(bar_top, c.h - c.safe) - help_h - 16 * s;
         help_box(c, hx0, hx1, bottom + 8 * s, selr.name, selr.help, hint, pending_line.empty() ? nullptr : pending_line.c_str(), help_tall,
                  after, bottom + 8 * s, bar_top - 10 * s);
@@ -4238,10 +4252,10 @@ void draw_controls(ui::Ctx& c) {
     float bottom = std::min(c.h - c.safe, bar_top) - 10 * s;   // (the rows end above the prompts)
     if (narrow) {
         bottom = std::min(bar_top, c.h - c.safe) - 200 * s;
-        help_box(c, hx0, hx1, bottom + 8 * s, nullptr, help, hint, nullptr, 0, page_row && restart_changed(*page_row), bottom + 8 * s,
+        help_box(c, hx0, hx1, bottom + 8 * s, nullptr, help, hint, nullptr, 0, page_row ? restart_note(*page_row) : 0, bottom + 8 * s,
                  bar_top - 10 * s);
     } else {
-        help_box(c, hx0, hx1, std::max(hh + 26 * s, c.h * 0.30f), title, help, hint, nullptr, 0, page_row && restart_changed(*page_row),
+        help_box(c, hx0, hx1, std::max(hh + 26 * s, c.h * 0.30f), title, help, hint, nullptr, 0, page_row ? restart_note(*page_row) : 0,
                  hh + 18 * s, bar_top - 12 * s);
     }
     const float rx0 = cx0 + 44 * s, rx1 = cx1 - 44 * s, width = rx1 - rx0;

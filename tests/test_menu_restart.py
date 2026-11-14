@@ -114,6 +114,20 @@ def sources():
         raise SystemExit("vk_menu.cpp: a value still says (restart) whatever runs: \"(after restart)\" is added while it differs")
     if '"After restart"' not in menu or "Restart needed: " not in menu:
         raise SystemExit("vk_menu.cpp: no After restart tag on a changed value, or no Restart needed line")
+    # (the help says a row takes a restart before it is changed, and in gold once it is: restart_note, help_box)
+    if "int restart_note(const Row& r) { return !(r.value && r.restart) ? 0 : restart_changed(r) ? 2 : 1; }" not in menu or \
+            "const int after = restart_note(selr);" not in menu or "takes_restart == 2 ? ui::kGoldHi : ui::kAccent" not in menu:
+        raise SystemExit("vk_menu.cpp: the help does not say that a row takes a restart before the row is changed")
+    # (the help box keeps its height when a row that takes a restart is selected or changed: the note and the Restart needed
+    # line stand in the height it keeps for the tallest help, the line at its foot)
+    box = function(menu, "void help_box(")
+    if "need = note + text_h + (gold_line ? 52 * s : 0)" not in box or "float body = std::max(min_h, need);" not in box or \
+            "y = y1 - 22 * s - 32 * s;" not in box:
+        raise SystemExit("vk_menu.cpp: the help box grows by the restart note and the Restart needed line again")
+    # (the Restart needed line is for what else waits: not shown while the selected row's own change is all there is)
+    if "(restart_pending() & ~(slot >= 0 ? 1u << slot : 0u)) != 0" not in function(menu, "bool restart_line_shown(const Row& selected) {") or \
+            "&& restart_line_shown(selr) ? restart_line(" not in menu:
+        raise SystemExit("vk_menu.cpp: the Restart needed line shows again when only the selected row waits for a restart")
     if "restart_init();" not in function(menu, "void menu_init() {"):
         raise SystemExit("menu_init does not keep the start values")
     # (Auto (this PC) sets the Output resolution and the Profile once the device is known, after host/hos_main.c read them at
