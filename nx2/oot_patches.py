@@ -593,6 +593,21 @@ TURN_NEW = TURN_OLD.replace("memcpy(&_b,c->vreg[1],4);", "memcpy(&_b,c->vreg[1],
 TURN_HELPERS = ("a64_fpx_mul32_fma32", "a64_fpx_hot_mul32_fma32")
 TURN_CALL = "c->x[30] = 0x8263eaf8ULL; f_8084fd40(c);"   # (the call before the clamp: a fast float region there would hold it)
 TURN_DECL = "extern uint32_t hos_oot_turn_factor(uint32_t factor_bits);\n"
+# Special step rates counted in updates (host/oot_high_fps.h oot_step_count has why): the SpStepRate manager's update, f_82f72df0,
+# counts a cell's phase down at +0x98 (x24 the cell) by w9 = max(round(step), 1), the step s8 (the time object's +0x10), at
+# 0x82f73288..0x82f73298. After the max (the csinc) w9 goes through hos_oot_step_count: the whole frames of the steps while
+# the frames' own time is the step. After zortos293/Lichii PR #1663 by atk3001.
+STEPRATE_HEAD = "void f_82f72df0(Ctx *__restrict A64_NOESC c) {\n"
+STEPRATE_MAX = ("    { uint64_t _r = ((c->n == c->v) && !c->z) ? c->x[9] : ((uint64_t)0 + 1); _r &= 0xFFFFFFFFULL; "
+                "c->x[9] = _r; }\n")
+STEPRATE_SUB = ("    { uint64_t _a=c->x[10],_b=((uint64_t)(uint32_t)(((uint32_t)(c->x[9])) << 0)),_r=_a-_b; _r&=0xFFFFFFFFULL; "
+                "c->x[9]=_r; }\n"
+                "    recomp_store32(c,c->x[24] + 152,c->x[9]);\n")
+STEPRATE_OLD = STEPRATE_MAX + STEPRATE_SUB
+STEPRATE_NEW = (STEPRATE_MAX +
+                "    c->x[9]=hos_oot_step_count(c->x[24] + 152, (uint32_t)c->vreg[8][0], (uint32_t)c->x[9]);"
+                "   /* (nx2/oot_patches.py: the countdown in frames of the clock above 60 fps) */\n" + STEPRATE_SUB)
+STEPRATE_DECL = "extern uint32_t hos_oot_step_count(uint64_t at, uint32_t step_bits, uint32_t game);\n"
 
 
 def _function(s, head_text):
@@ -693,6 +708,24 @@ def patch_turn_speed(s):
             s = s.replace('#include "a64.h"\n', '#include "a64.h"\n' + TURN_DECL, 1)
         return s, 1
     return s, 0
+
+
+def patch_step_rate(s):
+    """The SpStepRate cells' countdown (STEPRATE_OLD): (s, 1) when f_82f72df0 is in s with the hook (made now or before), (s, 0)
+    when it is not here or its code differs (another game version): left as it is."""
+    at = _function(s, STEPRATE_HEAD)
+    if at is None:
+        return s, 0
+    head, end = at
+    body = s[head:end]
+    if body.count(STEPRATE_NEW) == 1:
+        return s, 1
+    if body.count(STEPRATE_OLD) != 1:
+        return s, 0
+    s = s[:head] + body.replace(STEPRATE_OLD, STEPRATE_NEW, 1) + s[end:]
+    if STEPRATE_DECL not in s:
+        s = s.replace('#include "a64.h"\n', '#include "a64.h"\n' + STEPRATE_DECL, 1)
+    return s, 1
 
 
 def patch_text_speed(s):
@@ -1054,6 +1087,11 @@ def patch_file(s, name, protect_hearts=False):
     if turn != out:
         lines.append("oot_patches: the turn action's speed clamp follows the frame rate in " + name)
     out = turn
+    rate, found = patch_step_rate(out)
+    counts["step rate sites"] += found
+    if rate != out:
+        lines.append("oot_patches: the special step rates' countdown in frames of the clock in " + name)
+    out = rate
     return out, counts, lines
 
 
@@ -1098,6 +1136,8 @@ def report(paths, counts, protect_hearts=False):
         print("oot_patches: WARNING: the floor-carry gate was found at %d of %d places" % (total["floor sites"], len(FLOOR_SITES)))
     if total["turn sites"] != 1:   # (without it, above 60 fps Gohma cannot steer and walks into the walls of her room)
         print("oot_patches: WARNING: the turn action's speed clamp was found %d times, not once" % total["turn sites"])
+    if total["step rate sites"] != 1:   # (without it, above 60 fps a slow motion's phases run fps / 60 times too short)
+        print("oot_patches: WARNING: the special step rates' countdown was found %d times, not once" % total["step rate sites"])
     for what, n in done.items():
         if n != 1:
             print("oot_patches: WARNING: the %s was found %d times" % (what, n))

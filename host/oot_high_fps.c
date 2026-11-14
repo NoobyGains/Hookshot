@@ -1,8 +1,10 @@
-/* (hookshot) The sound manager's job at up to 60 Hz, the physics solver's steps rounded up, the floor-carry gate and the turn
-   action's speed clamp, with a measured frame step: the lifted f_80435300, f_838ceb80, f_838cfc10, the three follow-surface
-   updates and f_8263e8e0 call these (nx2/oot_patches.py); host/oot_high_fps.h has why and the logic.
+/* (hookshot) The sound manager's job at up to 60 Hz, the physics solver's steps rounded up, the floor-carry gate, the turn
+   action's speed clamp and the special step rates' countdowns, with a measured frame step: the lifted f_80435300, f_838ceb80,
+   f_838cfc10, the three follow-surface updates, f_8263e8e0 and f_82f72df0 call these (nx2/oot_patches.py); host/oot_high_fps.h
+   has why and the logic.
    HOS_FPS_LOG (on, by the switches' rule: =0 is off): what they do, every 600 calls. HOS_FPS_FLOOR=0: the game's floor-carry
-   gate at every frame rate, HOS_FPS_TURN=0: the game's turn speed clamp (for comparisons). */
+   gate at every frame rate, HOS_FPS_TURN=0: the game's turn speed clamp, HOS_FPS_STEPRATE=0: the game's special step rate
+   countdowns (for comparisons). */
 #include "hos.h"
 #include "oot_high_fps.h"
 #define WIN32_LEAN_AND_MEAN
@@ -106,4 +108,28 @@ uint32_t hos_oot_turn_factor(uint32_t factor_bits) {
                     (long long)InterlockedExchange64(&changed, 0), oot_bits_float(factor_bits), v ? "" : ", HOS_FPS_TURN=0: the game's");
     }
     return made;
+}
+
+/* What f_82f72df0 takes off the SpStepRate cell's countdown at `at` this update (step_bits the frame step, game its own count):
+   the whole frames of the steps while the frames' own time is the step */
+static FrameWhole step_rate_frames;   /* (under step_rate_lock: the manager's update may run on any job thread) */
+static SRWLOCK step_rate_lock = SRWLOCK_INIT;
+uint32_t hos_oot_step_count(uint64_t at, uint32_t step_bits, uint32_t game) {
+    static int on = -1;
+    int v = __atomic_load_n(&on, __ATOMIC_RELAXED);
+    if (v < 0) v = !(getenv("HOS_FPS_STEPRATE") && !atoi(getenv("HOS_FPS_STEPRATE"))), __atomic_store_n(&on, v, __ATOMIC_RELAXED);
+    if (!v) return game;
+    AcquireSRWLockExclusive(&step_rate_lock);
+    const uint32_t count = oot_step_count(&step_rate_frames, at, step_bits, game, timed());
+    ReleaseSRWLockExclusive(&step_rate_lock);
+    if (fps_log()) {
+        static volatile LONG64 calls, taken, game_taken;
+        InterlockedAdd64(&taken, count);
+        InterlockedAdd64(&game_taken, game);
+        const LONG64 n = InterlockedIncrement64(&calls);
+        if (n % 600 == 0)
+            hos_log("oot: special step rate countdowns: %lld frames counted in the last 600 updates (the game's count: %lld; step %.3f)",
+                    (long long)InterlockedExchange64(&taken, 0), (long long)InterlockedExchange64(&game_taken, 0), oot_bits_float(step_bits));
+    }
+    return count;
 }

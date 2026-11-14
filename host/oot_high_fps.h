@@ -41,11 +41,23 @@
    (turn_factor), so the bound is the applied turn as a per-frame speed, the speed itself: the clamp changes nothing, as at
    60 fps. A step of 1 or more, and no frame time (a cap of 60), keep the game's factor. After zortos293/Lichii PR #1645 by
    atk3001 (GPL-3.0), which found it with the debug server's reads (at 150 fps she steered at 0.045 rad/s instead of about 1) and
-   fixed it as a code patch for the emulator. */
+   fixed it as a code patch for the emulator.
+
+   Special step rates counted in updates: the game's SpStepRate manager (game::framework GameSpStepRateMgr, its update f_82f72df0
+   with the time object in x1, whose +0x10 is the frame step) slows the game's time categories down for a while: a boss's death
+   (DieEventSpStepRateFrame, OneShotDungeonBossCommonRequestSpStepRateAtDie), a hit, an event. Each cell runs through phases of a
+   given number of 60 fps frames (+0x9c, +0xa0, +0xa4), counted down at +0x98 by max(round(step), 1) each update: 1 a frame at
+   60 fps, 2 at 30, and 1 every update above 60, so there a phase ran fps / 60 times too short (a quarter of its time at 240
+   fps), while the time it holds back (+0xa8.., which adds (1 - rate) x step) followed the clock. While the frames' own time is
+   the step the countdown takes the whole frames of the steps instead, the fraction carried per cell (step_count, one remainder
+   per countdown address as host/frame_whole.h keeps them); a cap of 60, and a step of 0 or less, NaN or huge, keep the game's
+   count. After zortos293/Lichii PR #1663 by atk3001 (GPL-3.0), which found the countdown ("the step rate manager") and carries
+   its fraction in a code patch for the emulator. */
 #pragma once
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
+#include "frame_whole.h"
 
 typedef struct {
     float part;   /* (the steps added up since the job last ran, under 1) */
@@ -120,4 +132,13 @@ static inline float oot_floor_cut(uint32_t seconds_bits) {
 static inline uint32_t oot_turn_factor(uint32_t factor_bits, int timed) {
     const float f = oot_bits_float(factor_bits), size = fabsf(f);
     return timed && size >= 0.001f && size < 1.0f ? oot_float_bits(1.0f / f) : factor_bits;
+}
+
+/* What f_82f72df0 takes off a SpStepRate cell's countdown at `at` this update: game, its own max(round(step), 1); with the
+   frames' own time as the step (timed) the whole frames of the steps, their fraction kept in w for that countdown. Not
+   thread-safe by itself (frame_whole): the caller holds a lock */
+static inline uint32_t oot_step_count(FrameWhole *w, uint64_t at, uint32_t step_bits, uint32_t game, int timed) {
+    const float step = oot_bits_float(step_bits);
+    if (!timed || !(step > 0.0f) || !(step < 1000.0f)) return game;
+    return frame_whole(w, at, step_bits, 1);
 }
