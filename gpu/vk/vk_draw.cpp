@@ -8739,8 +8739,14 @@ void prepare_progress_log(const char* what, size_t done, size_t total, std::chro
 /// worker borrows one program, builds its notes' pipelines one after the other and destroys each at once: never more
 /// pipelines alive than workers (warm_bounded.h). Before the game, with the precompile's progress; a start closed in it
 /// begins again at the next one, and after two that did not get through, the notes are taken as they are (what a cache
-/// then lacks is made at its first draw, as on an install that was never prepared)
-void precompile_warm(void (*progress)(size_t done, size_t total)) {
+/// then lacks is made at its first draw, as on an install that was never prepared).
+/// A pipeline the driver never finishes (#2107; "stuck at 99%") holds its worker for good. As precompile_run and predict_run,
+/// once no program is left to hand out (or anywhere in the run, after a fault in the driver) and nothing has finished for
+/// RX_VK_PRECOMPILE_STALL_S seconds (30; 0: wait for all), the warm goes on and leaves that worker in the driver. Before, it
+/// waited for ever: the game's first start on its start-up screen, the Builder's run until its watchdog ended it and left the
+/// game unprepared. Gone on, it leaves no marker and does not save the cache (a save can wait on that worker); the start then
+/// loads at create calls (precompile_run), and it counts as a start that did not get through. True: it went on
+bool precompile_warm(void (*progress)(size_t done, size_t total)) {
     const auto t0 = std::chrono::steady_clock::now();
     const std::string warming = precompile_built_path() + ".warming";
     int ended_inside = 0;
@@ -8749,94 +8755,159 @@ void precompile_warm(void (*progress)(size_t done, size_t total)) {
         fclose(f);
     }
     pcache_init();
-    const std::vector<NoteRef> refs = pipe_notes_refs();
+    // (the workers' state on the heap, shared with them: a worker the driver never lets go of is left there when the warm goes on,
+    // and still uses it)
+    struct Warm {
+        std::vector<NoteRef> refs;
+        std::vector<uint64_t> progs, computes;
+        std::unordered_map<uint64_t, std::vector<const NoteRef*>> by_prog;
+        std::string notes_path;
+        std::atomic<size_t> done{0}, built{0}, failed{0}, no_program{0}, computes_done{0}, computes_built{0}, computes_failed{0};
+        std::atomic<bool> abandoned{false}, graphics_begun{false};
+        std::mutex first_graphics;
+    };
+    const auto w = std::make_shared<Warm>();
+    w->refs = pipe_notes_refs();
     if (ended_inside >= 2) {
         remove(warming.c_str());
-        precompile_built_write(refs.size());
+        precompile_built_write(w->refs.size());
         logf("vk: precompile: the last two starts did not get through building the noted pipelines into the cache: left as they "
              "are, a pipeline the caches lack is made when it is first drawn");
-        return;
+        return false;
     }
     if (FILE* f = fopen(warming.c_str(), "wb")) fprintf(f, "%d\n", ended_inside + 1), fclose(f);
     // (by program, in the notes' order: a worker's borrowed program serves all its notes)
-    std::vector<uint64_t> progs;
-    std::unordered_map<uint64_t, std::vector<const NoteRef*>> by_prog;
-    for (const NoteRef& r : refs) {
-        auto& list = by_prog[r.prog];
-        if (list.empty()) progs.push_back(r.prog);
+    for (const NoteRef& r : w->refs) {
+        auto& list = w->by_prog[r.prog];
+        if (list.empty()) w->progs.push_back(r.prog);
         list.push_back(&r);
     }
-    const size_t total = refs.size();
-    std::atomic<size_t> done{0}, built{0}, failed{0}, no_program{0};
-    const std::string notes_path = pipe_notes_path();
-    auto log_at = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-    const unsigned threads = std::min(usable_cpus(), 16u);
-    warm_bounded::run(progs.size(), threads, [&](size_t i) {
-        static thread_local bool off = (ub_thread_off(), true);   // (a background thread: see ub_thread_off)
-        static thread_local FILE* in = fopen(notes_path.c_str(), "rb");
-        static thread_local std::unique_ptr<PipeNote> note = std::make_unique<PipeNote>();
-        (void)off;
-        const auto& list = by_prog.at(progs[i]);
-        size_t found = 0;
-        program_cache_borrow(progs[i], [&](Program& p) {
-            ensure_layout(p);
-            for (const NoteRef* r : list) {
-                if (r->variant != p.variant || prepare_stopped() || !pipe_note_at(in, r->at, note.get())) continue;
-                found++;
-                const VkPipeline made = build_graphics(p, note->s, note_targets(*note), (VkPrimitiveTopology)note->topo);
-                if (made) vkDestroyPipeline(dev.device, made, nullptr);   // (it is in the cache now: that is all it was built for)
-                (made ? built : failed)++;
-            }
-        });
-        no_program += list.size() - std::min(found, list.size());
-        done += list.size();
-    }, [] { return prepare_stopped(); }, [&](size_t) {
-        if (progress) progress(done.load(), total);
-        prepare_progress_log("noted pipelines", done.load(), total, t0, log_at);
-    });
+    w->notes_path = pipe_notes_path();
     // (the compute pipelines too, every kept compute program's: a first start in start mode makes them all, and a load at a
     // create call only asks the caches, so on a new install a first dispatch found none (666 in one first session). Built
-    // into the cache and let go, as the noted ones)
-    const std::vector<uint64_t> computes = done == total && !prepare_stopped() ? program_cache_compute_keys() : std::vector<uint64_t>{};
-    std::atomic<size_t> computes_done{0}, computes_built{0}, computes_failed{0};
-    const auto c0 = std::chrono::steady_clock::now();
-    warm_bounded::run(computes.size(), threads, [&](size_t i) {
-        static thread_local bool off = (ub_thread_off(), true);
+    // into the cache and let go, as the noted ones, after them. On the one bar with them: counted as they are built, so that
+    // neither the screen nor the --prepare-shaders run's watchdog sees a full bar stand still while they are)
+    w->computes = program_cache_compute_keys();
+    const size_t total = w->refs.size(), all_total = total + w->computes.size();
+    auto log_at = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    // (each holds a borrowed program and the pipeline it builds. RX_VK_WARM_THREADS=<n>: another count, to time it against;
+    // predict_run takes every usable CPU)
+    static const unsigned threads = [] {
+        const int n = getenv("RX_VK_WARM_THREADS") ? atoi(getenv("RX_VK_WARM_THREADS")) : 0;
+        return n > 0 ? std::min((unsigned)n, 64u) : std::min(usable_cpus(), 16u);
+    }();
+    static const int stall_s = getenv("RX_VK_PRECOMPILE_STALL_S") ? atoi(getenv("RX_VK_PRECOMPILE_STALL_S")) : 30;
+    const int faults_before = driver_faults();   // (one in this run's first milliseconds counts as this run's)
+    size_t seen = 0;
+    auto moved = std::chrono::steady_clock::now();
+    bool faulted = false;
+    const auto stuck = [&](size_t count, bool none_left) {   // (the stall clock: each pipeline counts as it finishes)
+        const auto now = std::chrono::steady_clock::now();
+        if (count != seen) {
+            seen = count, moved = now;
+            return false;
+        }
+        faulted = driver_faults() > faults_before;
+        return warm_bounded::goes_on(stall_s, std::chrono::duration<double>(now - moved).count(), none_left, faulted);
+    };
+    const auto build_notes = [w](size_t i) {
+        static thread_local bool off = (ub_thread_off(), true);   // (a background thread: see ub_thread_off)
+        // (the thread's own handle on the notes, closed when the thread ends: a bare FILE* stayed open for the process's life)
+        static thread_local std::unique_ptr<FILE, int (*)(FILE*)> in(fopen(w->notes_path.c_str(), "rb"), fclose);
+        static thread_local std::unique_ptr<PipeNote> note = std::make_unique<PipeNote>();
         (void)off;
-        program_cache_borrow(computes[i], [&](Program& p) {
-            if (!p.compute || p.failed || p.stages.empty() || !p.stages[0].module || prepare_stopped() || taau_key(p.key)) return;
+        const auto& list = w->by_prog.at(w->progs[i]);
+        size_t found = 0, counted = 0;
+        program_cache_borrow(w->progs[i], [&](Program& p) {
             ensure_layout(p);
-            const VkComputePipelineCreateInfo ci = compute_pipeline_info(p, true);   // (as a dispatch and a load ask for it)
-            VkPipeline made = VK_NULL_HANDLE;
-            if (cached_compute(&ci, &made) == VK_SUCCESS && made) {
-                vkDestroyPipeline(dev.device, made, nullptr);
-                computes_built++;
-            } else {
-                computes_failed++;
+            for (const NoteRef* r : list) {
+                // (gone on without this worker: no more of its list)
+                if (r->variant != p.variant || prepare_stopped() || w->abandoned.load() || !pipe_note_at(in.get(), r->at, note.get()))
+                    continue;
+                found++;
+                // (the first graphics pipeline alone, the rest in parallel, as precompile_run's and predict_run's: after a
+                // preparation the first start's first pipeline step is this one, and NVIDIA's driver (621.14, RTX 4070 Ti
+                // Super) faulted when all the workers began theirs at once)
+                std::unique_lock first(w->first_graphics, std::defer_lock);
+                if (!w->graphics_begun.load()) {
+                    first.lock();
+                    if (w->graphics_begun.load()) first.unlock();
+                }
+                const VkPipeline made = build_graphics(p, note->s, note_targets(*note), (VkPrimitiveTopology)note->topo);
+                w->graphics_begun = true;
+                if (first.owns_lock()) first.unlock();
+                if (made) vkDestroyPipeline(dev.device, made, nullptr);   // (it is in the cache now: that is all it was built for)
+                (made ? w->built : w->failed)++;
+                if (counted < list.size()) counted++, w->done++;   // (each as it finishes: a program of many notes moves the count)
             }
         });
-        computes_done++;
-    }, [] { return prepare_stopped(); }, [&](size_t) {
-        if (progress) progress(total, total);
-        prepare_progress_log("compute pipelines", computes_done.load(), computes.size(), c0, log_at);
-    });
-    const bool all = done == total && computes_done == computes.size();
+        w->no_program += list.size() - std::min(found, list.size());
+        w->done += list.size() - counted;   // (and the notes no kept variant answered, or a stop left out)
+    };
+    const warm_bounded::Ended notes_end = warm_bounded::run_or_go_on(w->progs.size(), threads, build_notes,
+        [] { return prepare_stopped(); }, [&](size_t) {
+            if (progress) progress(w->done.load(), all_total);
+            prepare_progress_log("noted pipelines", w->done.load(), total, t0, log_at);
+        }, [&](bool none_left) { return stuck(w->done.load(), none_left); });
+    bool gone_on = notes_end.gone_on;
+    const auto c0 = std::chrono::steady_clock::now();
+    if (!gone_on && w->done.load() == total && !prepare_stopped() && !w->computes.empty()) {
+        moved = c0;
+        const auto build_computes = [w](size_t i) {
+            static thread_local bool off = (ub_thread_off(), true);
+            (void)off;
+            program_cache_borrow(w->computes[i], [&](Program& p) {
+                if (!p.compute || p.failed || p.stages.empty() || !p.stages[0].module || prepare_stopped() || w->abandoned.load() ||
+                    taau_key(p.key))
+                    return;
+                ensure_layout(p);
+                const VkComputePipelineCreateInfo ci = compute_pipeline_info(p, true);   // (as a dispatch and a load ask for it)
+                VkPipeline made = VK_NULL_HANDLE;
+                if (cached_compute(&ci, &made) == VK_SUCCESS && made) {
+                    vkDestroyPipeline(dev.device, made, nullptr);
+                    w->computes_built++;
+                } else {
+                    w->computes_failed++;
+                }
+            });
+            w->computes_done++;
+        };
+        gone_on = warm_bounded::run_or_go_on(w->computes.size(), threads, build_computes, [] { return prepare_stopped(); },
+            [&](size_t) {
+                if (progress) progress(total + w->computes_done.load(), all_total);
+                prepare_progress_log("compute pipelines", w->computes_done.load(), w->computes.size(), c0, log_at);
+            }, [&](bool none_left) { return stuck(total + w->computes_done.load(), none_left); }).gone_on;
+    }
+    if (gone_on) {
+        w->abandoned = true;
+        prepare_left_workers_note();   // (the cache's save can wait on them: vk_main.cpp)
+        if (progress) progress(all_total, all_total);
+        logf("vk: precompile: %zu of %zu pipelines built into the cache, nothing finished for %d s (%s): the game starts, loading "
+             "at create calls; what the cache lacks is made when first drawn, and the next start builds them again",
+             w->done.load() + w->computes_done.load(), all_total, stall_s,
+             faulted ? "the driver faulted, and is stuck since" : "the last ones stuck in the driver");
+    }
+    const bool all = !gone_on && w->done.load() == total && w->computes_done.load() == w->computes.size();
     static const bool prepare_only = env_on("HOOKSHOT_PREPARE_ONLY");   // (a --prepare-shaders run: vk_main.cpp)
     if (all && !prepare_stopped()) {
-        pipeline_cache_save(true);   // (in the file before the marker says they are there)
+        // (in the file before the marker says they are there. The preparation's own process leaves no marker, and saves the
+        // cache next, as the run's last part, where its watchdog tells a long save from a stuck pipeline: vk_main.cpp)
+        if (!prepare_only) pipeline_cache_save(true);
         // (not by the preparation's own process: warm_bounded.h leaves_marker)
         if (warm_bounded::leaves_marker(prepare_only, all, prepare_stopped())) precompile_built_write(total);
         remove(warming.c_str());
     }
     logf("vk: precompile: %zu noted pipelines of %zu programs and %zu compute pipelines of %zu compute programs built into the "
          "pipeline cache and let go (%zu and %zu not made, %zu whose program variant is not kept), on %u threads in %.1f s (the "
-         "compute ones %.1f s)%s", built.load(), progs.size(), computes_built.load(), computes.size(), failed.load(),
-         computes_failed.load(), no_program.load(), threads,
+         "compute ones %.1f s)%s", w->built.load(), w->progs.size(), w->computes_built.load(), w->computes.size(),
+         w->failed.load(), w->computes_failed.load(), w->no_program.load(), threads,
          std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(),
          std::chrono::duration<double>(std::chrono::steady_clock::now() - c0).count(),
-         !all || prepare_stopped() ? "; stopped before the end: the next start goes on"
+         gone_on ? "; gone on without the pipelines the driver did not finish"
+         : !all || prepare_stopped() ? "; stopped before the end: the next start goes on"
          : prepare_only ? "; the preparation's own process: the first start of the game builds them again, from the driver's "
                           "cache, into the cache it then loads from" : "");
+    return gone_on;
 }
 
 /// (hookshot, RX_VK_LOAD=create) The start with nothing kept ready by a list: each note is only found, by its place in the file,
@@ -8920,8 +8991,12 @@ void precompile_run(void (*progress)(size_t done, size_t total)) {
     if (programs_load_at_create()) {
         // (the pipeline cache's files dropped at this start, pcache_drop_stale: what the marker says is in them is gone)
         if (pcache_drop_stale()) remove(precompile_built_path().c_str());
-        if (!precompile_covers_notes()) precompile_warm(progress);
+        const bool warm_gone_on = !precompile_covers_notes() && precompile_warm(progress);
         if (precompile_covers_notes()) return precompile_at_create();
+        // (a warm that went on from pipelines the driver did not finish: the rest of the notes are in the cache, so this start
+        // loads at create calls all the same. The keep-everything precompile below would build every note again, the stuck
+        // ones too, and hold them all: the memory load at create calls is there to save)
+        if (warm_gone_on && !prepare_stopped() && !env_on("HOOKSHOT_PREPARE_ONLY")) return precompile_at_create();
         // (the window was closed in it; or this is the preparation's own process, which leaves no marker: its warm filled
         // the driver's cache, the first start of the game warms again and loads at create calls from then on)
         if (prepare_stopped() || env_on("HOOKSHOT_PREPARE_ONLY")) return;
