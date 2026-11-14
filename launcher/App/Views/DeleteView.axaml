@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:c="using:LongshotLauncher.Controls"
+             x:Class="LongshotLauncher.Views.DeleteView"
+             x:DataType="vm:DeleteViewModel">
+  <Border Classes="dialog">
+    <StackPanel>
+      <TextBlock Classes="modaltitle" Text="{Binding Title}"/>
+      <TextBlock Classes="sub" Text="{Binding Sub}"/>
+      <Border Margin="0,10,0,0" Padding="12,9" CornerRadius="8" Background="#26000000" BorderBrush="{StaticResource GlassLine}" BorderThickness="1">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+          <c:Icon Kind="folder" Width="15" Height="15" Foreground="{StaticResource InkFaintText}" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="1" Classes="mono path" Foreground="{StaticResource InkSoft}" Text="{Binding Folder}" ToolTip.Tip="{Binding FolderFull}"
+                     VerticalAlignment="Center"/>
+        </Grid>
+      </Border>
+      <TextBlock Classes="hint" Margin="0,12,0,0" Text="{c:T 'Your saves stay: every version shares them.'}"/>
+      <TextBlock Classes="hint" Margin="0,12,0,0" IsVisible="{Binding DefaultNote}" Text="{Binding DefaultText}"/>
+      <StackPanel Classes="buttons">
+        <Button Content="{c:T 'Keep it'}" Command="{Binding KeepCommand}"/>
+        <Button Classes="bad" Content="{c:T 'Delete'}" Command="{Binding DeleteCommand}"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

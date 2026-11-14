@@ -1,0 +1,296 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:c="using:LongshotLauncher.Controls"
+             x:Class="LongshotLauncher.Views.HomeView"
+             x:DataType="vm:HomeViewModel">
+  <UserControl.Styles>
+    <Style Selector="Border.vrow.selected">
+      <Setter Property="Background" Value="{StaticResource Selected}"/>
+    </Style>
+    <Style Selector="Button.savescard">
+      <Setter Property="Height" Value="NaN"/>
+      <Setter Property="Padding" Value="12,10,14,10"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="FontWeight" Value="Normal"/>
+    </Style>
+    <Style Selector="Border.vrow:pointerover">
+      <Setter Property="Background" Value="{StaticResource RowHover}"/>
+    </Style>
+    <Style Selector="Border.vrow.selected:pointerover">
+      <Setter Property="Background" Value="{StaticResource Selected}"/>
+    </Style>
+  </UserControl.Styles>
+  <DockPanel>
+    <!-- the launcher's channel offers another launcher: a newer one, or after a channel switch maybe an older one (SelfUpdate) -->
+    <Border DockPanel.Dock="Top" IsVisible="{Binding HasLauncherUpdate}" Margin="0,0,0,6" Padding="16,12,14,12" CornerRadius="10"
+            BorderBrush="#4D5FB08A" BorderThickness="1">
+      <Grid ColumnDefinitions="30,*,Auto" ColumnSpacing="14">
+        <Border Width="30" Height="30" CornerRadius="15" Background="{StaticResource GoSoft}" VerticalAlignment="Center">
+          <c:Icon Kind="arrowUp" Width="16" Height="16" Foreground="{StaticResource Go}"/>
+        </Border>
+        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+          <TextBlock Text="{Binding LauncherUpdateHeading}" FontWeight="SemiBold"/>
+          <TextBlock Classes="note" Text="{Binding LauncherUpdateText}" TextWrapping="Wrap"/>
+          <!-- while it updates: each step, the download's percentage and bar, and Cancel while it downloads -->
+          <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0" IsVisible="{Binding UpdateLauncherCommand.IsBusy}">
+            <TextBlock Classes="note tnum" Foreground="{StaticResource InfoInk}" Text="{Binding UpdateLauncherCommand.Status}" VerticalAlignment="Center"/>
+            <Button Classes="link smaller" Content="{c:T 'Cancel'}" Command="{Binding CancelLauncherUpdateCommand}"
+                    IsVisible="{Binding UpdateLauncherCommand.CanCancel}" VerticalAlignment="Center"/>
+          </StackPanel>
+          <c:Bar Height="4" Margin="0,6,0,2" Fill="{StaticResource Brand}"
+                 Value="{Binding UpdateLauncherCommand.Progress}" IsVisible="{Binding UpdateLauncherCommand.HasFraction}"/>
+        </StackPanel>
+        <Button Grid.Column="2" Classes="small" Command="{Binding UpdateLauncherCommand}" VerticalAlignment="Center">
+          <c:BusyContent Content="{Binding LauncherUpdateButton}" IsBusy="{Binding UpdateLauncherCommand.IsBusy}" BusyText="{c:T 'Updating…'}"/>
+        </Button>
+      </Grid>
+    </Border>
+    <!-- Hookshot's saves found, offered once -->
+    <Border DockPanel.Dock="Top" IsVisible="{Binding HasHookshotOffer}" Margin="0,0,0,6" Padding="16,12,14,12" CornerRadius="10"
+            BorderBrush="#4D5FB08A" BorderThickness="1">
+      <Grid ColumnDefinitions="30,*,Auto" ColumnSpacing="14">
+        <Border Width="30" Height="30" CornerRadius="15" Background="{StaticResource GoSoft}" VerticalAlignment="Center">
+          <c:Icon Kind="disk" Width="16" Height="16" Foreground="{StaticResource Go}"/>
+        </Border>
+        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+          <TextBlock Text="{c:T 'Your Hookshot saves'}" FontWeight="SemiBold"/>
+          <TextBlock Classes="note" Text="{Binding HookshotOffer}" TextWrapping="Wrap"/>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Classes="small" Content="{c:T 'Not now'}" Command="{Binding NotNowHookshotCommand}"/>
+          <Button Classes="small" Content="{c:T 'Import…'}" Command="{Binding ImportHookshotCommand}"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+    <!-- NX2navi's saves found, offered once -->
+    <Border DockPanel.Dock="Top" IsVisible="{Binding HasNx2naviOffer}" Margin="0,0,0,6" Padding="16,12,14,12" CornerRadius="10"
+            BorderBrush="#4D5FB08A" BorderThickness="1">
+      <Grid ColumnDefinitions="30,*,Auto" ColumnSpacing="14">
+        <Border Width="30" Height="30" CornerRadius="15" Background="{StaticResource GoSoft}" VerticalAlignment="Center">
+          <c:Icon Kind="disk" Width="16" Height="16" Foreground="{StaticResource Go}"/>
+        </Border>
+        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+          <TextBlock Text="{c:T 'Your NX2navi saves'}" FontWeight="SemiBold"/>
+          <TextBlock Classes="note" Text="{Binding Nx2naviOffer}" TextWrapping="Wrap"/>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Classes="small" Content="{c:T 'Not now'}" Command="{Binding NotNowNx2naviCommand}"/>
+          <Button Classes="small" Content="{c:T 'Import…'}" Command="{Binding ImportNx2naviCommand}"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+    <!-- a problem to read -->
+    <Border DockPanel.Dock="Top" Classes="warnbox" IsVisible="{Binding HasNotice}" Margin="0,0,0,6">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+        <c:Icon Kind="alert" Foreground="{StaticResource Warn}" VerticalAlignment="Top"/>
+        <TextBlock Grid.Column="1" Text="{Binding Notice}" TextWrapping="Wrap"/>
+        <Button Grid.Column="2" Classes="link soft" Content="{c:T 'Dismiss'}" Command="{Binding DismissProblemCommand}" VerticalAlignment="Top"/>
+      </Grid>
+    </Border>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <Panel>
+      <!-- no build yet: Build -->
+      <StackPanel IsVisible="{Binding NoBuilds}" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Panel Width="190" Height="190" HorizontalAlignment="Center">
+          <Ellipse Margin="8">
+            <Ellipse.Fill>
+              <RadialGradientBrush>
+                <GradientStop Offset="0" Color="#663D63E6"/>
+                <GradientStop Offset="0.68" Color="#003D63E6"/>
+              </RadialGradientBrush>
+            </Ellipse.Fill>
+          </Ellipse>
+          <Image Source="avares://LongshotLauncher/Assets/longshot.png" Width="132" Height="132" RenderOptions.BitmapInterpolationMode="HighQuality">
+            <Image.Effect><DropShadowEffect OffsetX="0" OffsetY="12" BlurRadius="14" Color="#99000000"/></Image.Effect>
+          </Image>
+        </Panel>
+        <TextBlock Classes="heading" Text="{c:T 'Build your game'}" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+        <TextBlock Classes="sub" MaxWidth="470" TextAlignment="Center" HorizontalAlignment="Center"
+                   Text="{c:T 'Longshot turns your own copy of Ocarina of Time into a PC game. It takes about 15 to 30 minutes, once per version.'}"/>
+        <Button Classes="primary tall" HorizontalAlignment="Center" Margin="0,26,0,0" MinWidth="190" FontSize="16" Command="{Binding BuildCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <c:Icon Kind="download" Width="16" Height="16"/>
+            <TextBlock Text="{c:T 'Build'}"/>
+          </StackPanel>
+        </Button>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding KnowsNewest}">
+          <TextBlock Classes="note" Text="{c:T 'Builds'}" VerticalAlignment="Center"/>
+          <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding NewestDefaultText}" VerticalAlignment="Center"/>
+          <Border Classes="tag" Classes.rc="{Binding DefaultIsCandidate}" Classes.nightly="{Binding DefaultIsNightly}">
+            <TextBlock Text="{Binding DefaultChannel}"/>
+          </Border>
+          <Button Classes="link" Content="{c:T 'Change'}" Command="{Binding ChannelCommand}" Margin="4,0,0,0"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding Checking}">
+          <c:Spinner VerticalAlignment="Center"/>
+          <TextBlock Classes="note" Text="{c:T 'Asking git.magicbean.dev for the newest version…'}"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,8,0,0" IsVisible="{Binding ShowCheckLine}">
+          <c:Spinner VerticalAlignment="Center"/>
+          <TextBlock Classes="note" Text="{Binding CheckCommand.Status}"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding CheckFailed}">
+          <TextBlock Classes="note" Text="{c:T 'git.magicbean.dev did not answer, so the version to build is not known.'}"/>
+          <Button Classes="link" Content="{c:T 'Try again'}" Command="{Binding RetryCheckCommand}"/>
+        </StackPanel>
+        <TextBlock Classes="faint" HorizontalAlignment="Center" Margin="0,8,0,0"
+                   Text="{c:T 'You need your dump of the game: a .nup file, or its romfs and exefs folders.'}"/>
+      </StackPanel>
+
+      <!-- the default version, and every version -->
+      <Grid IsVisible="{Binding HasBuilds}" ColumnDefinitions="300,*" ColumnSpacing="44">
+        <StackPanel VerticalAlignment="Center" Margin="0,0,0,12">
+          <TextBlock Classes="title" Text="Longshot"/>
+          <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,18,0,0">
+            <TextBlock Text="{Binding HeroVersion}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            <Border Classes="tag" Classes.rc="{Binding HeroIsCandidate}" Classes.nightly="{Binding HeroIsNightly}">
+              <TextBlock Text="{Binding HeroChannel}"/>
+            </Border>
+          </StackPanel>
+          <TextBlock Classes="note" Text="{Binding HeroNote}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+          <!-- the default version's saves: a button the size of a card, so copying, importing and exporting saves is easy to find -->
+          <Button Classes="savescard" Command="{Binding SavesDefaultCommand}" Margin="0,16,0,0" ToolTip.Tip="{c:T 'Your saves, which every version shares: import them, export them'}">
+            <Grid ColumnDefinitions="32,*,Auto" ColumnSpacing="12">
+              <Border Width="32" Height="32" CornerRadius="16" Background="{StaticResource GoSoft}" VerticalAlignment="Center">
+                <c:Icon Kind="disk" Width="16" Height="16" Foreground="{StaticResource Go}"/>
+              </Border>
+              <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                <TextBlock Text="{c:T 'Manage saves'}" FontSize="14" FontWeight="SemiBold"/>
+                <TextBlock Classes="note" Text="{Binding HeroSaves}" TextTrimming="CharacterEllipsis"/>
+              </StackPanel>
+              <c:Icon Grid.Column="2" Kind="chevronRight" Width="16" Height="16" Foreground="{StaticResource InkFaintText}" VerticalAlignment="Center"/>
+            </Grid>
+          </Button>
+          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,14,0,0" IsVisible="{Binding HeroHasUpdate}">
+            <c:Icon Kind="arrowUp" Width="15" Height="15" Foreground="{StaticResource BrandInk}" VerticalAlignment="Center"/>
+            <TextBlock FontSize="13" Foreground="{StaticResource BrandInk}" Text="{Binding HeroUpdate}" VerticalAlignment="Center"/>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,26,0,0">
+            <Button Classes="go" Command="{Binding PlayDefaultCommand}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <c:Icon Kind="play" Width="18" Height="18"/>
+                <TextBlock Text="{c:T 'Play'}"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="primary tall" Content="{c:T 'Update'}" Command="{Binding UpdateDefaultCommand}" IsVisible="{Binding HeroHasUpdate}"/>
+          </StackPanel>
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+          <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+            <TextBlock Classes="label" Text="{c:T 'YOUR VERSIONS'}" Margin="0" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Classes="link" Command="{Binding ChannelCommand}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <c:Icon Kind="plus" Width="14" Height="14"/>
+                <TextBlock Text="{c:T 'Build another version'}"/>
+              </StackPanel>
+            </Button>
+          </Grid>
+          <Border Classes="card">
+            <ScrollViewer MaxHeight="370" VerticalScrollBarVisibility="Auto">
+              <ItemsControl ItemsSource="{Binding Builds}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:BuildItemViewModel">
+                    <Border Classes="vrow" Classes.selected="{Binding IsSelected}" Background="Transparent"
+                            BorderBrush="{StaticResource GlassLine}" BorderThickness="{Binding Separator}">
+                      <Panel>
+                        <Border Width="3" HorizontalAlignment="Left" Margin="0,10" CornerRadius="0,2,2,0" Background="{StaticResource Brand}"
+                                IsVisible="{Binding IsSelected}"/>
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                          <Button Classes="row" Command="{Binding SelectCommand}" Background="Transparent">
+                            <Grid ColumnDefinitions="20,*,Auto" ColumnSpacing="14" Margin="16,13">
+                              <Panel VerticalAlignment="Center">
+                                <c:Icon Kind="star" Width="17" Height="17" Foreground="{StaticResource Warn}" IsVisible="{Binding IsDefault}"/>
+                                <Ellipse Width="14" Height="14" Stroke="{StaticResource InkFaint}" StrokeThickness="1.5" IsVisible="{Binding ShowRing}"/>
+                              </Panel>
+                              <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Version}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Classes="faint" Text="{Binding Meta}" IsVisible="{Binding ShowMeta}" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsDeleting}">
+                                  <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>
+                                  <TextBlock Classes="faint" Text="{Binding DeletingText}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding ShowUpdateLine}">
+                                  <c:Icon Kind="arrowUp" Width="12" Height="12" Foreground="{StaticResource BrandInk}" VerticalAlignment="Center"/>
+                                  <TextBlock FontSize="12" FontWeight="Medium" Foreground="{StaticResource BrandInk}" Text="{Binding UpdateLine}"/>
+                                </StackPanel>
+                              </StackPanel>
+                              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Border Classes="chip quiet" IsVisible="{Binding IsDefault}"><TextBlock Text="{c:T 'Default'}"/></Border>
+                                <Border Classes="tag" Classes.rc="{Binding IsCandidate}" Classes.nightly="{Binding IsNightly}">
+                                  <TextBlock Text="{Binding Channel}"/>
+                                </Border>
+                              </StackPanel>
+                            </Grid>
+                          </Button>
+                          <Button Grid.Column="1" Classes="primary small" Margin="0,0,14,0" Command="{Binding UpdateCommand}"
+                                  IsVisible="{Binding HasUpdate}" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                              <c:Icon Kind="arrowUp" Width="14" Height="14"/>
+                              <TextBlock Text="{c:T 'Update'}"/>
+                            </StackPanel>
+                          </Button>
+                          <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="Auto,*,Auto" Margin="50,0,12,12" IsVisible="{Binding ShowActions}">
+                            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowDefaultNote}" Margin="4,0,0,0">
+                              <c:Icon Kind="star" Width="13" Height="13" Foreground="{StaticResource Warn}" VerticalAlignment="Center"/>
+                              <TextBlock Classes="faint" Text="{c:T 'Your default: the Play button starts this one'}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowOtherActions}">
+                              <Button Classes="small" Command="{Binding PlayCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                  <c:Icon Kind="play" Width="14" Height="14"/>
+                                  <TextBlock Text="{c:T 'Play this version'}"/>
+                                </StackPanel>
+                              </Button>
+                              <Button Classes="small" Command="{Binding SetDefaultCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                  <c:Icon Kind="starLine" Width="14" Height="14"/>
+                                  <TextBlock Text="{c:T 'Set as default'}"/>
+                                </StackPanel>
+                              </Button>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                              <Button Classes="small" Command="{Binding SavesCommand}" ToolTip.Tip="{c:T 'Import or export your saves, which every version shares'}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                  <c:Icon Kind="disk" Width="14" Height="14"/>
+                                  <TextBlock Text="{c:T 'Saves'}"/>
+                                </StackPanel>
+                              </Button>
+                              <Button Classes="icon" Command="{Binding FolderCommand}" ToolTip.Tip="{c:T 'Open folder'}"><c:Icon Kind="folder"/></Button>
+                              <Button Classes="icon iconbad" Command="{Binding DeleteCommand}" ToolTip.Tip="{c:T 'Delete'}"><c:Icon Kind="trash"/></Button>
+                            </StackPanel>
+                          </Grid>
+                        </Grid>
+                      </Panel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Border>
+          <!-- the footer, and Check for updates: Longshot's channels and the launcher's own, now -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,16,0,0">
+            <TextBlock Classes="faint" Text="{Binding Footer}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Classes="link smaller" Command="{Binding CheckForUpdatesCommand}" VerticalAlignment="Center"
+                    ToolTip.Tip="{c:T 'Look for a new Longshot on your versions\' channels, and a new launcher'}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <c:Icon Kind="refresh" Width="13" Height="13"/>
+                <TextBlock Text="{c:T 'Check for updates'}"/>
+              </StackPanel>
+            </Button>
+          </Grid>
+          <TextBlock Classes="faint" Text="{Binding Status}" Margin="0,4,0,0" IsVisible="{Binding ShowStatus}"/>
+          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0" IsVisible="{Binding CheckCommand.IsBusy}">
+            <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>
+            <TextBlock Classes="faint" Text="{Binding CheckCommand.Status}"/>
+          </StackPanel>
+        </StackPanel>
+      </Grid>
+    </Panel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

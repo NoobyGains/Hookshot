@@ -1,0 +1,103 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:c="using:LongshotLauncher.Controls"
+             x:Class="LongshotLauncher.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+  <DockPanel>
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <TextBlock Classes="faint" Text="{Binding Version}" VerticalAlignment="Center"/>
+        <Ellipse Width="3" Height="3" Fill="{StaticResource InkFaint}" Margin="12,0" VerticalAlignment="Center"/>
+        <Button Classes="link soft" Content="{c:T 'Release notes'}" Command="{Binding ReleaseNotesCommand}"/>
+      </StackPanel>
+      <Button Grid.Column="1" Classes="primary" Content="{c:T 'Done'}" Command="{Binding DoneCommand}"/>
+    </Grid>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="-8,0" Padding="8,0,8,4">
+      <StackPanel>
+        <TextBlock Classes="heading" Text="{c:T 'Settings'}"/>
+        <TextBlock Classes="sub" Text="{c:T 'For the launcher. Each version keeps its own build settings.'}"/>
+        <TextBlock Classes="label" Text="{c:T 'LAUNCHER LANGUAGE'}"/>
+        <ComboBox Classes="dd" ItemsSource="{Binding Languages}" SelectedItem="{Binding Language}" MinWidth="240"
+                  AutomationProperties.Name="{c:T 'Launcher language'}">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:SettingsViewModel+UiLanguageChoice"><TextBlock Text="{Binding Name}"/></DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Classes="hint" Text="{c:T 'The launcher\'s own words. The game\'s language is a build setting.'}"/>
+        <TextBlock Classes="label" Text="{c:T 'CHANNEL FOR NEW BUILDS'}"/>
+        <ItemsControl ItemsSource="{Binding Channels}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><UniformGrid Columns="3" ColumnSpacing="8"/></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:SettingsViewModel+ChannelOption">
+              <RadioButton Classes="seg" GroupName="defchan" IsChecked="{Binding IsPicked}">
+                <StackPanel>
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                  <TextBlock FontSize="12" Foreground="{StaticResource InkFaintText}" Text="{Binding Version}"/>
+                </StackPanel>
+              </RadioButton>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Classes="hint" Text="{Binding ChannelHint}"/>
+        <Grid ColumnDefinitions="Auto,*">
+          <TextBlock Classes="label" Text="{c:T 'LAUNCHER UPDATES'}"/>
+          <!-- a change of channel is checked at once -->
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="10,0,0,10" VerticalAlignment="Bottom"
+                      IsVisible="{Binding CheckCommand.IsBusy}">
+            <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>
+            <TextBlock Classes="faint" Text="{Binding CheckCommand.Status}" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Grid>
+        <ItemsControl ItemsSource="{Binding LauncherChannels}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><UniformGrid Columns="3" ColumnSpacing="8"/></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:SettingsViewModel+LauncherChannelOption">
+              <RadioButton Classes="seg" GroupName="launchchan" IsChecked="{Binding IsPicked}">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+              </RadioButton>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Classes="hint" Text="{Binding LauncherHint}"/>
+        <StackPanel IsVisible="{Binding ShowMenu}">
+          <TextBlock Classes="label" Text="{c:T 'APPLICATIONS MENU'}"/>
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button Content="{Binding AddToMenuText}" Command="{Binding AddToMenuCommand}"/>
+            <Button Content="{c:T 'Remove'}" Command="{Binding RemoveFromMenuCommand}" IsVisible="{Binding InMenu}"/>
+          </StackPanel>
+          <TextBlock Classes="hint" Text="{Binding MenuHint}"/>
+        </StackPanel>
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="20" Margin="0,0,0,22">
+          <StackPanel>
+            <TextBlock Classes="label" Text="{c:T 'WHERE BUILDS GO'}"/>
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <TextBox Classes="path" Text="{Binding BuildsFolder}"/>
+              <Button Grid.Column="1" Content="{c:T 'Change'}" Command="{Binding ChangeBuildsCommand}"/>
+            </Grid>
+            <TextBlock Classes="hint" Text="{c:T 'Each version gets its own folder in here.'}"/>
+          </StackPanel>
+          <StackPanel Grid.Column="1">
+            <TextBlock Classes="label" Text="{c:T 'BUILD FILES'}"/>
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <TextBox Classes="path" Text="{Binding Work}"/>
+              <Button Grid.Column="1" Content="{c:T 'Change'}" Command="{Binding ChangeWorkCommand}"/>
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+              <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" Text="{Binding WorkNote}" VerticalAlignment="Center"/>
+              <Button Classes="link smaller" Command="{Binding FreeSpaceCommand}">
+                <c:BusyContent Content="{c:T 'Free up space'}" IsBusy="{Binding FreeSpaceCommand.IsBusy}" BusyText="{c:T 'Freeing…'}"/>
+              </Button>
+              <Button Classes="link smaller" Content="{c:T 'Default'}" Command="{Binding DefaultWorkCommand}"/>
+            </StackPanel>
+          </StackPanel>
+        </Grid>
+        <CheckBox Classes="tick" Content="{c:T 'Check for updates when the launcher starts'}" IsChecked="{Binding CheckUpdates}"/>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

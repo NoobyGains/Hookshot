@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="using:LongshotLauncher.Controls"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             x:Class="LongshotLauncher.Views.StopBuildView"
+             x:DataType="vm:StopBuildViewModel">
+  <Border Classes="dialog">
+    <StackPanel>
+      <TextBlock Classes="modaltitle" Text="{c:T 'Stop the build?'}"/>
+      <TextBlock Classes="sub" Text="{Binding Sub}"/>
+      <StackPanel Classes="buttons">
+        <Button Content="{c:T 'Keep building'}" Command="{Binding KeepCommand}"/>
+        <Button Classes="bad" Content="{c:T 'Stop the build'}" Command="{Binding StopCommand}"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

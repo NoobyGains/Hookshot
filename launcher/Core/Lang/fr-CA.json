@@ -1,0 +1,13 @@
+{
+  "@language": "French (Canada)",
+  "@note": "Only what differs from fr.json: Québec and Microsoft Canadian French terms (bogue, nuanceur, téléverser).",
+  "Copy for a bug report": "Copier pour un rapport de bogue",
+  "Prepare shaders": "Préparer les nuanceurs",
+  "Prepare shaders now": "Préparer les nuanceurs maintenant",
+  "{0} on this PC, shaders included": "{0} sur ce PC, nuanceurs compris",
+  "Mesh shaders available": "Nuanceurs de maillage disponibles",
+  "No mesh shaders; using the slower compute fallback": "Pas de nuanceurs de maillage ; repli sur la méthode compute, plus lente",
+  "Mesh shader support could not be checked": "La prise en charge des nuanceurs de maillage n'a pas pu être vérifiée",
+  "Pick your dump of the game. Longshot reads it on this PC; nothing is uploaded.": "Choisissez votre dump du jeu. Longshot le lit sur ce PC ; rien n'est téléversé.",
+  "It, or its driver, has no mesh shaders, which the game needs. An NVIDIA RTX 20 series or newer, an AMD Radeon RX 6000 or newer, or an Intel Arc card can. If your card is one of those, update its driver.": "Elle, ou son pilote, n'a pas de nuanceurs de maillage, dont le jeu a besoin. Une NVIDIA RTX série 20 ou plus récente, une AMD Radeon RX 6000 ou plus récente, ou une carte Intel Arc en ont. Si votre carte en fait partie, mettez à jour son pilote."
+}

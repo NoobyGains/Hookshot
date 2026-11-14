@@ -1,0 +1,78 @@
+# The checks of every pull request to main and every push to it (docs/releases.md, "CI"; the same structure as
+# MagicBeanDev/Longshot's ci.yml): the pull request's title, then the launcher compiled with warnings as errors from the
+# packages its lock files pin, and its tests (no game, no network but the package restore and Longshot's checkout, which the
+# core tests compare the launcher's copies against: make_game.py's languages, the SDK licence commits).
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # (a squash-merged pull request's title is its commit on main, a line of the next release's notes, and what decides the next
+  # version: a Conventional Commit, by scripts/release.py's TITLE. Only the title is read, from the event)
+  title:
+    name: Conventional Commit title
+    if: github.event_name == 'pull_request'
+    runs-on: quick  # (a quick job: the runner kept free for these takes it, or any runner with room)
+    timeout-minutes: 5
+    steps:
+      - uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          sparse-checkout: scripts
+      # (the rule is main's, so a pull request cannot loosen it for itself; only while main has no scripts/release.py yet, the
+      # pull request that adds it, is it read from the pull request)
+      - if: hashFiles('scripts/release.py') == ''
+        uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          sparse-checkout: scripts
+      - name: The title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          python3 -I - <<'PY'
+          import importlib.util, os, sys
+          spec = importlib.util.spec_from_file_location("release", "scripts/release.py")
+          release = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(release)
+          title = os.environ["TITLE"]
+          if title.startswith("WIP: "):
+              title = title[5:]
+          if not release.TITLE.match(title) or len(title.split(": ", 1)[-1].strip()) == 0:
+              print("::error::the title must be a Conventional Commit, type(scope): description (CONTRIBUTING.md): %r" % title)
+              sys.exit(1)
+          print("ok: %s" % title)
+          PY
+
+  # (not on pull requests for now, as on Longshot: pull requests run only the title check, and carry their own test results;
+  # it runs on pushes to main and by hand, Actions > CI > Run workflow)
+  checks:
+    name: Compile and test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: https://github.com/actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Longshot's main (what the launcher copies from it)
+        run: git clone --depth 1 https://git.magicbean.dev/MagicBeanDev/Longshot.git "$RUNNER_TEMP/longshot"
+      - name: Compile
+        run: dotnet build LongshotLauncher.slnx --configuration Release -p:RestoreLockedMode=true
+      - name: The core's tests
+        run: python3 -I -B tests/test_launcher_core.py --strict --longshot "$RUNNER_TEMP/longshot"
+      - name: The release script's tests
+        run: python3 -I -B tests/test_release.py

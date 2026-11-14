@@ -1,0 +1,53 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:core="using:LongshotLauncher.Core"
+             xmlns:c="using:LongshotLauncher.Controls"
+             x:Class="LongshotLauncher.Views.HookshotSettingsView"
+             x:DataType="vm:HookshotSettingsViewModel">
+  <Border Classes="dialog wide" MaxHeight="560">
+    <DockPanel>
+      <StackPanel DockPanel.Dock="Bottom" Classes="buttons" Margin="0,16,0,0">
+        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}"/>
+        <Button Content="{c:T 'Close'}" Command="{Binding CloseCommand}"/>
+        <Button Classes="primary" Content="{c:T 'Import'}" Command="{Binding ImportCommand}"/>
+      </StackPanel>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel>
+        <TextBlock Classes="modaltitle" Text="{c:T 'Import graphics and controls from Hookshot'}"/>
+        <TextBlock Classes="sub" Text="{c:T 'Choose one Longshot version to receive Hookshot\'s compatible settings.'}"/>
+        <TextBlock Classes="label" Text="{c:T 'FROM HOOKSHOT'}" Margin="0,16,0,4"/>
+        <TextBlock Classes="mono path" Text="{Binding SourcePath}" IsVisible="{Binding HasSource}" TextWrapping="Wrap"/>
+        <TextBlock Classes="hint" Text="{Binding SourceHint}" TextWrapping="Wrap"/>
+        <Button Content="{c:T 'Choose Hookshot game folder…'}" Command="{Binding PickFolderCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+        <TextBlock Classes="label" Text="{c:T 'TO LONGSHOT'}" Margin="0,16,0,4"/>
+        <TextBlock Classes="hint" IsVisible="{Binding NoTargets}" Text="{c:T 'Build a Longshot version first, then import its graphics and controls. You can import saves before building.'}" TextWrapping="Wrap"/>
+        <TextBlock Classes="hint" IsVisible="{Binding NeedsTarget}" Text="{c:T 'Choose the Longshot version whose settings will be replaced.'}" TextWrapping="Wrap"/>
+        <ComboBox Classes="dd" Width="NaN" HorizontalAlignment="Stretch" ItemsSource="{Binding Targets}" SelectedItem="{Binding Target}" IsVisible="{Binding HasTargets}">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="core:BuildEntry">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{Binding Name}"/>
+                <TextBlock Classes="faint" Text="{Binding Version}"/>
+              </StackPanel>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Classes="mono path" Text="{Binding TargetPath}" IsVisible="{Binding HasTarget}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+        <TextBlock Classes="note" Text="{Binding FilesText}" IsVisible="{Binding HasFiles}" TextWrapping="Wrap" Margin="0,12,0,0"/>
+        <Border Classes="warnbox" IsVisible="{Binding HasPreview}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="{c:T 'Hookshot\'s graphics and controls replace the same settings in this version\'s longshot_options.ini; its other settings stay as they are. The game language replaces this version\'s. Hookshot keeps its originals. Saves are imported separately.'}" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding LanguageText}" IsVisible="{Binding HasLanguageText}" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding BackupText}" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Border>
+        <TextBlock Classes="hint" Text="{Binding SkippedText}" IsVisible="{Binding HasSkipped}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+        <Border Classes="warnbox" IsVisible="{Binding HasProblem}">
+          <TextBlock Text="{Binding Problem}" TextWrapping="Wrap"/>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+    </DockPanel>
+  </Border>
+</UserControl>

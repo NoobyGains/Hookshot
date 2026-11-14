@@ -1,0 +1,6 @@
+{
+  "@language": "English (UK): only what differs from the English the sources are written in",
+  "Minimize": "Minimise",
+  "NVIDIA DLSS is NVIDIA's, not Longshot's. With it on, the build downloads NVIDIA's DLSS SDK (release {0}) from {1}, under NVIDIA's own license, the NVIDIA RTX SDKs license:": "NVIDIA DLSS is NVIDIA's, not Longshot's. With it on, the build downloads NVIDIA's DLSS SDK (release {0}) from {1}, under NVIDIA's own licence, the NVIDIA RTX SDKs license:",
+  "AMD FSR 4 is AMD's, not Longshot's. With it on, the build downloads AMD's FSR runtime for Vulkan ({0}: {1}, signed by AMD) from {2}, each file checked against its SHA-256, under AMD's FSR SDK license:": "AMD FSR 4 is AMD's, not Longshot's. With it on, the build downloads AMD's FSR runtime for Vulkan ({0}: {1}, signed by AMD) from {2}, each file checked against its SHA-256, under AMD's FSR SDK licence:"
+}

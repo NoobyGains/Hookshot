@@ -1,0 +1,121 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LongshotLauncher.ViewModels"
+             xmlns:c="using:LongshotLauncher.Controls"
+             x:Class="LongshotLauncher.Views.FilesStepView"
+             x:DataType="vm:FilesStepViewModel">
+  <UserControl.Styles>
+    <Style Selector="TextBlock.dimname">
+      <Setter Property="Foreground" Value="{StaticResource InkSoft}"/>
+      <Setter Property="FontWeight" Value="Medium"/>
+    </Style>
+  </UserControl.Styles>
+  <DockPanel>
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
+      <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <c:Icon Kind="check" Width="14" Height="14" Foreground="{StaticResource Go}" IsVisible="{Binding CanNext}" VerticalAlignment="Center"/>
+        <TextBlock Classes="faint" Classes.ok="{Binding CanNext}" Text="{Binding Hint}" VerticalAlignment="Center"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+        <Button Content="{c:T 'Back'}" Command="{Binding BackCommand}"/>
+        <Button Classes="primary" Content="{c:T 'Next'}" Command="{Binding NextCommand}"/>
+      </StackPanel>
+    </Grid>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="-8,0" Padding="8,0,8,4">
+      <StackPanel>
+        <TextBlock Classes="heading" Text="{c:T 'Your game files'}"/>
+        <TextBlock Classes="sub" Text="{Binding Sub}"/>
+
+        <Border Classes="card" Margin="0,16,0,0" Padding="16,10" ToolTip.Tip="{Binding RequirementsDetail}"
+                AutomationProperties.HelpText="{Binding RequirementsDetail}">
+          <Grid ColumnDefinitions="10,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="4">
+            <Panel VerticalAlignment="Center">
+              <Ellipse Width="10" Height="10" Fill="{StaticResource InkFaintText}" IsVisible="{Binding RequirementsGray}"/>
+              <Ellipse Width="10" Height="10" Fill="{StaticResource Go}" IsVisible="{Binding RequirementsGreen}"/>
+              <Ellipse Width="10" Height="10" Fill="{StaticResource Warn}" IsVisible="{Binding RequirementsYellow}"/>
+              <Ellipse Width="10" Height="10" Fill="{StaticResource Bad}" IsVisible="{Binding RequirementsRed}"/>
+            </Panel>
+            <TextBlock Grid.Column="1" Text="{Binding RequirementsSummary}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            <Button Grid.Column="2" Classes="link" Content="{c:T 'System requirements ↗'}" Command="{Binding RequirementsCommand}"/>
+            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Classes="note"
+                       Text="{Binding RequirementsDetail}" TextWrapping="Wrap"/>
+          </Grid>
+        </Border>
+
+        <!-- the version's tools, downloading while the files are picked -->
+        <Border Classes="card" Margin="0,16,0,0" Padding="16,10">
+          <Grid ColumnDefinitions="34,*,190" ColumnSpacing="14">
+            <Border Width="34" Height="34" CornerRadius="17" Background="{StaticResource BrandSoft}" IsVisible="{Binding !ToolsDone}">
+              <c:Icon Kind="download" Width="17" Height="17" Foreground="{StaticResource InfoInk}"/>
+            </Border>
+            <Border Width="34" Height="34" CornerRadius="17" Background="{StaticResource GoSoft}" IsVisible="{Binding ToolsDone}">
+              <c:Icon Kind="check" Width="17" Height="17" Foreground="{StaticResource Go}"/>
+            </Border>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+              <TextBlock Text="{Binding ToolsTitle}" FontWeight="SemiBold"/>
+              <TextBlock FontSize="12" Foreground="{StaticResource InkSoft}" Classes.bad="{Binding ToolsFailed}" Text="{Binding ToolsNote}"
+                         TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+            <Panel Grid.Column="2" VerticalAlignment="Center">
+              <c:Bar Value="{Binding ToolsFraction}" Fill="{StaticResource Brand}" IsVisible="{Binding ToolsMeasured}"/>
+              <c:Spinner HorizontalAlignment="Right" IsVisible="{Binding ToolsLooking}"/>
+              <c:Bar Value="1" Fill="{StaticResource Go}" IsVisible="{Binding ToolsDone}"/>
+              <Button Classes="small" Content="{c:T 'Try again'}" Command="{Binding RetryCommand}" IsVisible="{Binding ToolsFailed}" HorizontalAlignment="Right"/>
+            </Panel>
+          </Grid>
+        </Border>
+
+        <TextBlock Classes="label" Text="{c:T 'FOUND ON THIS PC'}" Margin="0,18,0,10"/>
+        <Border Classes="card">
+          <Panel>
+            <StackPanel Orientation="Horizontal" Spacing="10" Margin="16,14" IsVisible="{Binding Searching}">
+              <c:Spinner VerticalAlignment="Center"/>
+              <TextBlock Classes="note" Text="{c:T 'Looking for your game files…'}"/>
+            </StackPanel>
+            <TextBlock Classes="note" Margin="16,14" IsVisible="{Binding NothingFound}"
+                       Text="{c:T 'No game file in Downloads, Desktop, Documents or the top of your drives. Browse for it, or drop it here.'}"/>
+            <ItemsControl ItemsSource="{Binding Files}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:GameFileViewModel">
+                  <Border BorderBrush="{StaticResource GlassLine}" BorderThickness="0,0,0,1" Margin="0,0,0,-1">
+                    <RadioButton Classes="row" GroupName="dump" IsChecked="{Binding IsPicked}" IsEnabled="{Binding CanPick}">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                        <StackPanel VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                     Classes.dimname="{Binding Dim}"/>
+                          <TextBlock Classes="faint path" Text="{Binding Where}" ToolTip.Tip="{Binding WhereFull}"/>
+                        </StackPanel>
+                        <Panel Grid.Column="1" VerticalAlignment="Center" ToolTip.Tip="{Binding Tip}">
+                          <Border Classes="chip" IsVisible="{Binding Checking}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                              <c:Spinner Width="12" Height="12" VerticalAlignment="Center"/>
+                              <TextBlock Text="{Binding ChipText}"/>
+                            </StackPanel>
+                          </Border>
+                          <Border Classes="chip go" IsVisible="{Binding Ok}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                              <c:Icon Kind="check" Width="13" Height="13" VerticalAlignment="Center"/>
+                              <TextBlock Text="{Binding ChipText}"/>
+                            </StackPanel>
+                          </Border>
+                          <Border Classes="chip warn" IsVisible="{Binding Old}"><TextBlock Text="{Binding ChipText}"/></Border>
+                          <Border Classes="chip bad" IsVisible="{Binding Bad}"><TextBlock Text="{Binding ChipText}"/></Border>
+                        </Panel>
+                      </Grid>
+                    </RadioButton>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Panel>
+        </Border>
+        <WrapPanel Margin="0,10,0,0">
+          <TextBlock Classes="note" Text="{c:T 'Not listed?'}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+          <Button Classes="link" Content="{c:T 'Browse…'}" Command="{Binding BrowseCommand}"/>
+          <TextBlock Classes="note" Text="{c:T ', drop the file on this window, or pick its'}" VerticalAlignment="Center" Margin="4,0"/>
+          <Button Classes="link soft" Content="{c:T 'romfs and exefs folders'}" Command="{Binding FoldersCommand}"/>
+        </WrapPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>
