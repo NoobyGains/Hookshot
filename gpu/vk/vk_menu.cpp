@@ -3189,7 +3189,7 @@ char fps_text[48] = "";
 char fps_sub[96] = "";   // (UTF-8: a translation's line can be three bytes a character)
 // (the FPS counter's levels past the number, written every half second by menu_tick: the frame time and its 1% low; the
 // Breakdown's parts, the GPU's time, the shaders built and draws left out over the graph's 4 s)
-char fps_ms_text[24] = "", fps_low_text[24] = "";
+char fps_ms_text[24] = "", fps_low_text[24] = "", fps_max_text[24] = "";   // (the max: the slowest frame of the 10 s, from the Graph level)
 double fps_ms_now = 0, fps_parts_now[fps_stats::kParts];   // (the frame time and the parts, for their colour and the bar)
 double fps_rate_now = 0;   // (the number's rate, the game's own with frame generation: its colour)
 char fps_part_text[fps_stats::kParts][24];
@@ -4713,10 +4713,13 @@ void draw_fps(ui::Ctx& c, bool under_banner) {
     if (level < fs::kFrameTime) return;
     if (fps_ms_text[0]) {   // ("16.7 ms" in the colour of its distance from the cap's frame time, "1% low 58" beside it)
         const ImU32 ms_col = grade_col[fps_ms_now > 0 ? fs::rate_grade(1000.0 / fps_ms_now, target) : 0];
+        const bool with_max = level >= fs::kGraph;   // (the slowest frame of the 10 s joins them with the graph: the spike its scale hides)
         const float mw = tab.width(fps_ms_text), gap = 10 * s, low_w = tab.width(fps_low_text);
-        const float x = at(mw + gap + low_w);
+        const float max_w = with_max ? tab.width(fps_max_text) : 0;
+        const float x = at(mw + gap + low_w + (with_max ? gap + max_w : 0));
         tab.draw(c.d, x, y, ms_col, fps_ms_text, s);
         tab.draw(c.d, x + mw + gap, y, soft, fps_low_text, s);
+        if (with_max) tab.draw(c.d, x + mw + gap + low_w + gap, y, soft, fps_max_text, s);
         y += row;
     }
     if (level < fs::kGraph) return;
@@ -5333,6 +5336,7 @@ void fps_texts(int64_t now) {
     const fs::Summary half = fps_summary(now, fs::kSecond / 2, fs::kLowWindow);
     fs::frame_time_text(fps_ms_text, sizeof fps_ms_text, half.avg_ms);
     fs::low_text(fps_low_text, sizeof fps_low_text, half.low_fps);
+    fs::max_text(fps_max_text, sizeof fps_max_text, half.max_ms);
     if (!half.frames) fps_ms_text[0] = 0;
     fps_ms_now = half.avg_ms;
     for (int p = 0; p < fs::kParts; p++) fps_parts_now[p] = half.part[p];

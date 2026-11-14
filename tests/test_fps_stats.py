@@ -56,8 +56,12 @@ def main():
     need("fps_stats::cap_rate(opts.fps_cap" in target and "HOS_FPS_MAX" in target and "menu_vsync() == 1" in target,
          "the target is not the Game frame rate cap row's (HOS_FPS_MAX over it), or the display's with V-Sync On")
     draw = body(menu, "void draw_fps(")
-    for use in ("fps_graph(", "fps_target_ms()", "fs::graph_top(", "fs::rate_grade(", "fps_part_text", "fps_ms_text"):
+    for use in ("fps_graph(", "fps_target_ms()", "fs::graph_top(", "fs::rate_grade(", "fps_part_text", "fps_ms_text", "fps_max_text"):
         need(use in draw, "draw_fps does not use %s" % use)
+    # (the slowest frame of the 10 s, beside the 1% low from the Graph level on: written with the other lines, shown only there)
+    need("fs::max_text(fps_max_text" in texts and "half.max_ms" in texts, "fps_texts does not write the max frame time")
+    need("level >= fs::kGraph" in draw[draw.index("fps_max_text") - 400:draw.index("fps_max_text")],
+         "the max frame time is not gated on the Graph level")
 
     replay = (vk / "vk_replay.cpp").read_text(encoding="utf-8")
     present = body(replay, "void present(const nvn_tex* t, const int crop[4])")
