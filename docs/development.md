@@ -166,7 +166,8 @@ See [the format and history rules](temporal-history.md#psychov35-with-dlssdlaa-a
 | `HOS_NFP_SEARCH=1` | A test's: the game's reader looks for a tag from the start, without the game's own NFC screen (the Switch 2 Pro Controller's reader, checked without playing to that screen) |
 | `HOS_SWITCH2=0` | The Nintendo Switch 2 Pro Controller over USB is not taken by the game (`host/pad_switch2.c`, Windows): a bridge program can then have it |
 | `HOS_SWITCH2_RUMBLE_TEST=1` | That controller's rumble checked without hands: a second at rest, a second of rumble, and how far its own accelerometer moved in each, in the log (`switch2: rumble test: ...`). The controller must lie still |
-| `HOS_INPUT_EXCLUSIVE`, `HOS_INPUT_BACKGROUND`, `HOS_INPUT_SCRIPT_BACKGROUND` (set) | As above; the last lets every device count while the window is behind another one |
+| `HOS_INPUT_EXCLUSIVE`, `HOS_INPUT_BACKGROUND` (set) | As above |
+| `HOS_INPUT_SCRIPT_BACKGROUND` (set) | No longer needed, only said in the log: scripted and control-bridge presses count with the window behind another one anyway, and the player's keyboard and mouse never do (it used to let them through, so typing in another window reached a test run) |
 | `HOS_SPRINT_STILL_MS=<ms>` | With the Controls tab's Sprint row on: a sprint starts with the stick let go for that long (0 to 2000, default 0), the older way round the roll for a game built without `nx2/oot_patches.py`'s Sprint patch (`host/nn_hid.c` `sprint_step`) |
 | `RX_VK_MENU_SCRIPT=<seconds>:<key>,...` | Timed Insert menu keys: `INS`, `UP`, `DOWN`, `LEFT`, `RIGHT`, `ESC`, `ENTER`, `TABL`, `TABR`; `SHOT`, the Screenshot key (F12) |
 | `RX_VK_UI_PROMPTS=pad` or `keys` | The menu's button prompts for a controller or the keys, whatever was used last (screenshots) |

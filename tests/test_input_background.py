@@ -28,7 +28,7 @@ ENV_ON_H = str(Path(__file__).resolve().parents[1] / "gpu" / "vk" / "compat" / "
 RUN_ALL_ARGS = ["--cc", "gcc"]
 
 ROOT = Path(__file__).resolve().parents[1]
-CASES = ("foreground", "script-background", "headless", "noactivate", "live-background",
+CASES = ("foreground", "script-background", "script-background-switch", "headless", "noactivate", "live-background",
          "no-script-background", "exclusive-foreground", "exclusive-background", "pads-env", "pads-menu", "pads-off",
          "pads-insert",
          "frame-hold", "live-frame", "reuse-frame", "wall", "zero", "empty", "single-state", "hold-toggle", "hold-mouse",
@@ -149,6 +149,8 @@ static void player_used(void) {}
                 case_env["HOS_INPUT_EXCLUSIVE"] = "1"
             if case in ("pads-env", "pads-off"):
                 case_env["HOS_INPUT_BACKGROUND"] = "1" if case == "pads-env" else "0"
+            if case == "script-background-switch":   # (the player typing in another window: still kept out)
+                case_env["HOS_INPUT_SCRIPT_BACKGROUND"] = "1"
             if case == "headless":
                 case_env["HOS_HEADLESS"] = "1"
             if case == "noactivate":
