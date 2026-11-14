@@ -37,6 +37,9 @@ struct Options {
     int dlss_model = 0;   // DLSS's network, by its preset: 0 K (transformer), 1 M, 2 L (second-generation transformer), 3 NVIDIA's
                           // default (upscaler_rows.h model_preset; vk_dlss.cpp). RX_VK_DLSS_PRESET over it
     int sharpness = 0;    // 0 to 100
+    int fxaa = 0;         // (hookshot, from Ocarina Reborn) FXAA on the finished picture: 0 Off, 1 On (vk_framegen.cpp framegen_scale)
+    int bloom = 0;        // a glow around bright light on the finished picture: 0 Off, 1 Low, 2 Medium, 3 High (fg_scale_post.h)
+    int grade = 0;        // the Colour grade: 0 Off, 1 Rich, 2 Vivid, 3 Warm, 4 Cool, 5 Cinematic (fg_scale_post.h)
     int texture_detail = 0;   // (hookshot) Texture detail: 0 Auto, 1 Full, 2 Medium, 3 Low (the big textures' top levels left out,
                               // gpu/vk/vk_texture.cpp texture_detail_dims; read as each texture is made)
     int anisotropy = 4;   // (hookshot) Anisotropic filtering: 0 the game's own (1x or 2x), 1 2x, 2 4x, 3 8x, 4 16x (the
@@ -52,6 +55,10 @@ struct Options {
                           // blurred, 2 with black bars (nx2/oot_wide.py, vk_framegen.cpp)
     int show_fps = 0;     // (hookshot) the FPS counter: 0 Off, 1 FPS, 2 Frame time, 3 Graph, 4 Breakdown (fps_stats.h; saved as fps_counter=, an old On is 1)
     int fps_corner = 0;   // (hookshot) its corner: 0 top right, 1 top left, 2 bottom right, 3 bottom left
+    int classic_counters = 0;   // (hookshot, from Ocarina Reborn) as on the N64: no count over Link at a pick-up, the rupees
+                                // always in the bottom left corner (host/oot_counters.c, draw_rupees)
+    int speedrun_timer = 0;     // (hookshot, from Ocarina Reborn) real time in the top left corner, paused while the menu is open
+    int death_counter = 0;      // and how often Link's hearts reached zero since the start, under it (host/oot_deaths.c)
     int menu_shortcut = 2;   // 0 Insert or F1, 1 F1 only, 2 Insert, F1 or Esc (F1 always opens the menu). 2 by default, as a PC
                              // game's pause menu; an older file's 0, the default it then was, moves to 2 (options_version 5)
     int compact_menu_key = 0; // 0 Right Shift, 1 Right Ctrl (key to switch to or open the compact menu)
@@ -67,6 +74,9 @@ struct Options {
     int text_speed = 0;   // how fast dialogue prints: 0 the game's, 1 2x, 2 4x, 3 instant (host/nn_vi.c, nx2/oot_patches.py; HOS_TEXT_SPEED)
     int damage_taken = 1; // 0 Half, 1 Normal, 2 Double, 3 Quadruple (host/oot_damage.c)
     int fov = 100;        // vertical gameplay field of view, 50..150% of the game's current angle (host/oot_fov.c)
+    int view_distance = 1;    // how far foliage and detailed models reach: 0 Short, 1 Original, 2 Far, 3 Very far, 4 Max (host/oot_view.c)
+    int grass = 2;            // the grass's density: 0 Off, 1 Less, 2 Original, 3 More, 4 Dense (host/oot_view.c)
+    int shadow_distance = 1;  // how far shadows reach: 0 Short, 1 Original, 2 Far, 3 Max (host/oot_view.c)
     int text_size = 0;    // dialogue and signs' text size: 0 the game's, 1 110%, 2 125%, 3 150%, 4 175% (host/oot_text_size.c,
                           // nx2/oot_patches.py; HOS_TEXT_SIZE)
     int camera_speed = 100;   // (hookshot) the right stick's camera turn in percent of the game's, 50 to 400 (host/nn_vi.c, nx2/oot_patches.py: HOS_OPT_CAMERA_SPEED, 48)

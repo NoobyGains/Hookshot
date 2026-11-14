@@ -51,6 +51,7 @@
 #include "vk_fsr3.h"      // (the Upscaler row: whether AMD FSR 3.1 runs on this GPU)
 #include "vk_fsr3fi.h"    // (the Frame generation row: whether FSR 3.1 makes the frame)
 #include "vk_fsr4.h"
+#include "fg_scale_post.h"   // (the Bloom and Colour grade rows' steps)
 #include "vk_temporal.h"
 #include "vk_reflex.h"
 #include "vk_antilag.h"
@@ -813,7 +814,29 @@ const char* tx_anisotropy(int v) {
     static const char* t[] = {"Game's", "2x", "4x", "8x", "16x"};
     return (unsigned)v < 5 ? t[v] : t[4];
 }
+// (the View distance, Grass and Shadow distance rows: host/oot_view.c's steps)
+const char* tx_view_distance(int v) {
+    static const char* t[] = {"Short", "Original", "Far", "Very far", "Max"};
+    return (unsigned)v < 5 ? t[v] : t[1];
+}
+const char* tx_grass(int v) {
+    static const char* t[] = {"Off", "Less", "Original", "More", "Dense"};
+    return (unsigned)v < 5 ? t[v] : t[2];
+}
+const char* tx_shadow_distance(int v) {
+    static const char* t[] = {"Short", "Original", "Far", "Max"};
+    return (unsigned)v < 4 ? t[v] : t[1];
+}
 const char* tx_speed(int v) { return v ? "Real time" : "Per frame"; }
+// (the FXAA, Bloom and Colour grade rows: vk_framegen.cpp framegen_scale)
+const char* tx_bloom(int v) {
+    static const char* t[kBloomSteps] = {"Off", "Low", "Medium", "High"};
+    return (unsigned)v < kBloomSteps ? t[v] : t[0];
+}
+const char* tx_grade(int v) {
+    static const char* t[kGrades] = {"Off", "Rich", "Vivid", "Warm", "Cool", "Cinematic"};
+    return (unsigned)v < kGrades ? t[v] : t[0];
+}
 const char* tx_text_speed(int v) {
     static const char* t[] = {"Normal", "2x", "4x", "Instant"};
     if ((unsigned)v >= sizeof t / sizeof t[0]) return t[0];
@@ -1226,6 +1249,14 @@ const char* hn_filter(int v, int variant) {
     if (variant < 0) return filter_needed() ? t[std::clamp(v, 0, 2)] : none;
     return variant == 0 ? t[std::clamp(v, 0, 2)] : variant == 1 ? none : nullptr;
 }
+/// (hookshot, from Ocarina Reborn) HDR chosen while the window's picture is SDR: the display offers no HDR10 surface
+/// (vk_main.cpp: Windows' Use HDR off, or a display without HDR)
+const char* hn_hdr(int v, int variant) {
+    static const char* const off = "Not active now: the display offers no HDR10 picture, so the game shows SDR. On Windows, "
+                                   "turn on Use HDR in the display settings.";
+    if (variant < 0) return v && dev.swap_extent.width && !dev.hdr ? off : nullptr;
+    return variant == 0 ? off : nullptr;
+}
 /// Sharpness: with DLSS or DLAA, the amount that suits them
 const char* hn_sharpness(int v, int variant) {
     static const char* const dlss = "DLSS and DLAA look softer than the game's own upscaler: around 80% suits them.";
@@ -1349,7 +1380,7 @@ Row rows[] = {
     {TAB_GRAPHICS, "HDR", &opts.hdr, 0, 2, 1, tx_hdr,
      "HDR10 out on an HDR display (Windows: Use HDR on in the display settings). Expanded: the game's SDR picture, its white at "
      "the paper white and its highlights up to the peak. Native: the game's own HDR, told the display's peak and paper white.",
-     nullptr, false, true},
+     hn_hdr, false, true},
     {TAB_GRAPHICS, "HDR paper white", &opts.hdr_white, 80, 400, 10, tx_nits,
      "How bright the picture's white is with HDR on. Around 200 for a normal room; higher in a bright one.", nullptr, false, true},
     {TAB_GRAPHICS, "HDR peak brightness", &opts.hdr_peak, 400, 4000, 100, tx_nits,
@@ -1364,6 +1395,16 @@ Row rows[] = {
      "tone mapper, the same mid grey with highlights that roll off into the peak and keep their colour.",
      nullptr, false, true},
     {TAB_GRAPHICS, "Detail", nullptr, 0, 0, 0, nullptr, nullptr, nullptr, false, true, -1, true},
+    // (hookshot, from Ocarina Reborn: on the finished picture, in the window's scaling pass; not on HDR's Native picture)
+    {TAB_GRAPHICS, "FXAA", &opts.fxaa, 0, 1, 1, tx_onoff,
+     "Smooths jagged edges on the finished picture, for little GPU time; in the Window scaling filter's place while on. Not "
+     "needed with DLSS, DLAA or FSR, which smooth already, nor with HDR set to Native. Changes at once.", nullptr, false, true},
+    {TAB_GRAPHICS, "Bloom", &opts.bloom, 0, kBloomSteps - 1, 1, tx_bloom,
+     "A soft glow around bright light (the sun, fire, magic) on the finished picture. Not with HDR set to Native. Changes at "
+     "once.", nullptr, false, true},
+    {TAB_GRAPHICS, "Colour grade", &opts.grade, 0, kGrades - 1, 1, tx_grade,
+     "A colour grade on the finished picture: richer colour and contrast, a warm or cool tone, a soft vignette. Off shows the "
+     "game's own colours. Not with HDR set to Native. Changes at once.", nullptr, false, true},
     {TAB_GRAPHICS, "Texture detail", &opts.texture_detail, 0, 3, 1, tx_texture_detail,
      "How much of the big textures (ground, walls, buildings) is kept in video memory. Lower uses less, for a softer "
      "picture up close: for 6 and 8 GB cards that slow down after a while. Applies to textures made after the change; "
@@ -1371,6 +1412,14 @@ Row rows[] = {
     {TAB_GRAPHICS, "Anisotropic filtering", &opts.anisotropy, 0, 4, 1, tx_anisotropy,
      "Keeps textures sharp on surfaces seen at a slant, such as the ground ahead: higher is sharper in the distance, for a "
      "little GPU time. Game's is the console's own (1x or 2x).", nullptr, false, true},
+    // (hookshot, from Ocarina Reborn; where the game keeps these distances was found by hotoni's Graphics-Menu mod: host/oot_view.c)
+    {TAB_GRAPHICS, "View distance", &opts.view_distance, 0, 4, 1, tx_view_distance,
+     "How far trees, bushes and detailed models reach. Further costs CPU and GPU time. Applies at once.", nullptr, false,
+     true},
+    {TAB_GRAPHICS, "Grass", &opts.grass, 0, 4, 1, tx_grass,
+     "How much grass grows. Off or Less helps a weaker PC. Applies at once.", nullptr, false, true},
+    {TAB_GRAPHICS, "Shadow distance", &opts.shadow_distance, 0, 3, 1, tx_shadow_distance,
+     "How far scenery and characters cast shadows. Further costs GPU time. Applies at once.", nullptr, false, true},
     // (the rows to change when something is wrong, or on a card short of memory: last)
     {TAB_GRAPHICS, "GPU and memory", nullptr, 0, 0, 0, nullptr, nullptr, nullptr, false, true, -1, true},
     {TAB_GRAPHICS, "GPU device", &opts.gpu_device, 0, 8, 1, tx_gpu,
@@ -1395,6 +1444,15 @@ Row rows[] = {
      "Frames per second in the top right corner, and as much more as you choose.", hn_fps, false, true},
     {TAB_GAMEPLAY, "FPS counter position", &opts.fps_corner, 0, 3, 1, tx_fps_corner,
      "The corner the FPS counter shows in. While this menu is open it shows at the top right.", nullptr, false, true},
+    {TAB_GAMEPLAY, "Classic counters", &opts.classic_counters, 0, 1, 1, tx_onoff,
+     "As on the N64: no count over Link when he picks something up, and the rupees always shown in the bottom left corner "
+     "once a save is loaded. Changes at once.", nullptr, false, true},
+    {TAB_GAMEPLAY, "Speedrun timer", &opts.speedrun_timer, 0, 1, 1, tx_onoff,
+     "Real time in the top left corner, paused while this menu is open. Turn it off and on again to start from zero.", nullptr,
+     false, true},
+    {TAB_GAMEPLAY, "Death counter", &opts.death_counter, 0, 1, 1, tx_onoff,
+     "How often Link's hearts ran out since the game started, in the top left corner. A fairy's revive does not count.",
+     nullptr, false, true},
     {TAB_GAMEPLAY, "Menu size", &opts.menu_size, 1, 3, 1, tx_menu_size,
      "How large this menu, the FPS counter and the start-up screen are drawn.", hn_menu_size, false, true},
     {TAB_GAMEPLAY, "Game speed", &opts.realtime, 0, 1, 1, tx_speed, "How the game keeps time when it runs below 60 fps.",
@@ -1610,6 +1668,8 @@ std::atomic<int> protect_hearts{-1};
 std::atomic<int> player_flight{-1};
 std::atomic<int> free_camera{0};
 std::atomic<int> cheat_action{0};
+std::atomic<int> hud_deaths{0};   // (the game side's deaths this session for the Death counter, OOT_HUD_DEATHS_ID)
+std::atomic<int> hud_rupees{-1};   // (the game side's wallet for Classic counters, OOT_HUD_RUPEES_ID: -1 none)
 std::atomic<int> link_age{-1};
 // (Movement speed: the choice, an index of link_speeds; the game side reads it in percent, HOS_OPT_CHEAT_SPEED)
 constexpr int link_speeds[] = {100, 125, 150, 200, 300};
@@ -4179,6 +4239,61 @@ void draw_fps(ui::Ctx& c, bool under_banner) {
     }
 }
 
+/// (hookshot, from Ocarina Reborn) Classic counters' rupees, as on the N64: a green rupee and the wallet in white, outlined, in
+/// the bottom left corner (the bottom right while the FPS counter is there)
+void draw_rupees(ui::Ctx& c, int v) {
+    const float ih = 34 * c.s, iw = ih * 0.56f, px = 32 * c.s, tw = ui::size_of(c.f.strong, px, std::to_string(v).c_str()).x;
+    const bool right = opts.show_fps && opts.fps_corner == 3;
+    const float x = right ? c.w - c.safe - 8 * c.s - iw - 10 * c.s - tw : c.safe + 8 * c.s;
+    const float bottom = c.h - c.safe - 6 * c.s, cy = bottom - ih / 2, cx = x + iw / 2;
+    auto gem = [&](float k, ImVec2* out) {   // (the rupee: a long hexagon, k of its size around the middle)
+        const float hw = iw / 2 * k, hh = ih / 2 * k, side = ih * 0.22f * k;
+        out[0] = {cx, cy - hh}, out[1] = {cx + hw, cy - side}, out[2] = {cx + hw, cy + side};
+        out[3] = {cx, cy + hh}, out[4] = {cx - hw, cy + side}, out[5] = {cx - hw, cy - side};
+    };
+    ImVec2 outer[6], inner[6];
+    gem(1.0f, outer), gem(0.5f, inner);
+    c.d->AddConvexPolyFilled(outer, 6, ui::rgba(30, 170, 60));
+    c.d->AddConvexPolyFilled(inner, 6, ui::rgba(130, 245, 140));
+    for (int i = 0; i < 6; i++) c.d->AddLine(outer[i], inner[i], ui::rgba(20, 110, 40), std::max(1.0f, c.s));
+    c.d->AddPolyline(outer, 6, ui::rgba(0, 0, 0, 230), ImDrawFlags_Closed, std::max(1.5f, 2 * c.s));
+    outlined_right(c, c.f.strong, px, x + iw + 10 * c.s + tw, cy - px * 0.62f, ui::rgba(255, 255, 255), std::to_string(v).c_str());
+}
+
+/// (hookshot, from Ocarina Reborn) The Speedrun timer: real time since its row went on, paused while this menu is open. Counted
+/// at each present (timer_tick, menu_record), drawn by draw_corner
+int64_t timer_ns = 0, timer_last = 0;   // (the time counted, and the clock at the last present; both 0 while the row is off)
+void timer_tick(bool on, bool paused) {
+    if (!on) {
+        timer_ns = timer_last = 0;
+        return;
+    }
+    const int64_t now = prof_now();
+    if (timer_last && !paused && now > timer_last) timer_ns += now - timer_last;
+    timer_last = now;
+}
+/// The timer (h:mm:ss.t) and the Death counter under it, outlined, in the top left corner (the top right while the FPS
+/// counter is at the top left)
+void draw_corner(ui::Ctx& c, bool timer, bool deaths) {
+    const bool right = opts.show_fps && opts.fps_corner == 1;
+    float top = c.safe;
+    auto line = [&](float px, ImU32 col, const char* text) {
+        const float tw = ui::size_of(c.f.strong, px, text).x;
+        outlined_right(c, c.f.strong, px, right ? c.w - c.safe : c.safe + tw, top, col, text);
+        top += px * 1.25f;
+    };
+    char text[48];
+    if (timer) {
+        const long long t = (long long)(timer_ns / 100000000);   // (tenths of a second)
+        snprintf(text, sizeof text, "%lld:%02lld:%02lld.%lld", t / 36000, t / 600 % 60, t / 10 % 60, t % 10);
+        line(24 * c.s, ui::rgba(255, 255, 255), text);
+    }
+    if (deaths) {
+        snprintf(text, sizeof text, "Deaths %d", hud_deaths.load(std::memory_order_relaxed));
+        line(18 * c.s, ui::rgba(255, 140, 130), text);
+    }
+}
+
 /// The start-up screen: the logo, the wordmark, what the start is doing, a bar, on a warm dark. A little below the middle; what
 /// is under the logo at 0.86 of the logo's scale. startup_fade, 0 to 1, darkens it all to black as it ends
 void draw_startup(ui::Ctx& c) {
@@ -4596,6 +4711,14 @@ bool fps_take(int64_t now, int64_t shown, int64_t game, int64_t* next, int64_t* 
 // inside menu_tick's frame on the same thread does not lock itself out
 std::recursive_mutex menu_mu;
 void menu_option_set(int id, int value) {
+    if (id == OOT_HUD_DEATHS_ID) {   // (the Death counter: draw_corner reads it)
+        hud_deaths.store(value, std::memory_order_relaxed);
+        return;
+    }
+    if (id == OOT_HUD_RUPEES_ID) {   // (Classic counters: draw_rupees reads it)
+        hud_rupees.store(value, std::memory_order_relaxed);
+        return;
+    }
     if (id == OOT_CHEAT_AGE_ID) {   // (Link's age: the Switch age row shows it)
         if (link_age.exchange(value, std::memory_order_relaxed) != value && page == 0 && cur_tab == TAB_DEBUG) menu_refresh = true;
         return;
@@ -5410,7 +5533,10 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     const bool start = startup_on.load(std::memory_order_acquire);
     const bool fps = opts.show_fps && !start;   // (no game frames yet: not "0 FPS" over the start-up screen)
     const bool open = open_now.load(std::memory_order_relaxed);
-    if (!start && !fps && !open) {   // (nothing shows: no ImGui frame, no render pass)
+    const int rupees = opts.classic_counters && !start && !open ? hud_rupees.load(std::memory_order_relaxed) : -1;
+    timer_tick(opts.speedrun_timer && !start, open);   // (the Speedrun timer counts at every present, shown or not)
+    const bool timer = opts.speedrun_timer && !start && !open, deaths = opts.death_counter && !start && !open;
+    if (!start && !fps && !open && rupees < 0 && !timer && !deaths) {   // (nothing shows: no ImGui frame, no render pass)
         // (but a new window size or Menu size since the last bake: one frame with nothing drawn that bakes the menu's glyphs
         // and measures its page for the new size, so the next open has no hitch whatever was resized while nothing showed)
         if (prebake_needed(w, h) && ui::begin(w, h)) {
@@ -5435,6 +5561,8 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     if (start) draw_startup(c);   // (under the menu)
     if (open) draw_menu(c);
     if (fps) draw_fps(c, open);
+    if (rupees >= 0) draw_rupees(c, rupees);   // (Classic counters)
+    if (timer || deaths) draw_corner(c, timer, deaths);
     ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
     ui::record(cmd, index, w, h);
 }
@@ -5442,7 +5570,11 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
 void menu_record_image(VkCommandBuffer cmd, VkImage image, VkImageView view, uint32_t w, uint32_t h) {
     const bool open = open_now.load(std::memory_order_relaxed);
     const bool fps = opts.show_fps && !startup_on.load(std::memory_order_acquire);
-    if (!open && !fps) return;
+    const int rupees = opts.classic_counters && !open && !startup_on.load(std::memory_order_acquire)
+                           ? hud_rupees.load(std::memory_order_relaxed) : -1;
+    const bool started = !startup_on.load(std::memory_order_acquire);
+    const bool timer = opts.speedrun_timer && started && !open, deaths = opts.death_counter && started && !open;
+    if (!open && !fps && rupees < 0 && !timer && !deaths) return;
     if (!ui::begin(w, h)) return;
     // (a still picture, drawn once in many presents: the lists where their selections are, not a step of the way there.
     // Without it the step stayed 0 here and a picture never showed a row past the first page)
@@ -5450,6 +5582,8 @@ void menu_record_image(VkCommandBuffer cmd, VkImage image, VkImageView view, uin
     ui::Ctx c = ui_ctx(w, h);
     if (open) draw_menu(c);
     if (fps) draw_fps(c, open);
+    if (rupees >= 0) draw_rupees(c, rupees);   // (Classic counters)
+    if (timer || deaths) draw_corner(c, timer, deaths);
     ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
     ui::record_to(cmd, image, view, w, h);
 }

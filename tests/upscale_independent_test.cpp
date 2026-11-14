@@ -10,6 +10,8 @@
 #include <cstring>
 #include <initializer_list>
 #include <mutex>
+#include "fg_scale_post.h"   // (framegen_scale's push constants and the FXAA, Bloom and Colour grade rows' tables)
+using mkwvk::ScalePush, mkwvk::kGrades, mkwvk::kBloomSteps, mkwvk::kGradeLooks, mkwvk::kBloomLevels;
 #include <utility>
 #include "vk_present_rect.h"
 using mkwvk::PresentSourceRect;
@@ -42,7 +44,7 @@ struct Layers { int aspect = 0, level = 0, first = 0, count = 0; };
 struct VkImageBlit { Layers srcSubresource, dstSubresource; Offset srcOffsets[2], dstOffsets[2]; };
 struct Extent { uint32_t width = 0, height = 0, depth = 0; };
 struct VkImageCopy { Layers srcSubresource; Offset srcOffset; Layers dstSubresource; Offset dstOffset; Extent extent; };
-struct { int upscale = 0, sharpness = 0, framegen = 0; } opts;
+struct { int upscale = 0, sharpness = 0, framegen = 0, fxaa = 0, bloom = 0, grade = 0; } opts;
 // (hookshot) The Upscaling row carries two things: 0-2 filter the finished picture and 3-4 name a
 // scene upscaler. framegen_scale wants only the first half, exactly as the inline in vk_menu.h
 // gives it, so the spy mirrors that rather than reading opts.upscale raw.
@@ -72,6 +74,8 @@ uint64_t dispatched_pipe = 0;
 float dispatched_sharp = -1, dispatched_x0 = -1, dispatched_x1 = -1;
 int dispatched_side = -1;
 float dispatched_cover = -1.0f;
+int dispatched_look = -1, dispatched_fxaa = -1;   // (the Colour grade, Bloom and FXAA rows)
+float dispatched_bloom = -1.0f, dispatched_sat = -1.0f;
 VkImageView sampled_view = 0;
 VkImageBlit last_blit;
 VkImageCopy last_copy;
@@ -79,7 +83,7 @@ VkImageCopy last_copy;
 bool make_pipe(Pipe& p, const uint32_t* code, size_t bytes, std::initializer_list<int> types, uint32_t push) {
     const bool pq = code == FG_SCALE_PQ_COMP_SPV;
     CHECK((pq ? bytes == sizeof FG_SCALE_PQ_COMP_SPV : code == FG_SCALE_COMP_SPV && bytes == sizeof FG_SCALE_COMP_SPV));
-    CHECK(types.size() == 3 && push == 24);
+    CHECK(types.size() == 3 && push == sizeof(ScalePush));   // (fg_scale_post.h: the FXAA, Bloom and Colour grade rows too)
     CHECK(*types.begin() == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER && *(types.begin() + 1) == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     const bool fail = pq ? pq_pipe_fail : pipe_fail;
     ++pipe_calls; p.set = 1; p.layout = 2; p.pipe = fail ? 0 : pq ? 5 : 3; return !fail;
@@ -118,11 +122,12 @@ void vkCmdCopyImage(int, VkImage src, int, VkImage dst, int, int count, const Vk
 }
 void pass(int, const Pipe& p, std::initializer_list<std::pair<VkImageView, VkSampler>> b,
           uint32_t w, uint32_t h, const void* data, uint32_t bytes) {
-    CHECK((p.pipe == 3 || p.pipe == 5) && b.size() == 3 && b.begin()->first && b.begin()->second == 4 && bytes == 24);
+    CHECK((p.pipe == 3 || p.pipe == 5) && b.size() == 3 && b.begin()->first && b.begin()->second == 4 && bytes == sizeof(ScalePush));
     CHECK((b.begin() + 2)->first && (b.begin() + 2)->second == 4);
     CHECK((b.begin() + 1)->first && !(b.begin() + 1)->second);
-    struct PC { int mode; float sharp; float x0, x1; int side; float cover; } pc;
+    ScalePush pc;
     std::memcpy(&pc, data, sizeof pc);
+    dispatched_look = pc.look, dispatched_bloom = pc.bloom, dispatched_fxaa = pc.fxaa, dispatched_sat = pc.sat;
     ++dispatches; dispatched_mode = pc.mode; dispatched_sharp = pc.sharp;
     dispatched_side = pc.side; dispatched_x0 = pc.x0; dispatched_x1 = pc.x1; dispatched_cover = pc.cover;
     dispatched_w = w; dispatched_h = h; sampled_view = b.begin()->first; dispatched_pipe = p.pipe;
@@ -160,6 +165,14 @@ int main() {
         opts.upscale = opts.sharpness = 0; CHECK(!draw());
         CHECK(dispatches == 2 && image_calls == 1 && pipe_calls == 1);
     }
+    // (the FXAA, Bloom and Colour grade rows alone run the pass, each with its value; none on the game's own HDR10 picture. The
+    // Bloom first makes the picture at 1/8, as the blurred sides do, and the pass then runs without the sides)
+    reset(); opts.fxaa = 1; CHECK(draw()); CHECK(dispatches == 1 && dispatched_fxaa == 1 && dispatched_look == 0 && dispatched_bloom == 0.0f);
+    reset(); opts.fxaa = 1; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
+    reset(); opts.grade = 3; CHECK(draw()); CHECK(dispatches == 1 && dispatched_look == 3 && dispatched_sat == kGradeLooks[3][0] && dispatched_fxaa == 0);
+    reset(); opts.grade = kGrades + 4; CHECK(draw()); CHECK(dispatched_look == kGrades - 1);   // (an options file's value past the last: the last)
+    reset(); opts.bloom = 2; CHECK(draw()); CHECK(dispatches == 2 && dispatched_side == 0 && dispatched_bloom == kBloomLevels[2]);
+    reset(); opts.bloom = 3; opts.grade = 1; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
     // (ultrawide's menu sides alone run the pass, with the plain copy, and push the middle 16:9's edges)
     reset(); wide_now = WideSides{0.25f, 2}; CHECK(draw());
     CHECK(dispatches == 1 && dispatched_mode == 0 && dispatched_sharp == 0.0f);

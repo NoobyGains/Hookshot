@@ -105,5 +105,7 @@
     "Armor_Child_Gauntlet_Goron", "Item_Wallet_Small"
 
 #define OOT_CHEAT_ITEM_BASE 4096   /* rx_option_set(OOT_CHEAT_ITEM_BASE + i, count) from the game side; -1 unknown */
+#define OOT_HUD_RUPEES_ID 4084     /* rx_option_set(OOT_HUD_RUPEES_ID, wallet) from the game side: Classic counters' rupees, -1 none */
+#define OOT_HUD_DEATHS_ID 4085     /* rx_option_set(OOT_HUD_DEATHS_ID, n) from the game side: the Death counter's deaths this session */
 #define OOT_CHEAT_AGE_ID 4090      /* rx_option_set(OOT_CHEAT_AGE_ID, age) from the game side: 0 child, 1 adult, -1 unknown */
 #define OOT_CHEAT_ITEM_ACTION 3000 /* + item * 256 + op: op 0..127 adds op - 64; op 200 unlocks (1) or relocks (all) */

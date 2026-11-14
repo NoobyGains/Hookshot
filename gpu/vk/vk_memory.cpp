@@ -6,6 +6,7 @@
 // title and importing each is a buffer, a memory object and a device address (tens of seconds taken at one submit,
 // on the render thread, in the first frame). The table of pools is cheap to keep current (host->gpu_pools: two
 // numbers each) and is refreshed when its generation changes, at a submit.
+#include <cstdio>
 #include <cstring>
 #include <algorithm>
 #include <array>
@@ -35,6 +36,7 @@
 #include "wb_learn.h"
 #include "mirror_inherit.h"
 #include "retired_give_back.h"
+#include "cap_spares.h"   // (the capture buffers' spares: which classes, how many bytes of them)
 #ifdef __linux__
 #include <cerrno>
 #include <dlfcn.h>
@@ -977,13 +979,39 @@ bool sync_live() {
 std::atomic<bool> cap_shutting_down{false};     // (set under cap_free_mu when the process starts to exit: after it no worker touches cap_free)
 std::mutex cap_free_mu;   // (the submitting threads take buffers from cap_free, the replay gives them back)
 uint64_t cap_free_bytes = 0;   // (cap_free_mu)
-// (the spare buffers: 12 and, on a card of 6 GB or less, 32 MB of them; RX_VK_CAP_SPARE_MB=<n>: that many, 0: as before.
-// After a load the retired ones, 40-60 MB each, stayed as spares for good)
+// (hookshot, from Ocarina Reborn) the RAM this PC has, and what is free of it and of the commit now (false where not known):
+// the spares are host memory, all resident
+bool ram_status(uint64_t* total, uint64_t* avail_phys, uint64_t* avail_commit) {
+#if defined(_WIN32)
+    MEMORYSTATUSEX m{};
+    m.dwLength = sizeof m;
+    if (!GlobalMemoryStatusEx(&m)) return false;
+    *total = m.ullTotalPhys, *avail_phys = m.ullAvailPhys, *avail_commit = m.ullAvailPageFile;
+    return true;
+#else
+    FILE* f = fopen("/proc/meminfo", "r");
+    if (!f) return false;
+    unsigned long long kb = 0, total_kb = 0, avail_kb = 0;
+    char line[128];
+    while (fgets(line, sizeof line, f)) {
+        if (sscanf(line, "MemTotal: %llu kB", &kb) == 1) total_kb = kb;
+        else if (sscanf(line, "MemAvailable: %llu kB", &kb) == 1) avail_kb = kb;
+    }
+    fclose(f);
+    *total = total_kb << 10, *avail_phys = *avail_commit = avail_kb << 10;   // (Linux overcommits: the RAM free is the limit)
+    return total_kb && avail_kb;
+#endif
+}
+// (the spare buffers: 12 and, on a card of 6 GB or less, 32 MB of them; else by the PC's RAM, 64 MB up to 9 GB of it, 128 up to
+// 17, 256 up to 33, 512 above (cap_spares.h ram_cap: from Ocarina Reborn; a 16 GB PC held up to 768 MB of them).
+// RX_VK_CAP_SPARE_MB=<n>: that many, 0: as before (no limit). After a load the retired ones, 40-60 MB each, stayed as spares
+// for good)
 uint64_t cap_spare_max() {
     static const uint64_t v = [] {
         if (const char* e = getenv("RX_VK_CAP_SPARE_MB")) return e[0] && atoll(e) ? (uint64_t)atoll(e) << 20 : ~0ull;
-        uint64_t used = 0, allowed = 0;
-        return vram_usage(&used, &allowed) && allowed <= (6ull << 30) + (512ull << 20) ? 32ull << 20 : ~0ull;
+        uint64_t used = 0, allowed = 0, ram = 0, phys = 0, commit = 0;
+        if (vram_usage(&used, &allowed) && allowed <= (6ull << 30) + (512ull << 20)) return 32ull << 20;
+        return cap_spares::ram_cap(ram_status(&ram, &phys, &commit) ? ram : 0);
     }();
     return v;
 }
@@ -1055,74 +1083,110 @@ bool cap_prewarm_on() {
     }();
     return v;
 }
-std::atomic<int> cap_prewarm_busy{0};
-std::atomic<int> cap_prewarm_class_busy[4]{};   // (32, 64, 128 and 192 MB spares being made)
+// (hookshot, from Ocarina Reborn) The spares are made by one worker at a time, the classes asked for queued as bits
+// (cap_prewarm_pending, cap_free_mu), each made only while none of its size is there, the spares' limits leave room, and
+// RAM and commit keep RX_VK_CAP_RAM_RESERVE_MB (default 1024) free past it (up to three at once, each committing its memory,
+// had been asked for 416 MB at the first capture). A class is asked for again whenever a capture of it is taken, or missed.
+std::atomic<int> cap_prewarm_busy{0};   // (a worker runs: cap_free_mu)
+uint32_t cap_prewarm_pending = 0;       // (cap_free_mu: one bit per cap_spares class)
 void cap_exit_note() {
     std::lock_guard lk(cap_free_mu);   // (a worker inside cap_buf_free finishes first; one after this sees the flag under the same mutex)
     cap_shutting_down = true;
+    cap_prewarm_pending = 0;
 }
-int cap_prewarm_index(uint64_t size) { return size <= (32ull << 20) ? 0 : size <= (64ull << 20) ? 1 : size <= (128ull << 20) ? 2 : size <= (192ull << 20) ? 3 : -1; }
-void cap_spare_make(uint64_t size, int index) {
-    VkBuffer b = VK_NULL_HANDLE;
-    VmaAllocation a = nullptr;
-    void* m = nullptr;
-    const auto t0 = std::chrono::steady_clock::now();
-    if (!cap_shutting_down.load() && create_buffer_cached(size, cap_buf_usage(), b, a, &m, !env_on("RX_VK_CAP_BLOCKS")) && m) {
-        static std::atomic<int> told{0};
-        if (told++ < 8)
-            logf("vk: a %llu MB capture buffer made ahead in %.1f ms, off the game's thread (RX_VK_CAP_PREWARM)", (unsigned long long)(size >> 20),
-                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
-        // (a spare, within the same limits as any other: past them it is let go. Not once the process is exiting: the list and the device
-        // may be going, and the memory goes with the process)
-        cap_buf_free(b, a, m, size, true);
+bool cap_spare_room(uint64_t bytes) {
+    static const uint64_t reserve = (uint64_t)std::max(256, getenv("RX_VK_CAP_RAM_RESERVE_MB") ? atoi(getenv("RX_VK_CAP_RAM_RESERVE_MB"))
+                                                                                                 : 1024) << 20;
+    uint64_t ram = 0, phys = 0, commit = 0;
+    const bool known = ram_status(&ram, &phys, &commit);
+    return cap_spares::room(known, phys, commit, bytes, reserve);
+}
+void cap_spare_worker() {
+    for (;;) {
+        uint64_t bytes = 0;
+        {
+            std::lock_guard lk(cap_free_mu);
+            while (cap_prewarm_pending && !cap_shutting_down.load()) {
+                const int index = __builtin_ctz(cap_prewarm_pending);
+                cap_prewarm_pending &= ~(1u << index);
+                const uint64_t want = cap_spares::kClassMb[index] << 20;
+                bool have = false;
+                for (const FreeBuf& f : cap_free) have = have || f.size == want;
+                // (one not made now is not asked for again here: the next capture of its class asks)
+                if (!have && cap_free.size() < 12 && cap_free_bytes + want <= std::min<uint64_t>(cap_spare_max(), 768ull << 20) &&
+                    cap_spare_room(want)) {
+                    bytes = want;
+                    break;
+                }
+            }
+            if (!bytes) {
+                cap_prewarm_busy = 0;
+                return;
+            }
+        }
+        VkBuffer b = VK_NULL_HANDLE;
+        VmaAllocation a = nullptr;
+        void* m = nullptr;
+        const auto t0 = std::chrono::steady_clock::now();
+        const bool ok = create_buffer_cached(bytes, cap_buf_usage(), b, a, &m, !env_on("RX_VK_CAP_BLOCKS"));   // (no lock held)
+        if (cap_shutting_down.load()) return;   // (the list and the device may be going; the memory goes with the process)
+        if (ok && m) {
+            static std::atomic<int> told{0};
+            if (told++ < 8)
+                logf("vk: a %llu MB capture buffer made ahead in %.1f ms, off the game's thread (RX_VK_CAP_PREWARM)",
+                     (unsigned long long)(bytes >> 20), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+            cap_buf_free(b, a, m, bytes, true);   // (a spare, within the same limits as any other: past them it is let go)
+        } else if (b) {
+            destroy_buffer(b, a);
+        }
     }
-    cap_prewarm_class_busy[index]--;
-    cap_prewarm_busy--;
 }
-/// A spare of at least `size` (32, 64 or 128 MB classes only) is there, or one of its class is being made (cap_free_mu held)
+/// A spare of the class of `size` (32 MB and up) asked for, and the worker started when none runs (cap_free_mu held)
 void cap_prewarm_class(uint64_t size) {
-    if (!cap_prewarm_on()) return;
-    const int index = cap_prewarm_index(size);
-    if (index < 0 || size > cap_spare_max()) return;   // (not the 256 MB class, and not past what spares may hold)
-    static const uint64_t kCls[4] = {32, 64, 128, 192};
-    const uint64_t cls = kCls[index];
-    const uint64_t bytes = cls << 20;
-    for (const FreeBuf& f : cap_free)
-        if (f.size >= bytes) return;
-    if (cap_prewarm_class_busy[index].load() > 0 || cap_prewarm_busy.load() >= 3) return;   // (three at a time: each commits its memory)
+    if (!cap_prewarm_on() || cap_shutting_down.load() || size < (32ull << 20)) return;
+    const int index = cap_spares::class_index(size);
+    if (index < 0 || (cap_spares::kClassMb[index] << 20) > cap_spare_max()) return;   // (not past what spares may hold)
+    cap_prewarm_pending |= 1u << index;
+    if (cap_prewarm_busy.load()) return;
     static const bool exit_hook = [] { return std::atexit(cap_exit_note) == 0; }();
     (void)exit_hook;
-    cap_prewarm_busy++;
-    cap_prewarm_class_busy[index]++;
+    cap_prewarm_busy = 1;
     try {
-        std::thread(cap_spare_make, bytes, index).detach();
+        std::thread(cap_spare_worker).detach();
     } catch (...) {   // (no thread: no spare, the capture goes on)
-        cap_prewarm_class_busy[index]--;
-        cap_prewarm_busy--;
+        cap_prewarm_busy = 0;
+        cap_prewarm_pending = 0;
     }
 }
 bool cap_buf_get(uint64_t need, VkBuffer& buffer, VmaAllocation& alloc, void*& map, uint64_t& size) {
-    std::lock_guard lk(cap_free_mu);
-    if (cap_prewarm_on()) {
-        static bool first = true;
-        if (first) {   // (the first capture: the classes a load asks for)
-            first = false;
-            for (uint64_t c : {32ull << 20, 64ull << 20, 128ull << 20, 192ull << 20}) cap_prewarm_class(c);
-        }
+    const uint64_t target = cap_buf_size(need);
+    std::unique_lock lk(cap_free_mu);
+    static bool first = true;
+    if (first) {   // (the first capture: the classes a load asks for)
+        first = false;
+        for (uint64_t mb : {32, 64, 128, 192}) cap_prewarm_class(mb << 20);
     }
     size_t best = cap_free.size();
     for (size_t i = 0; i < cap_free.size(); i++)
-        if (cap_free[i].size >= need && (best == cap_free.size() || cap_free[i].size < cap_free[best].size)) best = i;
+        if (cap_spares::serves(cap_free[i].size, need, target) && (best == cap_free.size() || cap_free[i].size < cap_free[best].size))
+            best = i;
+    cap_prewarm_class(target);   // (this class again, taken or missed)
     if (best < cap_free.size()) {
         buffer = cap_free[best].buffer, alloc = cap_free[best].alloc, map = cap_free[best].map, size = cap_free[best].size;
         cap_free_bytes -= size;
         cap_free.erase(cap_free.begin() + (ptrdiff_t)best);
         return map != nullptr;
     }
-    size = cap_buf_size(need);
+    lk.unlock();   // (the replay gives buffers back meanwhile: an allocation is ~0.8 ms a MB on AMD's driver)
+    size = target;
     map = nullptr;
-    return create_buffer_cached(size, cap_buf_usage(), buffer, alloc, &map,
-                                size >= (16ull << 20) && !env_on("RX_VK_CAP_BLOCKS")) && map;
+    const auto t0 = std::chrono::steady_clock::now();
+    const bool ok = create_buffer_cached(size, cap_buf_usage(), buffer, alloc, &map, size >= (16ull << 20) && !env_on("RX_VK_CAP_BLOCKS")) && map;
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    static std::atomic<int> told{0};
+    if (ms >= 10.0 && told++ < 40)
+        logf("vk: a %llu MB capture buffer made on the submitting thread in %.1f ms (no spare of its class)", (unsigned long long)(size >> 20), ms);
+    return ok;
 }
 std::vector<std::pair<uint64_t, uint64_t>> cap_ranges;   // (the mirrored pools the captures take, as of the last one)
 std::mutex cap_ranges_mu;

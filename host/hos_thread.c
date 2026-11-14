@@ -239,8 +239,11 @@ static void log_flush(void) {
     /* (a crash report on the writer itself, in its own write: it holds log_write_lock) */
     if (GetCurrentThreadId() == log_writer) { log_drain_raw(); return; }
     static char *batch[2048];
-    AcquireSRWLockExclusive(&log_write_lock);
+    /* (log_lock first, then log_write_lock: log_main's order. The other way round, a flush (a full queue, the exit) held the
+       write lock and waited for log_lock while the writer held log_lock and waited for the write lock: both stopped for
+       good, and with them every thread that logged after. From Ocarina Reborn) */
     AcquireSRWLockExclusive(&log_lock);
+    AcquireSRWLockExclusive(&log_write_lock);
     const int n = log_take_locked(batch);
     ReleaseSRWLockExclusive(&log_lock);
     log_write(batch, n);

@@ -653,6 +653,8 @@ constexpr size_t kSparePoolBytes = 8u << 20;
 
 /// A translated stage: its IR program (kept for the next stage's inputs) and the pools its IR lives in
 struct Translation {
+    uint32_t fallbacks = 0;     // (texture handles no handle program followed: Shader::Optimization::TakeHandleFallbacks)
+    std::string fallback_ops;
     std::unique_ptr<Pools> pools;
     Shader::IR::Program program;
     Translation() {
@@ -682,7 +684,9 @@ std::unique_ptr<Translation> translate(Env& env, bool graphics, bool one_exit = 
     Shader::Maxwell::Flow::CFG cfg{env, t->pools->flow_blocks,
                                    env.StartAddress() + (graphics ? static_cast<u32>(sizeof(Shader::ProgramHeader)) : 0u),
                                    one_exit};
+    Shader::Optimization::TakeHandleFallbacks(t->fallback_ops);   // (none from an earlier one on this thread)
     t->program = Shader::Maxwell::TranslateProgram(t->pools->insts, t->pools->blocks, env, cfg, host_info());
+    t->fallbacks = Shader::Optimization::TakeHandleFallbacks(t->fallback_ops);
     return t;
 }
 
@@ -722,7 +726,7 @@ uint32_t stage_cbuf_word(const NvnState& s, const Stage& st, uint32_t index, uin
     return 0;
 }
 
-uint32_t stage_handle(const NvnState& s, const Stage& st, uint32_t program) {
+uint32_t stage_handle(const NvnState& s, const Stage& st, uint32_t program, uint32_t element) {
     if (program >= st.info.handle_programs.size()) return 0;
     return Shader::EvaluateHandleProgram(
                st.info.handle_programs[program],
@@ -734,12 +738,17 @@ uint32_t stage_handle(const NvnState& s, const Stage& st, uint32_t program) {
                                          (uint64_t)stage_cbuf_word(s, st, d.cbuf_index, d.cbuf_offset + 4) << 32;
                    uint32_t v = 0;
                    static const bool live = env_on("RX_VK_HANDLES_LIVE");
+                   // (hookshot) a handle table's elements past the buffer's bound size: none (they named textures
+                   // the shader never samples, and uploaded them)
+                   const uint32_t size = stage_cbuf_word(s, st, d.cbuf_index, d.cbuf_offset + 8);
+                   if (size && (uint64_t)offset + 4 > size) return 0U;
                    if (base) {
                        if (live) host->gpu_read(base + offset, &v, 4);
                        else ub_read(base + offset, &v, 4);
                    }
                    return v;
-               })
+               },
+               element)
         .value_or(0U);
 }
 
@@ -1063,6 +1072,14 @@ void log_program_stages(const NvnState& s, const char* why) {
 
 namespace {
 
+/// (hookshot) A stage whose texture handles no handle program followed: they sample the first constant buffer word on their
+/// path, which is rarely the texture (the water's lights in OoT: squares on the water, #2509). Once for each translation
+void note_fallbacks(const Program& p, const char* stage, const Translation& t) {
+    if (!t.fallbacks) return;
+    logf("vk: program %016llx, %s stage: %u texture handle(s) not followed per draw (stopped at %s): the first constant word "
+         "on the path is sampled", (unsigned long long)p.key, stage, t.fallbacks, t.fallback_ops.c_str());
+}
+
 /// RX_VK_IR=<program key>[,...] (hex, a prefix is enough): the stages' Eden IR written to ir_<key>_<stage>.txt in the
 /// working folder when the program is translated (diagnostics)
 void dump_ir(const Program& p, const char* stage, const Shader::IR::Program& prog, uint64_t code_key = 0) {
@@ -1225,11 +1242,12 @@ uint64_t translator_stamp() {
     // threw the whole program cache away. What the libraries are good for is the prepare's second stamp, vk_draw.cpp warmed_stamp)
     // (and every other switch the translation reads: the storage buffer pass's (RX_VK_NO_CBUF_LOAD_RULE, RX_VK_PTR_SPLIT_FALLBACK,
     // RX_VK_ALL_GLOBAL_PROGS), the lowering's extended registers (RX_VK_NO_EXTREGS), the draw parameters (RX_VK_NO_DRAW_PARAMS)
-    // and the miss log's buffer and block counters (RX_VK_MISS_LOG, RX_VK_BLOCK_PROBE): without them a switch did nothing for
+    // and the miss log's buffer and block counters (RX_VK_MISS_LOG, RX_VK_BLOCK_PROBE), the texture pass's handle tables
+    // (RX_VK_HANDLE_TABLE, RX_VK_HANDLE_TABLE_COUNT): without them a switch did nothing for
     // the programs already cached. tests/test_program_stamp_knobs.py checks the translator's switches against this list)
     for (char** e = _environ; e && *e; e++)
         for (const char* pre : {"RX_VK_MMA", "RX_VK_NATIVE", "RX_VK_NAN", "RX_VK_TASK_CAP", "RX_VK_NETWORK", "RX_VK_GP_", "RX_VK_FOLLOW", "RX_VK_NO_FOLLOW", "RX_VK_NO_F16", "RX_VK_SHARED", "RX_VK_MESH", "RX_VK_NO_INVARIANT", "RX_VK_MARKERS",
-                                "RX_VK_NO_CBUF_LOAD_RULE", "RX_VK_PTR_SPLIT_FALLBACK", "RX_VK_ALL_GLOBAL_PROGS", "RX_VK_NO_EXTREGS", "RX_VK_NO_DRAW_PARAMS", "RX_VK_MISS_LOG", "RX_VK_BLOCK_PROBE", "RX_VK_LOWER_SKIP", "EDEN_"})
+                                "RX_VK_NO_CBUF_LOAD_RULE", "RX_VK_PTR_SPLIT_FALLBACK", "RX_VK_ALL_GLOBAL_PROGS", "RX_VK_NO_EXTREGS", "RX_VK_NO_DRAW_PARAMS", "RX_VK_MISS_LOG", "RX_VK_BLOCK_PROBE", "RX_VK_LOWER_SKIP", "RX_VK_HANDLE_TABLE", "EDEN_"})
             if (!strncmp(*e, pre, strlen(pre))) add(*e, strlen(*e));
     return h;
 }
@@ -1282,6 +1300,7 @@ void translate_into(Program& p, const NvnState& s, const Code* vsc, const Code* 
             auto t = translate(env, false);
             questions += env.texture_questions;
             Shader::RuntimeInfo rt{};
+            note_fallbacks(p, "compute", *t);
             dump_ir(p, "compute", t->program);   // (before the SPIR-V: the programs it fails on are the ones to read)
             if (getenv("RX_VK_IR"))
                 logf("vk: compute %016llx: workgroup %ux%ux%u, shared memory %u bytes, local memory %u", (unsigned long long)p.key,
@@ -1372,6 +1391,7 @@ void translate_into(Program& p, const NvnState& s, const Code* vsc, const Code* 
             Stage v;
             v.nvn_stage = 0;
             const std::vector<uint32_t> vspirv = Shader::Backend::SPIRV::EmitSPIRV(profile_graphics(VK_SHADER_STAGE_VERTEX_BIT), vrt, vs->program, bindings);
+            note_fallbacks(p, "vertex", *vs);
             dump_ir(p, "vertex", vs->program);
             {   // (the programs that read the draw's parameters from the driver bank, each once)
                 const auto& ld = vs->program.info.loads;
@@ -1405,6 +1425,7 @@ void translate_into(Program& p, const NvnState& s, const Code* vsc, const Code* 
                     Shader::Optimization::GuardFragmentOutputs(fs->program, float_targets);
                 }
                 const std::vector<uint32_t> fspirv = Shader::Backend::SPIRV::EmitSPIRV(profile_graphics(VK_SHADER_STAGE_FRAGMENT_BIT), frt, fs->program, bindings);
+                note_fallbacks(p, "fragment", *fs);
                 dump_ir(p, "fragment", fs->program);
                 Stage f;
                 f.nvn_stage = 1;
@@ -1509,6 +1530,7 @@ void translate_mesh_into(Program& p, const NvnState& s, const Code* task, const 
             env.set_mesh(mesh_regs, nullptr);
             task_t = translate(env, true, true);
             mesh_nocull(task_t->program, task->key);
+            note_fallbacks(p, "task", *task_t);
             dump_ir(p, "task", task_t->program, task->key);
             Shader::RuntimeInfo rt{};
             rt.previous_stage_stores.mask.set();

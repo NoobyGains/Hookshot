@@ -27,6 +27,7 @@ FIXTURE = r'''
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
+#include <string>
 #include <new>
 #include <thread>
 #include <vector>

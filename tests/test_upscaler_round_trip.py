@@ -37,6 +37,11 @@ def definition(text, name):
 
 FIXTURE = r'''
 #define _CRT_SECURE_NO_WARNINGS
+#ifdef _WIN32   // (the menu's save, cut from vk_menu.cpp, calls Windows' file functions)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
 #include "upscaler_rows.h"
 #include "auto_settings.h"
 #include <cctype>
