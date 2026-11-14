@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define MKWVK_API_VERSION 24   /* (24: HOS_KEY_SPRINT, a control past the Switch's buttons with gamepad inputs: binding and bind take them) */
+#define MKWVK_API_VERSION 25   /* (25: MkwVkHost.rumble_test; 24: HOS_KEY_SPRINT, a control past the Switch's buttons with gamepad inputs: binding and bind take them) */
 enum { HOS_OPT_CHEAT_HEARTS = 32, HOS_OPT_CHEAT_FLIGHT, HOS_OPT_CHEAT_ACTION, HOS_OPT_CHEAT_CAMERA, HOS_OPT_CHEAT_SPEED };
 /* (hookshot) the Gameplay tab's Text size (host/oot_text_size.c): 0 the game's, 1 110%, 2 125%, 3 150%, 4 175% */
 enum { HOS_OPT_TEXT_SIZE = 10 };
@@ -231,6 +231,9 @@ typedef struct MkwVkHost {
     float (*wide_cover)(void);
     /* (version 23, hookshot) shared keyboard acceptance policy; mouse buttons remain independent. */
     int (*keyboard_counts)(int key);
+    /* (version 25, hookshot) a short rumble on the controllers at the Rumble strength as it is now: the Insert menu's row plays it when
+       it is changed (host/pad_sdl.c) */
+    void (*rumble_test)(void);
 } MkwVkHost;
 
 /* One completed temporal-upscale sample; all zero while inactive. */

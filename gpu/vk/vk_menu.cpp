@@ -901,6 +901,7 @@ const char* tx_gpu(int v) {
     return buf;
 }
 const char* tx_pad_layout(int v);
+const char* tx_pad_menu(int v);
 // (hookshot) the Microphone row: Off, the system's default, or one of the host's microphones (host/nn_audio_in.c: the
 // ocarina's input streams), told to the host by its name (host->mic_select) whenever it changes. The chosen one is kept by
 // its name, mic_want, also while it is unplugged: the row then has one more entry for it, "<name> (not connected)", the
@@ -1344,6 +1345,8 @@ MENU_HINTS(hn_gyro, 0, "The sticks alone aim.",
 MENU_HINTS(hn_pad_layout, 0, "The Switch's order: A on the right, B at the bottom, X at the top, Y on the left.",
            "A at the bottom (action and talk), B on the right, X on the left, Y at the top.",
            "A at the bottom, B on the right; X and Y as on the Switch.",
+           "For a Switch 2 Pro Controller, or any Switch pad: every button its own (the sticks, shoulders, triggers, + and -, the "
+           "D-pad too, whatever was bound before), and the Switch's button icons.",
            "Bindings of your own, from the Controls page.")
 MENU_HINTS(hn_prompts, 0,
            "Those of the first controller, from its name (SDL's). With none, the keyboard's (the Switch's with XInput "
@@ -1603,7 +1606,7 @@ Row rows[] = {
     {TAB_CONTROLS, "Motion", nullptr, 0, 0, 0, nullptr,   // (hookshot: opens the Motion page, the TAB_MOTION rows)
      "Motion controls: aiming with the controller's gyroscope, its sensitivity and its inverts."},
     // (hookshot) the Controls page's own rows, above its grid (TAB_PAGE: no tab shows them)
-    {TAB_PAGE, "Layout preset", &opts.pad_layout, 0, 3, 1, tx_pad_layout,
+    {TAB_PAGE, "Layout preset", &opts.pad_layout, 0, 4, 1, tx_pad_layout,
      "Which face button is which. Binding one yourself on the Controls page makes it Custom.", hn_pad_layout, false, true},
     {TAB_PAGE, "Button prompts", &opts.prompts, 0, HOS_PROMPT_N, 1, tx_prompts,
      "The button icons the game shows, in its texts and menus: those of this controller, for the buttons your controls "
@@ -1620,6 +1623,10 @@ Row rows[] = {
     {TAB_CONTROLS, "Menu shortcut", &opts.menu_shortcut, 0, 2, 1, tx_menu_shortcut,
      "Which keys open and close this menu. F1 always does; F1 only leaves Insert free for an overlay. With Esc, Esc opens it "
      "too, as a PC game's pause menu (open, Esc still goes back a page or closes it).",
+     nullptr, false, true},
+    {TAB_CONTROLS, "Controller menu button", &opts.pad_menu, 0, 3, 1, tx_pad_menu,
+     "Which of the controller's buttons opens and closes this menu, so that no keyboard is needed: Home, or one of the back "
+     "buttons of a pad that has them (GL and GR on a Switch 2 Pro Controller). None leaves all of them to the game.",
      nullptr, false, true},
     {TAB_CONTROLS, "Compact menu key", &opts.compact_menu_key, 0, 1, 1, tx_compact_menu_key,
      "Which key switches between the full menu and the compact bar (or opens directly to the compact bar when held "
@@ -2115,11 +2122,33 @@ const char* const bind_names[HOS_KEY_N] = {"a", "b", "x", "y", "ls", "rs", "l", 
                                            "note_l", "note_r", "note_a", "note_y", "note_x", "walk", "sprint"};
 bool can_bind() { return host && host->binding && host->bind && host->pad_raw; }
 const char* tx_pad_layout(int v) {
-    static const char* t[] = {"Nintendo (Def)", "Xbox / PC", "Swap Face", "Custom"};
+    static const char* t[] = {"Nintendo (Def)", "Xbox / PC", "Swap Face", "Switch 2 Pro", "Custom"};
+    return t[std::min(std::max(v, 0), 4)];
+}
+// (the Switch's buttons on a Switch pad's own: host/nn_hid.c pad_default, in HOS_SW_*'s order)
+constexpr int kPadOwn[HOS_SW_N] = {HOS_PAD_EAST, HOS_PAD_SOUTH, HOS_PAD_NORTH, HOS_PAD_WEST, HOS_PAD_LSTICK, HOS_PAD_RSTICK,
+                                   HOS_PAD_LSHOULDER, HOS_PAD_RSHOULDER, HOS_PAD_LTRIGGER, HOS_PAD_RTRIGGER, HOS_PAD_START,
+                                   HOS_PAD_BACK, HOS_PAD_LEFT, HOS_PAD_UP, HOS_PAD_RIGHT, HOS_PAD_DOWN};
+const char* tx_pad_menu(int v) {
+    static const char* t[] = {"None", "Home", "Back left (GL)", "Back right (GR)"};
     return t[std::min(std::max(v, 0), 3)];
 }
 void apply_pad_layout(int layout) {
-    if (!can_bind() || layout < 0 || layout > 2) return;
+    if (!can_bind() || layout < 0 || layout > 3) return;
+    if (layout == 3) { // Switch 2 Pro (and any Switch pad): every button the pad's own, and the Switch's button icons
+        // (again while a button is not its own: see below)
+        for (int pass = 0; pass < HOS_SW_N; pass++) {
+            bool done = true;
+            for (int i = 0; i < HOS_SW_N; i++)
+                if (host->binding(HOS_BIND_PAD, i, 0) != kPadOwn[i]) {
+                    host->bind(HOS_BIND_PAD, i, 0, kPadOwn[i]);
+                    done = false;
+                }
+            if (done) break;
+        }
+        opts.prompts = 1;   // (Switch: the Button prompts row)
+        return;
+    }
     static const int face[4] = {HOS_SW_A, HOS_SW_B, HOS_SW_X, HOS_SW_Y};
     static const int want[3][4] = {
         {HOS_PAD_EAST, HOS_PAD_SOUTH, HOS_PAD_NORTH, HOS_PAD_WEST},   // Nintendo (Default: Bottom=B, Right=A, Top=X, Left=Y)
@@ -2144,10 +2173,16 @@ int detect_pad_layout() {
     const int b = host->binding(HOS_BIND_PAD, HOS_SW_B, 0);
     const int x = host->binding(HOS_BIND_PAD, HOS_SW_X, 0);
     const int y = host->binding(HOS_BIND_PAD, HOS_SW_Y, 0);
-    if (a == HOS_PAD_EAST && b == HOS_PAD_SOUTH && x == HOS_PAD_NORTH && y == HOS_PAD_WEST) return 0;
+    if (a == HOS_PAD_EAST && b == HOS_PAD_SOUTH && x == HOS_PAD_NORTH && y == HOS_PAD_WEST) {
+        // (the Switch 2 Pro preset: every button the pad's own, with the Switch's icons; else the face buttons' Nintendo,
+        // which is also what the row keeps when it says Nintendo over those same inputs)
+        bool own = opts.prompts == 1 && opts.pad_layout != 0;
+        for (int i = 0; i < HOS_SW_N && own; i++) own = host->binding(HOS_BIND_PAD, i, 0) == kPadOwn[i];
+        return own ? 3 : 0;
+    }
     if (a == HOS_PAD_SOUTH && b == HOS_PAD_EAST && x == HOS_PAD_WEST && y == HOS_PAD_NORTH) return 1;
     if (a == HOS_PAD_SOUTH && b == HOS_PAD_EAST && x == HOS_PAD_NORTH && y == HOS_PAD_WEST) return 2;
-    return 3;
+    return 4;
 }
 // (hookshot) the row's choice to the host: off, the default, or a microphone by its name (and its place in the host's list,
 // -1 while it is unplugged: of two with one name, the one chosen). Unplugged, the name is the kept one, cut: the host takes
@@ -2750,8 +2785,8 @@ void set_row(Row& r, int v, int dir, bool keep = true) {
     if (r.value == &opts.vram_budget && v == kVramMinimumOnly) v += dir;
     if (stops_at_ends(r)) v = std::min(std::max(v, r.lo), r.hi);   // (a scale: it stops at its ends)
     if (r.value == &opts.pad_layout) {
-        if (v > 2) v = dir > 0 ? 0 : 2;
-        if (v < 0) v = 2;
+        if (v > 3) v = dir > 0 ? 0 : 3;   // (4, Custom, is shown only)
+        if (v < 0) v = 3;
         *r.value = v;
         apply_pad_layout(*r.value);
         *r.value = detect_pad_layout();   // (Custom when the preset could not be had whole)
@@ -5063,7 +5098,7 @@ int menu_setting_set(const char* key, int value, MkwVkSetting* out) {
     if (i == kRows) return 0;
     Row& r = rows[i];
     if (row_fixed(r.value)) return bridge_fill(i, out), -1;
-    const int want = std::min(std::max(value, r.lo), r.value == &opts.pad_layout ? std::min(r.hi, 2) : r.hi);   // (3: Custom, shown only)
+    const int want = std::min(std::max(value, r.lo), r.value == &opts.pad_layout ? std::min(r.hi, 3) : r.hi);   // (4: Custom, shown only)
     if (r.value == &opts.output_res && output_choice(want) == want &&
         dm::ratio_name(size_of(output_at(want))) != dm::ratio_name(size_of(output_at(opts.output_res)))) {
         // (a size of another shape: the Aspect ratio moves to it first, as a player would, which takes the Output resolution
@@ -5326,7 +5361,11 @@ void menu_tick() {
     if (host && host->binding)   // (A and B as bound now: the Controls page or the Layout preset can change them)
         menu_keys::confirm_back(host->binding(HOS_BIND_PAD, HOS_SW_A, 0), host->binding(HOS_BIND_PAD, HOS_SW_B, 0), &pad_confirm,
                                 &pad_back);
-    if (pad(HOS_PAD_GUIDE) || chord_now) press[0] = true;
+    {   // (the controller's own button for the menu: the Controller menu button row)
+        const int menu_pad = opts.pad_menu == 1 ? (int)HOS_PAD_GUIDE : opts.pad_menu == 2 ? (int)HOS_PAD_LPADDLE1
+                           : opts.pad_menu == 3 ? (int)HOS_PAD_RPADDLE1 : -1;
+        if ((menu_pad >= 0 && pad(menu_pad)) || chord_now) press[0] = true;
+    }
     {   // holding an arrow or the D-pad repeats it: after 0.35 s, 12 a second, then 30 a second after 1.5 s held
         static int64_t held_since[5], next_repeat[5];
         const int pads[5] = {0, HOS_PAD_UP, HOS_PAD_DOWN, HOS_PAD_LEFT, HOS_PAD_RIGHT};
@@ -5746,6 +5785,13 @@ void menu_tick() {
     }
 }
 
+/// (hookshot) Once a present: the Rumble strength row changed with the menu open, and the new strength is felt at once, a
+/// short rumble, which also shows that the controller rumbles (Off is silent). Whatever changed it: the keys, the mouse
+void menu_rumble_tick() {
+    static int was = -1;
+    if (was >= 0 && opts.rumble != was && menu_is_open() && host && host->version >= 22 && host->rumble_test) host->rumble_test();
+    was = opts.rumble;
+}
 void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     const bool start = startup_on.load(std::memory_order_acquire);
     const bool fps = opts.show_fps && !start;   // (no game frames yet: not "0 FPS" over the start-up screen)

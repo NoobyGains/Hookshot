@@ -4,7 +4,8 @@ gpu/vk/vk_menu.cpp apply_pad_layout binds A, B, X and Y's Input 1 one at a time 
 leaves an empty Input 1 as it is when the input asked for is the only one of another button, so with A cleared, Xbox / PC
 asked for South while B still had it: B then moved to East and A stayed unbound, and the row said Xbox / PC. The preset
 is now asked again while a face button is not the preset's, and the row takes its value from detect_pad_layout, so a
-preset that cannot be had (South the only input of a button outside the four) shows Custom.
+preset that cannot be had (South the only input of a button outside the four) shows Custom. The Switch 2 Pro preset gives
+every button the pad's own input.
 The menu's apply_pad_layout and detect_pad_layout are compiled with host/nn_hid.c's real binding table as the host.
 python -I -B tests/test_pad_layout.py   (needs a C and a C++ compiler)
 """
@@ -86,7 +87,8 @@ extern "C" int hos_binding(int set, int button, int slot);
 extern "C" void hos_bind(int set, int button, int slot, int code);
 struct Host { int (*binding)(int, int, int); void (*bind)(int, int, int, int); } host_value{hos_binding, hos_bind}, *host = &host_value;
 bool can_bind() { return true; }
-struct { int pad_layout = 0; } opts;
+struct { int pad_layout = 0; int prompts = 0; } opts;
+/* OWN */
 /* APPLY */
 /* DETECT */
 
@@ -121,7 +123,23 @@ int main() {
     CHECK(hos_binding(HOS_BIND_PAD, HOS_SW_ZL, 0) == HOS_PAD_SOUTH && hos_binding(HOS_BIND_PAD, HOS_SW_ZL, 1) == -1);
     apply_pad_layout(1);
     CHECK(hos_binding(HOS_BIND_PAD, HOS_SW_ZL, 0) == HOS_PAD_SOUTH);   // (not taken from ZL)
-    CHECK(detect_pad_layout() == 3);
+    CHECK(detect_pad_layout() == 4);
+    // Switch 2 Pro (3): from each preset, each button's Input 1 cleared: every button is the pad's own and the prompts the
+    // Switch's; the row says Switch 2 Pro, and Nintendo when Nintendo is chosen over the same inputs
+    for (int from = 0; from < 3; from++)
+        for (int cleared = 0; cleared < HOS_SW_N; cleared++) {
+            defaults();
+            opts.prompts = 0;
+            opts.pad_layout = from, apply_pad_layout(from);
+            hos_bind(HOS_BIND_PAD, cleared, 0, -1);
+            opts.pad_layout = 3, apply_pad_layout(3);
+            for (int i = 0; i < HOS_SW_N; i++) CHECK(hos_binding(HOS_BIND_PAD, i, 0) == kPadOwn[i]);
+            CHECK(opts.prompts == 1 && detect_pad_layout() == 3);
+            opts.pad_layout = 0, apply_pad_layout(0);
+            CHECK(detect_pad_layout() == 0);
+            opts.pad_layout = 1, apply_pad_layout(1);
+            CHECK(detect_pad_layout() == 1);
+        }
     // (a preset over the defaults leaves the second inputs as they were)
     defaults();
     hos_bind(HOS_BIND_PAD, HOS_SW_A, 1, HOS_PAD_RPADDLE1);
@@ -142,6 +160,7 @@ def sources(root):
     if not all(enums):
         raise SystemExit("gpu/vk/vk_api.h: the controls' enums are missing")
     cxx = (FIXTURE.replace("/* BINDING ENUMS */", "\n".join(e.group(0) for e in enums))
+           .replace("/* OWN */", re.search(r"constexpr int kPadOwn\[HOS_SW_N\] = \{.*?\};", menu, re.S).group(0))
            .replace("/* APPLY */", definition(menu, "void apply_pad_layout"))
            .replace("/* DETECT */", definition(menu, "int detect_pad_layout")))
     table_from = hid.rindex("\n", 0, hid.index("static const char *const bind_names[HOS_KEY_N]")) + 1
