@@ -6392,6 +6392,41 @@ struct KeptVertex {
 };
 thread_local KeptVertex kept_vb[16];
 
+/// (hookshot) The bytes an indexed indirect draw may read of its index buffer. The GPU takes the first index and the count
+/// from the records, so any index in [ibuf, ibuf + 2^33 units) may be read (a 32-bit first index plus a 32-bit count), up to
+/// the end of the game pool holding ibuf; 4 where no pool holds it. Bound by 4 bytes before, the import holding them ended
+/// where it happened to (a chunk on, RX_VK_IMPORT_CHUNK_MB), and indices past it read 0 with robust buffer access and
+/// anything without (MoltenVK, the 'Robust buffers' Off row, a driver without robustBufferAccess2)
+uint64_t index_extent(const DrawArgs& d) {
+    const uint32_t unit = d.itype == 0 ? 1 : d.itype == 1 ? 2 : 4;
+    const uint64_t end = gpu_pool_end(d.ibuf);
+    if (end <= d.ibuf) return 4;
+    return std::max<uint64_t>(4, std::min<uint64_t>(end - d.ibuf, (uint64_t)unit << 33));
+}
+/// (hookshot) The bytes a vertex stream bound whole may read (size 0, VK_WHOLE_SIZE: the fetch reads to the end of the
+/// buffer holding it): up to the end of the game pool holding it; 1 where no pool holds it. Bound by 1 byte before, the
+/// vertices past the import holding that byte were out of range, as index_extent's indices were
+uint64_t vertex_whole_extent(uint64_t addr) {
+    const uint64_t end = gpu_pool_end(addr);
+    return end > addr ? end - addr : 1;
+}
+/// (hookshot) The most one import holds: pool_lookup takes no more into one, mirrors are refused above it, and the import
+/// table's scans assume none is larger
+constexpr uint64_t kImportMax = 1ull << 30;
+/// (hookshot) What a draw may read of an index buffer or vertex stream (extent), bound: all of it where one import may hold
+/// it and does; else its first `token` bytes, as before, and logged (pieces of several imports would bind it all)
+BufferRef extent_bind(uint64_t addr, uint64_t extent, uint64_t token, const char* what) {
+    if (extent <= token) return gpu_buffer_bind(addr, token, false);
+    if (extent <= kImportMax)
+        if (const BufferRef r = gpu_buffer_bind(addr, extent, false)) return r;
+    const BufferRef r = gpu_buffer_bind(addr, token, false);
+    static std::atomic<int64_t> logged;
+    if (r && logged.fetch_add(1, std::memory_order_relaxed) < 16)
+        logf("vk: %s %#llx: no single import takes the %llu bytes a draw may read there; bound by its first %llu as before",
+             what, (unsigned long long)addr, (unsigned long long)extent, (unsigned long long)token);
+    return r;
+}
+
 // ---- (hookshot, issue 640) a GPU without mesh shaders: the task and mesh stages as compute dispatches and a
 // generated vertex stage, drawn through an ordinary graphics pipeline. Records and payloads live in two buffers a
 // recording thread reuses draw after draw (one pair, not one a program: see below); the commands are ordered, so each
@@ -7605,8 +7640,8 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
             BufferRef r;
             if (vertex_bind_reuse(vb_addr, vb_size, vb_stamp, kept_vb[b].addr, kept_vb[b].size, kept_vb[b].stamp, kept_vb[b].ok))
                 r = kept_vb[b].ref;
-            else {
-                r = gpu_buffer_bind(vb_addr, vb_size, false);
+            else {   // (one bound whole: to its pool's end, all the fetch may read: vertex_whole_extent, extent_bind)
+                r = extent_bind(vb_addr, s.vbuf[b].size ? vb_size : vertex_whole_extent(vb_addr), vb_size, "vertex stream");
                 kept_vb[b] = {vb_addr, vb_size, gpu_bind_stamp(), r, r ? 1 : 0};
             }
             if (!r) {
@@ -7681,7 +7716,8 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         BufferRef cnt = d.count_addr ? gpu_buffer_bind(d.count_addr, 4, false) : BufferRef{};
         if (!args) SKIP_HERE();
         if (d.indexed) {
-            BufferRef ib = gpu_buffer_bind(d.ibuf, 4, false);
+            // (hookshot) every index the records may point at, to its pool's end (index_extent, extent_bind)
+            BufferRef ib = extent_bind(d.ibuf, index_extent(d), 4, "index buffer");
             if (!ib) SKIP_HERE();
             bind_index(cmd, ib.buffer, ib.offset, itype);
             occ.issue();

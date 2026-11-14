@@ -168,6 +168,7 @@ BufferRef gpu_buffer_bind(uint64_t addr, uint64_t, bool) {
     ++buffer_lookups;
     return {reinterpret_cast<VkBuffer>(static_cast<uintptr_t>(addr)), 16};
 }
+/* EXTENT_BIND */
 VKAPI_ATTR void VKAPI_CALL vkCmdBindPipeline(VkCommandBuffer, VkPipelineBindPoint point, VkPipeline pl) {
     ++pipeline_binds;
     if (point != VK_PIPELINE_BIND_POINT_GRAPHICS) ++binding_errors;
@@ -309,6 +310,14 @@ def main():
             ("BIND_PIPELINE", "if (pl != last_pipeline) {")]:
         extracted = block(source, marker) + (";" if marker.startswith("struct ") else "")
         cache = cache.replace("/* " + token + " */", extracted)
+    # (what the stream loop binds through, where the source has it: vertex_whole_extent and extent_bind, which ask the
+    # pool's end; stood in as in no pool, so a stream keeps its own size)
+    extent = ""
+    if "BufferRef extent_bind(" in source:
+        limit = source[source.index("constexpr uint64_t kImportMax"):]
+        extent = ("uint64_t gpu_pool_end(uint64_t) { return 0; }\n" + block(source, "uint64_t vertex_whole_extent(") +
+                  "\n" + limit[:limit.index("\n") + 1] + block(source, "BufferRef extent_bind("))
+    cache = cache.replace("/* EXTENT_BIND */", extent)
     start = source.index("    uint64_t vaddr[16]{};")
     end = source.index("    if (g_fine) fine_ns[FT_VERTEX]", start)
     # (draw() reads vertex_complete after the block: whether the occlusion query may count the draw)
