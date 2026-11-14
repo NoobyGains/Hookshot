@@ -88,6 +88,11 @@ Everything below is on `main` in this repository, tested in the game on a GeForc
   </tr>
 </table>
 
+<img src="docs/images/features/field-of-view.jpg" alt="Kakariko Village at field of view 60 percent, the game's 100 percent and 140 percent">
+
+**Field of view** (Gameplay tab, 50% to 150%): from a close, cinematic 60% to a wide 140%, where Kakariko's whole gate
+and the cliffs around it fit on screen.
+
 <img src="docs/images/features/bloom-and-colour-grade.jpg" alt="Kakariko Village four ways: original, bloom high, colour grade rich, colour grade warm">
 
 **Bloom, Colour grade and FXAA** (Graphics tab), plus **View distance, Grass and Shadow distance** rows that change
