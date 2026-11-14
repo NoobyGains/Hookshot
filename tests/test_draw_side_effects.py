@@ -59,7 +59,10 @@ struct { long long pipes_new = 0; } use_counters;
 struct Targets { bool persistent = true; };
 struct NvnState {};
 struct ParLock {};
-struct DrawArgs { bool indirect = true; int groups[3]{1, 1, 1}; int first_task = 0; };
+struct DrawArgs { bool indirect = true; int groups[3]{1, 1, 1}; int first_task = 0; void* occ_pool = nullptr; };
+#define VK_NULL_HANDLE nullptr
+enum OccNotBegun { kOccTaskBatches };   // (vk_draw.cpp's occlusion query guard: the task batches leave it unbegun)
+struct OccGuard { OccGuard(int, const DrawArgs&) {} void drop(OccNotBegun) {} };
 int fallback_task_groups(const Program&) { std::abort(); }
 void draw(int, NvnState&, const DrawArgs&) { std::abort(); }
 Program* current;
@@ -80,10 +83,12 @@ void publish() {
     current->stages.values = {Stage{}, shader_stage(effect)};
     current->ready.store(true, std::memory_order_release);
 }
-void jobs_wait(const std::atomic<bool>& ready) {
+bool jobs_wait(const std::atomic<bool>& ready) {
     if (&ready == &current->ready) { ++translation_waits; publish(); }
     else { ++pipeline_waits; pipe_entry.ready.store(true, std::memory_order_release); }
+    return true;
 }
+int jobs_pending() { return 0; }
 bool jobs_wait_for(const std::atomic<bool>& ready, double) {
     ++bounded_waits;
     if (&ready == &current->ready && fast_translation) publish();
