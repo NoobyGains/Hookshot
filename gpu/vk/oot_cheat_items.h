@@ -109,3 +109,7 @@
 #define OOT_HUD_DEATHS_ID 4085     /* rx_option_set(OOT_HUD_DEATHS_ID, n) from the game side: the Death counter's deaths this session */
 #define OOT_CHEAT_AGE_ID 4090      /* rx_option_set(OOT_CHEAT_AGE_ID, age) from the game side: 0 child, 1 adult, -1 unknown */
 #define OOT_CHEAT_ITEM_ACTION 3000 /* + item * 256 + op: op 0..127 adds op - 64; op 200 unlocks (1) or relocks (all) */
+#define OOT_CHEAT_RUPEES_ID 4091   /* rx_option_set(OOT_CHEAT_RUPEES_ID, rupees) from the game side; -1 unknown */
+/* The Debug tab's Rupees row: Left and Right choose one of these amounts, confirm sends OOT_RUPEE_ACTION + its index */
+#define OOT_RUPEE_STEPS -1000, -500, -100, -50, -10, -1, 1, 10, 50, 100, 200, 500, 1000
+#define OOT_RUPEE_ACTION 400       /* (the time uses 100 to 123, the pouch 200 to 348, the age 999, the teleport 1000 on) */
