@@ -4311,7 +4311,19 @@ void draw_startup(ui::Ctx& c) {
     for (int i = 40; i >= 1; i--) c.d->AddCircleFilled(ImVec2(cx, top + lh * 0.5f + 70 * s), h * 0.021f * i, ui::rgba(46, 33, 18, 4), 128);
     float aspect = 1;
     ImTextureData* logo = ui::logo(&aspect);
-    if (logo) {
+    int turn_frames = 0, turn_cols = 1, turn_rows = 1;
+    ImTextureData* turning = ui::logo_turn(&turn_frames, &turn_cols, &turn_rows);
+    if (turning && turn_frames > 0) {
+        // (the 3D Hookshot, the README header's model, turning about its long axis: one frame of the sheet by the time, one
+        // whole turn every kLogoTurnSeconds. The render leaves a margin round the model, so its square is drawn larger than
+        // the flat logo's, centred where the logo stands)
+        const double t = (double)prof_now() * 1e-9;
+        const int f = std::min((int)(std::fmod(t / kLogoTurnSeconds, 1.0) * turn_frames), turn_frames - 1);
+        const float u0 = (float)(f % turn_cols) / turn_cols, v0 = (float)(f / turn_cols) / turn_rows, side = lh * 1.6f;
+        const ImVec2 mid(cx, top + lh * 0.5f);
+        c.d->AddImage(turning->GetTexRef(), ImVec2(mid.x - side * 0.5f, mid.y - side * 0.5f), ImVec2(mid.x + side * 0.5f, mid.y + side * 0.5f),
+                      ImVec2(u0, v0), ImVec2(u0 + 1.0f / turn_cols, v0 + 1.0f / turn_rows));
+    } else if (logo) {
         // (the logo turns about its upright axis while the screen shows, one turn every kLogoTurnSeconds, as a coin does: its
         // width goes with the turn's cosine, from behind it is its mirror image, and edge-on it darkens a little. The painter
         // draws the screen every 33 ms, vk_main.cpp, so the turn runs at about 30 steps a second)

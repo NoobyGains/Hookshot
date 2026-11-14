@@ -22,6 +22,9 @@ bool begin(uint32_t w, uint32_t h);
 const Fonts& fonts();
 /// The start-up screen's logo (assets/hookshot.png), or null; its width over its height in *aspect
 ImTextureData* logo(float* aspect);
+/// The start-up screen's turning Hookshot: one sheet of *frames square frames, *cols to a row and *rows rows, renders of the
+/// 3D model (assets/hookshot_turn.png); null without it, and the screen turns the flat logo instead
+ImTextureData* logo_turn(int* frames, int* cols, int* rows);
 /// The frame's drawing over the window's image `index` (TRANSFER_DST_OPTIMAL before and after): new glyphs and textures
 /// copied in on cmd first (no wait on the queue), then one render pass
 void record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h);

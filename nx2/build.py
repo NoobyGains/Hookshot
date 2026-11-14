@@ -1361,6 +1361,8 @@ def main():
         # (HOOKSHOT_VK_PREBUILT) and carries neither third_party/fonts nor the back end's sources, and a player's build there
         # stopped at the fonts (FileNotFoundError: LibertinusSans-Regular.ttf, 2026-11-10)
         logo_text = logo_rgba.write(os.path.join(gen_dir, "hookshot_logo.h")).encode()
+        # (and its turning Hookshot: assets/hookshot_turn.png's frames, zstd-compressed, nx2/logo_rgba.py write_turn)
+        logo_text += logo_rgba.write_turn(os.path.join(gen_dir, "hookshot_turn.h")).encode()
         # (the overlays' bundled fonts, third_party/fonts/libertinus, as a C++ file of the build's own: nx2/ui_fonts.py)
         fonts_cpp = os.path.join(gen_dir, "ui_fonts.cpp")
         ui_fonts.write(fonts_cpp)

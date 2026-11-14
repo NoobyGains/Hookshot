@@ -113,7 +113,7 @@ class ShaderStampCacheTests(unittest.TestCase):
             "stamp_def": '-DHOOKSHOT_VERSION="%s"' % version, "logo_text": b"", "gen_dir": str(self.root / "gen"),
             "fonts_cpp": str(self.root / "gen/ui_fonts.cpp"),
             # (the back end's branch makes its logo header and fonts file itself since #1567: no files written here)
-            "logo_rgba": SimpleNamespace(write=lambda path: ""),
+            "logo_rgba": SimpleNamespace(write=lambda path: "", write_turn=lambda path: ""),
             "ui_fonts": SimpleNamespace(write=lambda path: None),
             # (the ImGui back end's copy with nx2/imgui_backend.py's changes: here the fixture's file, copied as it is)
             "imgui_backend": SimpleNamespace(write=self.imgui_backend_copy),

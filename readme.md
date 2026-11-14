@@ -89,10 +89,10 @@ Everything below is on `main` in this repository, tested in the game on a GeForc
 </table>
 
 <p align="center">
-  <img src="docs/images/features/loading-screen.webp" alt="The start-up screen: the Hookshot turning above the HOOKSHOT wordmark while the pipeline bar fills" width="520">
+  <img src="docs/images/features/loading-screen.webp" alt="The start-up screen: the 3D Hookshot turning above the HOOKSHOT wordmark while the pipeline bar fills" width="520">
 </p>
 
-**The loading screen's Hookshot turns** while the game starts, as the shaders and pipelines load.
+**The loading screen's Hookshot is the 3D one** from the header, turning while the game starts and its shaders and pipelines load.
 
 <img src="docs/images/features/field-of-view.jpg" alt="Kakariko Village at field of view 60 percent, the game's 100 percent and 140 percent">
 

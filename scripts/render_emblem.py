@@ -143,6 +143,10 @@ else:
         turner.rotation_euler[2] = math.radians(START + 360.0 * f / frames)
 bpy.context.view_layer.update()
 
+# EMBLEM_TRANSPARENT=1: no floor and a see-through background, for frames drawn over something else (the start-up screen's
+# turning Hookshot, nx2/logo_rgba.py's sprite sheet)
+transparent = os.environ.get("EMBLEM_TRANSPARENT") == "1"
+scene.render.film_transparent = transparent
 # the floor: glossy black, under the model wherever its turn takes it
 bpy.ops.mesh.primitive_plane_add(size=200, location=(0, 0, -size * 0.62))
 fm = bpy.data.materials.new("floor")
@@ -193,6 +197,9 @@ except Exception as e:   # (the CPU then)
 scene.cycles.samples = samples
 scene.cycles.use_denoising = True
 scene.render.resolution_x = scene.render.resolution_y = res
+if transparent:   # (no floor in a transparent frame: it would be a dark square under the model)
+    bpy.data.objects.remove(bpy.data.objects["Plane"], do_unlink=True)
+scene.render.image_settings.color_mode = "RGBA" if transparent else "RGB"
 scene.render.resolution_percentage = 100
 scene.render.image_settings.file_format = "PNG"
 for f in range(frames):

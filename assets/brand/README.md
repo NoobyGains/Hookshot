@@ -24,6 +24,11 @@ Rendered on 2026-11-14 in Blender 4.5 (Cycles, OptiX, RTX 5090), 96 samples, 600
     blender -b --disable-autoexec -P scripts/render_emblem.py -- Oot_HyruleShield.fbx FRAMES shield 40 96 600
     python scripts/make_hero.py --frames FRAMES
 
+The start-up screen's turning Hookshot is the same model: `assets/hookshot_turn.png` is 48 frames of one turn (8 to a
+row, 256x256, transparent), rendered with `EMBLEM_TRANSPARENT=1 blender -b --disable-autoexec -P scripts/render_emblem.py --
+Hookshot_DTStheTDS.blend FRAMES hookshot 48 64 512` and packed by the sheet code in this round's notes; `nx2/logo_rgba.py`
+compresses it into the renderer at build time.
+
 ## Files
 
 | File | Size | Use |

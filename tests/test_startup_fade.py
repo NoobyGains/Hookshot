@@ -36,6 +36,11 @@ def main():
     need(tail, r"AddRectFilled\(ImVec2\(0, 0\), ImVec2\(w, h\), ui::rgba\(0, 0, 0,", "the fade is not drawn over the whole screen")
     need(menu, r"startup_on\.store\(false, std::memory_order_release\);\s*startup_fade\.store\(0", "the fade is not reset when the screen goes")
     # (the logo turns while the screen shows: drawn as a quad whose width follows the turn's cosine, not a fixed AddImage)
+    # (the 3D Hookshot's frames first, one by the time; the flat logo's turn only without them)
+    need(draw, r"ui::logo_turn\(&turn_frames, &turn_cols, &turn_rows\)", "the turning Hookshot's frames are not asked for")
+    need(draw, r"std::fmod\(t / kLogoTurnSeconds, 1\.0\) \* turn_frames", "the frame is not chosen by the time")
+    if draw.index("ui::logo_turn(") > draw.index("} else if (logo) {"):
+        raise SystemExit("FAIL: the flat logo is drawn before the turning Hookshot is tried")
     need(draw, r"AddImageQuad\(logo->GetTexRef\(\)", "the logo is not drawn as a turning quad")
     need(draw, r"std::cos\(turn\)", "the logo's width does not follow its turn")
     need(menu, r"constexpr double kLogoTurnSeconds = [0-9.]+;", "no turn length for the logo")
