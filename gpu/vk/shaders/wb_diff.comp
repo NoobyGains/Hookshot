@@ -3,7 +3,7 @@
 // differs from the shadow (the pool's copy of what guest memory holds), the shadow kept the same. One workgroup a chunk of a
 // run (64 KB at most), from a table the CPU wrote. A chunk of 16-byte vectors goes a subgroup's span at a time, written whole
 // when any of its vectors differs (whole lines over PCIe: word by word it went at ~1 GB/s); a chunk's odd words one by one.
-// (longshot) Stamps (the late pages' fix, vk_memory.cpp): a chunk with bit 1 of vecs set has the address of its stamps in a
+// (hookshot) Stamps (the late pages' fix, vk_memory.cpp): a chunk with bit 1 of vecs set has the address of its stamps in a
 // uint64 a chunk right after the table's chunks (such a table has no observations), and writes the submission's value (low
 // 32 bits, pc.stamp) there beside every word it CHANGES (differs from the shadow). A span is written to guest memory whole, its
 // unchanged words with what the shadow holds, which may be older than what the CPU wrote since: those are not stamped, so the

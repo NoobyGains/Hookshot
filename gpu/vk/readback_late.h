@@ -1,4 +1,4 @@
-// (longshot) RX_VK_READBACK_LATE=<rule>[,<rule>...]: the CPU reads of GPU results that do not wait for their write-back
+// (hookshot) RX_VK_READBACK_LATE=<rule>[,<rule>...]: the CPU reads of GPU results that do not wait for their write-back
 // (vk_replay.cpp invalidate). Off unless set: every such read waits, as before. The CPU then reads what guest memory holds,
 // the write-back of the frame before. Two rules, either is enough:
 //   newest       the range's writer is the newest submission handed out: the game reads it right after submitting the work

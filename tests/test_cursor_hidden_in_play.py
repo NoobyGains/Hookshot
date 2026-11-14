@@ -101,7 +101,7 @@ class CursorHiddenInPlayTests(unittest.TestCase):
         state = DISPLAY[start:DISPLAY.index("static int gm_move_counts(", start)]
         state = state[:state.rindex("/*")]   # (without the next function's comment)
         cursor = "\n".join([state, function("static int gm_move_counts("), function("static void gm_mouse_moved(HWND w)")])
-        with tempfile.TemporaryDirectory(prefix="longshot-cursor-") as temp:
+        with tempfile.TemporaryDirectory(prefix="hookshot-cursor-") as temp:
             source, executable = Path(temp) / "fixture.c", Path(temp) / "fixture.exe"
             source.write_text(FIXTURE.replace("@CURSOR@", cursor), encoding="utf-8")
             subprocess.run([CC, "-std=c11", "-O0", "-Wall", "-Wextra", "-Werror", str(source), "-o", str(executable)], check=True)

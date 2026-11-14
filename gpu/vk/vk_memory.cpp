@@ -112,7 +112,7 @@ struct Pool {
     VmaAllocation shadow_alloc = nullptr;
     VkDeviceAddress shadow_address = 0;
     std::vector<uint64_t> shadow_known;   // (a bit a page)
-    // (longshot, RX_VK_MIRROR_SPARSE: sparse_mirror.h) a sparse mirror: memory only in the blocks a game pool is in
+    // (hookshot, RX_VK_MIRROR_SPARSE: sparse_mirror.h) a sparse mirror: memory only in the blocks a game pool is in
     bool sparse = false;
     bool any_wanted = false;              // (in sparse_wanted: a binding reached a block with none)
     uint64_t sparse_block_bytes = 0, sparse_size = 0;   // (its block, and its buffer's size in whole blocks)
@@ -740,7 +740,7 @@ void stamp_page(uint64_t p, uint32_t g) {
 } // namespace
 
 namespace {
-/// (longshot) Whether addresses asked in ascending order fall in sorted, disjoint [lo, hi) ranges: a cursor that only
+/// (hookshot) Whether addresses asked in ascending order fall in sorted, disjoint [lo, hi) ranges: a cursor that only
 /// moves forward, one pass over the ranges for a whole scan, where a binary search for every page cost log2(ranges)
 /// compares each (the collections give their pages in address order: host/rx_backend.c's collect_in walks sorted, merged
 /// ranges, hos_gpu_guest_ranges' for memory_collect_written, and capture_make's own `mirrored` list for the pages of a
@@ -1599,7 +1599,7 @@ struct WbPages {
 // no mirror; the later parts of its submission may still read or write it in guest memory, so the read waits for all of it).
 // A page's part is replaced with its value, by every note: the two are of the same write
 WbPages wb_parts;
-// (longshot) the pages' last write in place (part 0: note_direct_write), for the late pages' fix: no record of which words,
+// (hookshot) the pages' last write in place (part 0: note_direct_write), for the late pages' fix: no record of which words,
 // so a capture with such a page late waits, as before, whatever else writes it back
 WbPages wb_direct;
 void wb_pages_note(uint64_t guest_lo, uint64_t guest_hi, uint64_t value, uint64_t part) {
@@ -2104,7 +2104,7 @@ bool late_fix_on() {   // (not with the parallel replay: its segments' workers r
     return on;
 }
 } // namespace
-// (longshot) The late pages' fix (see take_capture) needs to know what wrote a late page back: the diff pass (its stamps say
+// (hookshot) The late pages' fix (see take_capture) needs to know what wrote a late page back: the diff pass (its stamps say
 // which words) or a whole copy (no record of which words: the capture waits). A page late for another write-back (the GPU's
 // writes in place, note_direct_write) has neither, and its capture waits, as before. wb_pages_mu
 WbPages wb_diff_pages, wb_whole_pages;
@@ -2178,7 +2178,7 @@ void late_snap_whole(VkCommandBuffer cmd, const Pool& p, uint64_t off, uint64_t 
         rs.push_back({a - (pg << kPageShift), b - (pg << kPageShift), mem_rec_value});
     }
 }
-// (longshot) The shadow follows the mirror's sync: a mirror sync of a pool with a shadow copies the same bytes (a capture's
+// (hookshot) The shadow follows the mirror's sync: a mirror sync of a pool with a shadow copies the same bytes (a capture's
 // page, or guest memory as the GPU gets there) into the shadow, and the next write-back counts those pages as known again
 // after forgetting the pages the CPU wrote. Before, such a page was filled again from guest memory at the write-back, with
 // the CPU's writes made after the capture: where the GPU wrote nothing the mirror still held the capture's words, which
@@ -4238,13 +4238,13 @@ BufferRef gpu_buffer_bind(uint64_t gpu, uint64_t size, bool written) {
         return remember({p->buffer, off, size, 0});
     }
     if (p->sparse && !sparse_has(*p, off, size) && sparse_gaps_outside_pools(*p, off, size)) {
-        // (longshot, RX_VK_MIRROR_SPARSE) its blocks with no memory are all outside every game pool: a binding with a guessed
+        // (hookshot, RX_VK_MIRROR_SPARSE) its blocks with no memory are all outside every game pool: a binding with a guessed
         // size that runs past a pool's end. Served from the mirror below, as a mirror with memory everywhere would serve it:
         // what the GPU wrote only into the mirror is read, and a write lands there, written back where a block has memory. Not
         // wanted: no game pool is there (sparse_want_live gives them memory at the submission after one comes)
         st_sparse_past++;
     } else if (p->sparse && !sparse_has(*p, off, size)) {
-        // (longshot, RX_VK_MIRROR_SPARSE) blocks of its mirror with no memory where a game pool is (one there since the mirror
+        // (hookshot, RX_VK_MIRROR_SPARSE) blocks of its mirror with no memory where a game pool is (one there since the mirror
         // was made, or let go and back): served from guest memory for this submission, where the page table points those pages
         // too, as a pool with no mirror yet is; they get memory at the next one (sparse_grow). One that reaches blocks with
         // memory too is counted (st_sparse_mixed): GPU-only data in those is missed by it
@@ -4726,7 +4726,7 @@ void trims_settle() {
 void memory_begin_submission() {
     std::lock_guard lk(pools_mu);
     reap_mirrors();
-    sparse_reap();   // (longshot, RX_VK_MIRROR_SPARSE: released blocks and freed sparse mirrors the GPU is past)
+    sparse_reap();   // (hookshot, RX_VK_MIRROR_SPARSE: released blocks and freed sparse mirrors the GPU is past)
     retired_imports_give_back();
     mirror_epoch++;
     mirror_upload = true;
@@ -4741,7 +4741,7 @@ void memory_begin_submission() {
         for (Pool* p : mirror_wanted) want += p->hi - p->lo;
         if (mirror_epoch % 64 == 0 || mirror_bytes + want > mirror_budget()) mirrors_give_back(want);
     }
-    if (mirror_sparse_on()) {   // (longshot, RX_VK_MIRROR_SPARSE: blocks the game's pools left go, blocks bindings wanted come)
+    if (mirror_sparse_on()) {   // (hookshot, RX_VK_MIRROR_SPARSE: blocks the game's pools left go, blocks bindings wanted come)
         if (mirror_epoch % 64 == 0) sparse_release();
         static uint64_t pools_seen = 0;   // (the game's pools changed: blocks a new one is in get memory before any work reaches them)
         if (const uint64_t g = guest_pools_gen.load(std::memory_order_relaxed); g != pools_seen) pools_seen = g, sparse_want_live();
@@ -4821,7 +4821,7 @@ bool mirror_make(Pool& pool) {
         static const bool tight_rule = env_on("RX_VK_MIRROR_TIGHT");
         uint64_t used = 0, allowed = 0;
         const bool tight = tight_rule && vram_usage(&used, &allowed) && allowed && used > allowed / 100 * 90;
-        // (longshot, RX_VK_MIRROR_SPARSE) memory only for the blocks a game pool is in: what it takes is theirs
+        // (hookshot, RX_VK_MIRROR_SPARSE) memory only for the blocks a game pool is in: what it takes is theirs
         VkBuffer sparse_buf = VK_NULL_HANDLE;
         VkMemoryRequirements sparse_req{};
         std::vector<uint8_t> live;
@@ -5775,7 +5775,7 @@ void memory_end_submission(VkCommandBuffer cmd, uint64_t part) {
                     runs.push_back({w.lo, w.lo, w.hi - w.lo});
             }
             cut_cpu_words(*p, runs);
-            if (p->sparse) {   // (longshot: never from a sparse mirror's block with no memory, which reads 0. A written binding
+            if (p->sparse) {   // (hookshot: never from a sparse mirror's block with no memory, which reads 0. A written binding
                                // that ran past every game pool into one, served from the mirror, has its part there dropped)
                 std::vector<sparse_mirror::Copy> in;
                 for (const VkBufferCopy& r : runs) in.push_back({r.srcOffset, r.dstOffset, r.size});

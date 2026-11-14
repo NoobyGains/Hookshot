@@ -1,4 +1,4 @@
-// (longshot) A VRAM mirror's blocks that hold memory (vk_memory.cpp, RX_VK_MIRROR_SPARSE), apart from Vulkan so that
+// (hookshot) A VRAM mirror's blocks that hold memory (vk_memory.cpp, RX_VK_MIRROR_SPARSE), apart from Vulkan so that
 // tests/test_sparse_mirror.py can run it.
 //
 // A pool's mirror covers its import's whole range, and an import is made by chunk around what was bound: the mirrors

@@ -1,4 +1,4 @@
-/* (longshot) How much VRAM the game's memory pools may be mirrored in (vk_memory.cpp mirror_budget), by the card: Auto's rule, and
+/* (hookshot) How much VRAM the game's memory pools may be mirrored in (vk_memory.cpp mirror_budget), by the card: Auto's rule, and
    the cap on what a Quality preset asks. No Vulkan here. tests/test_mirror_budget.py */
 #pragma once
 

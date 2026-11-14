@@ -288,7 +288,7 @@ void queue_flush_locked() {   // (dev.present_mu held)
     si.pSignalSemaphoreInfos = sig;
     PROF(PROF_QSUBMIT);
     si.pNext = reflex_submit_id(nullptr, pend.reflex);   // (NVIDIA Reflex: the game frame of the batch's first command buffer)
-    VkSemaphoreSubmitInfo sparse_wait;   // (longshot: after the sparse mirrors' binds, RX_VK_MIRROR_SPARSE)
+    VkSemaphoreSubmitInfo sparse_wait;   // (hookshot: after the sparse mirrors' binds, RX_VK_MIRROR_SPARSE)
     if (memory_sparse_wait(&sparse_wait)) si.waitSemaphoreInfoCount = 1, si.pWaitSemaphoreInfos = &sparse_wait;
     const VkResult res = vkQueueSubmit2(dev.queue, 1, &si, VK_NULL_HANDLE);
     static int failures;
@@ -836,7 +836,7 @@ void submit_recording(Recording& r, bool signal_value = true, uint64_t signal_at
     }
     PROF(PROF_QSUBMIT);
     si.pNext = reflex_submit_id(nullptr);   // (NVIDIA Reflex: the frame being made)
-    VkSemaphoreSubmitInfo sparse_wait;   // (longshot: after the sparse mirrors' binds, RX_VK_MIRROR_SPARSE)
+    VkSemaphoreSubmitInfo sparse_wait;   // (hookshot: after the sparse mirrors' binds, RX_VK_MIRROR_SPARSE)
     if (memory_sparse_wait(&sparse_wait)) si.waitSemaphoreInfoCount = 1, si.pWaitSemaphoreInfos = &sparse_wait;
     const VkResult res = vkQueueSubmit2(dev.queue, 1, &si, r.fence);
     r.submitted = res == VK_SUCCESS;
@@ -2121,7 +2121,7 @@ const uint8_t* replay_handle(VkCommandBuffer& cmd, const uint8_t* h, bool may_st
         std::lock_guard lk(dev.present_mu);
         queue_flush_locked();
         si.pNext = reflex_submit_id(nullptr);   // (NVIDIA Reflex: the frame being made; after the flush, which tags its own)
-        VkSemaphoreSubmitInfo sparse_wait;   // (longshot: after the sparse mirrors' binds, RX_VK_MIRROR_SPARSE)
+        VkSemaphoreSubmitInfo sparse_wait;   // (hookshot: after the sparse mirrors' binds, RX_VK_MIRROR_SPARSE)
         if (memory_sparse_wait(&sparse_wait)) si.waitSemaphoreInfoCount = 1, si.pWaitSemaphoreInfos = &sparse_wait;
         const VkResult res = vkQueueSubmit2(dev.queue, 1, &si, j->r->fence);
         j->r->submitted = res == VK_SUCCESS;
@@ -2974,7 +2974,7 @@ bool readback_wait_value(uint64_t v) {
              (unsigned long long)q_values.load());
     return false;
 }
-/// (longshot) RX_VK_READBACK_LATE (readback_late.h): whether a readback of that size, written by the newest submission or
+/// (hookshot) RX_VK_READBACK_LATE (readback_late.h): whether a readback of that size, written by the newest submission or
 /// not, is read without its wait. Off unless the switch is set
 bool readback_late_wanted(uint64_t size, bool newest) {
     static const readback_late::Rules rules = [] {
@@ -2985,7 +2985,7 @@ bool readback_late_wanted(uint64_t size, bool newest) {
     }();
     return readback_late::wanted(rules, size, newest);
 }
-/// (longshot) RX_VK_LOG_READBACK_RANGES=1: the readbacks by range, in the log every 3000 calls: how many waited and for how
+/// (hookshot) RX_VK_LOG_READBACK_RANGES=1: the readbacks by range, in the log every 3000 calls: how many waited and for how
 /// long, how many had the newest submission as their writer, how many were read without their wait (RX_VK_READBACK_LATE).
 /// How the ranges worth a rule are found on a given PC
 struct RbRange {

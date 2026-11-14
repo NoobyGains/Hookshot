@@ -249,7 +249,7 @@ def main():
         subprocess.run([args.cxx, "-std=c++20", "-O1", "-Wall", "-Wextra", "-Werror", "-D_CRT_SECURE_NO_WARNINGS",
                         "-I", str(args.source), str(cpp), "-o", str(exe)], check=True)
         for case in cases:
-            env = {key: value for key, value in os.environ.items() if not key.startswith(("HOS_", "RX_", "LONGSHOT_"))}
+            env = {key: value for key, value in os.environ.items() if not key.startswith(("HOS_", "RX_", "HOOKSHOT_"))}
             env["HOS_DISPLAY_MODES"] = "1920x1080,5120x1440"
             if case in ("output-context", "aspect-changed-wide"): env["HOS_DISPLAY_MODES"] = "1920x1080,3440x1440,3840x2160"
             if case == "reordered-shapes": env["HOS_DISPLAY_MODES"] = "1280x1024,1600x1200,1920x1080,3440x1440,5120x1440"

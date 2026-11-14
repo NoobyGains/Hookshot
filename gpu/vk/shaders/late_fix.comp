@@ -1,5 +1,5 @@
 #version 460
-// (longshot) The late pages' fix (vk_memory.cpp, "the late pages' fix"): a capture's page that a submission still on the GPU
+// (hookshot) The late pages' fix (vk_memory.cpp, "the late pages' fix"): a capture's page that a submission still on the GPU
 // writes back gets, in the capture's buffer, the mirror's words the write-back writes, before anything copies the page from
 // there: the words of a whole copy's range all, the diff pass's words where its stamp is newer than the capture's view of
 // the GPU (int(stamp - after) > 0). One workgroup a fix (a page, or a range in one), from a table the CPU wrote.
