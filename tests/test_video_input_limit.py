@@ -339,6 +339,7 @@ def main():
                       through(src, "static SRWLOCK ready_lock", "static int nready_spare;"),
                       block(src, "static void ready_event_give_back(uint64_t event) {"),
                       block(src, "static uint64_t ready_event_new(void) {"),
+                      block(src, "static uint64_t ready_event_of(uint64_t decoder) {"),
                       block(src, "static uint64_t ready_event(Ctx *c) {")))
     # (the source's own checks: the refusal comes before a submission id is used, and all three codecs ask the decoder's event)
     submit = block(src, "static void dec_submit(Ctx *c) {")
