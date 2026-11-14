@@ -1,6 +1,6 @@
-/* (hookshot) Two places in the game that need whole 60 fps frames, under a Frame rate cap other than 60, where the frame step is the
-   frame's own time (host/nn_vi.c, hos_frame_seconds_bits: 0.5 at 120 fps). nx2/oot_patches.py hooks them; host/oot_high_fps.c
-   holds the state. At a cap of 60 (no frame time given: timed 0) both return what the game computed, so nothing changes.
+/* (hookshot) Places in the game that go wrong under a Frame rate cap other than 60, where the frame step is the frame's own time
+   (host/nn_vi.c, hos_frame_seconds_bits: 0.5 at 120 fps). nx2/oot_patches.py hooks them; host/oot_high_fps.c holds the state. At
+   a cap of 60 (no frame time given: timed 0) each returns what the game computed, so nothing changes.
 
    The sound manager's job (f_80435300, its phase in w2): phase 0 hands the game step to the sound engine, whose fade and delay
    timers and parameter ramps count updates of at least one whole step. Fed less, some sounds are not released when an area
@@ -29,11 +29,35 @@
    platforms (the Deku Tree's floating one) and the floor slid out from under him. The gate now compares with 100 over the
    frame step (frame seconds x 60) while that is under 1, so the cut comes at the time scales where it came at 60 fps and
    nowhere else; at a step of 1 or more (60 fps and below, or no frame time: a cap of 60) it stays the game's 100. After
-   NX2navi (chrg6) commit c84724d, which found and measured it, used with its author's permission. */
+   NX2navi (chrg6) commit c84724d, which found and measured it, used with its author's permission.
+
+   A turn speed kept per 60 fps frame: the AI turn action ExecuteASApproachStickX (f_8263e8e0, its step in s0, then s8; Gohma
+   steers with it while she walks, on the floor and on the walls and ceiling) keeps a turn speed at +0x24, turns by it times the
+   step, and ends by clamping the speed to plus or minus the turn it applied times the step again: bound = (speed x step) x step.
+   At the console's step of 1 the clamp changes nothing (and at 30 fps, a step of 2, the bound is four times the speed). Under 1
+   the speed shrinks by step x step every frame: at 144 fps (0.42) to a sixth, so within a few frames Gohma could not turn at all
+   and walked into the walls of her room, round the ceiling, and never came down to lay her eggs (the fight could not go on;
+   capping at 60 mid-fight freed her at once). While the step is under 1 the two multiplies take one over the step instead
+   (turn_factor), so the bound is the applied turn as a per-frame speed, the speed itself: the clamp changes nothing, as at
+   60 fps. A step of 1 or more, and no frame time (a cap of 60), keep the game's factor. After zortos293/Lichii PR #1645 by
+   atk3001 (GPL-3.0), which found it with the debug server's reads (at 150 fps she steered at 0.045 rad/s instead of about 1) and
+   fixed it as a code patch for the emulator.
+
+   Special step rates counted in updates: the game's SpStepRate manager (game::framework GameSpStepRateMgr, its update f_82f72df0
+   with the time object in x1, whose +0x10 is the frame step) slows the game's time categories down for a while: a boss's death
+   (DieEventSpStepRateFrame, OneShotDungeonBossCommonRequestSpStepRateAtDie), a hit, an event. Each cell runs through phases of a
+   given number of 60 fps frames (+0x9c, +0xa0, +0xa4), counted down at +0x98 by max(round(step), 1) each update: 1 a frame at
+   60 fps, 2 at 30, and 1 every update above 60, so there a phase ran fps / 60 times too short (a quarter of its time at 240
+   fps), while the time it holds back (+0xa8.., which adds (1 - rate) x step) followed the clock. While the frames' own time is
+   the step the countdown takes the whole frames of the steps instead, the fraction carried per cell (step_count, one remainder
+   per countdown address as host/frame_whole.h keeps them); a cap of 60, and a step of 0 or less, NaN or huge, keep the game's
+   count. After zortos293/Lichii PR #1663 by atk3001 (GPL-3.0), which found the countdown ("the step rate manager") and carries
+   its fraction in a code patch for the emulator. */
 #pragma once
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
+#include "frame_whole.h"
 
 typedef struct {
     float part;   /* (the steps added up since the job last ran, under 1) */
@@ -100,4 +124,21 @@ static inline int32_t oot_solver_steps(int32_t game, uint32_t scaled_bits, uint3
 static inline float oot_floor_cut(uint32_t seconds_bits) {
     const float step = oot_bits_float(seconds_bits) * 60.0f;
     return seconds_bits && step > 0.0f && step < 1.0f ? 100.0f / step : 100.0f;
+}
+
+/* The factor f_8263e8e0's clamp multiplies the applied turn by (its float's bits): the step, or minus the step. One over it while
+   its size is under 1 and the frames' own time is the step (timed); the game's otherwise, and for 0, NaN or a size under a
+   thousandth (a turn of 0 times an infinite factor would make the speed NaN) */
+static inline uint32_t oot_turn_factor(uint32_t factor_bits, int timed) {
+    const float f = oot_bits_float(factor_bits), size = fabsf(f);
+    return timed && size >= 0.001f && size < 1.0f ? oot_float_bits(1.0f / f) : factor_bits;
+}
+
+/* What f_82f72df0 takes off a SpStepRate cell's countdown at `at` this update: game, its own max(round(step), 1); with the
+   frames' own time as the step (timed) the whole frames of the steps, their fraction kept in w for that countdown. Not
+   thread-safe by itself (frame_whole): the caller holds a lock */
+static inline uint32_t oot_step_count(FrameWhole *w, uint64_t at, uint32_t step_bits, uint32_t game, int timed) {
+    const float step = oot_bits_float(step_bits);
+    if (!timed || !(step > 0.0f) || !(step < 1000.0f)) return game;
+    return frame_whole(w, at, step_bits, 1);
 }
