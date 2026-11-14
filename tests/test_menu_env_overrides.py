@@ -97,7 +97,7 @@ uint64_t auto_for = 0, auto_tuned = 0;   // (the Quality preset Auto (this PC)'s
 struct { uint32_t w = 0, h = 0; } auto_output;   // (and the Output resolution it set, by its size)
 struct { int steps = 0; bool went_down = false; } auto_tuning;   // (and its tuning's steps)
 constexpr int HOS_KEY_N = 1, HOS_SW_N = 1, HOS_BIND_PAD = 0, HOS_BIND_KEY = 1;
-constexpr int HOS_KEY_OC_NOTE_L = 1, HOS_KEY_OC_NOTE_X = 1;   /* (the note rows: past this stub's one row) */
+constexpr int HOS_KEY_OC_NOTE_L = 1, HOS_KEY_OC_NOTE_X = 1, HOS_KEY_SPRINT = 1;   /* (the note rows and Sprint: past this stub's one row) */
 const char* const bind_names[1] = {"a"};
 struct Host { int (*binding)(int, int, int); } host_value{nullptr}, *host = &host_value;
 bool can_bind() { return host->binding != nullptr; }

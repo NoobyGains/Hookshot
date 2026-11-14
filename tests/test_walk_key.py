@@ -315,7 +315,9 @@ class WalkKeyTests(unittest.TestCase):
                 block(hid, "static void oc_notes("),
                 block(hid, "static int pads_in_background("), block(hid, "static int walk_held("),
                 block(hid, "enum { WALK_SPEED_DEFAULT"), block(hid, "static int walk_percent("),
-                block(hid, "static void move_keys_stick(")]
+                block(hid, "static void move_keys_stick("),
+                "static int sprint_now;   /* (Sprint, as read_input leaves it for sprint_step: off here) */",
+                block(hid, "enum { SPRINT_KEY") + ";", block(hid, "static int pad_sprint_down(")]
         source = PRELUDE + "\n".join(code) + STUBS + block(hid, "static int pads_merge(") + block(hid, "static void read_input(") + MAIN
         env = {k: v for k, v in os.environ.items() if not k.startswith(("HOS_INPUT_", "HOS_MOUSE_"))}
         with tempfile.TemporaryDirectory(prefix="hookshot-walk-key-") as tmp:
@@ -338,10 +340,10 @@ class WalkKeyTests(unittest.TestCase):
         api, hid, menu = read("gpu", "vk", "vk_api.h"), read("host", "nn_hid.c"), read("gpu", "vk", "vk_menu.cpp")
         header, replay = read("gpu", "vk", "vk_menu.h"), read("gpu", "vk", "vk_replay.cpp")
         self.assertIn("enum { HOS_OPT_WALK_MODE = 85, HOS_OPT_WALK_SPEED };", api)
-        self.assertRegex(api, r"HOS_KEY_OC_NOTE_X, HOS_KEY_WALK, HOS_KEY_N \};")
+        self.assertRegex(api, r"HOS_KEY_OC_NOTE_X, HOS_KEY_WALK, HOS_KEY_SPRINT, HOS_KEY_N \};")
         # (the host's two copies of the names: the ini's key_walk)
         self.assertEqual(names(hid), names(menu))
-        self.assertEqual(names(hid)[-1], "walk")
+        self.assertEqual(names(hid)[-2:], ["walk", "sprint"])   # (Walk, then Sprint: the last two)
         self.assertIn('{HOS_KEY_WALK, "Walk"}', menu, "the Controls page has no Walk row")
         option = replay[replay.index("t.option = "):]
         option = option[:option.index("};")]

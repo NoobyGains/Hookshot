@@ -1544,7 +1544,7 @@ Row rows[] = {
      "Skips the new-game opening (the story movie and Navi waking Link) and leaves later cutscenes, the Deku Tree "
      "meeting, and the title screen alone.", nullptr, false, true},
 
-    // Controls (16 rows; Motion opens the 6 TAB_MOTION rows, Controls its page with the 2 TAB_PAGE rows)
+    // Controls (17 rows; Motion opens the 6 TAB_MOTION rows, Controls its page with the 2 TAB_PAGE rows)
     {TAB_CONTROLS, "Controller in background", &opts.pad_background, 0, 1, 1, tx_onoff,
      "Whether the controller plays the game while another window has the focus.", hn_background, false, true},
     {TAB_CONTROLS, "Keyboard", &opts.keyboard, 0, 2, 1, tx_keyboard,
@@ -1557,6 +1557,11 @@ Row rows[] = {
     {TAB_CONTROLS, "Disable camera centering", &opts.disable_camera_centering, 0, 1, 1, tx_onoff,
      "Stops the camera gradually turning toward the direction you move, useful with native mouse look. Off keeps the "
      "game's standard behavior. Manual camera controls and recentering still work.", nullptr, false, true},
+    {TAB_CONTROLS, "Sprint", &opts.sprint, 0, 1, 1, tx_onoff,
+     "Link runs while you move: Shift held, or the left stick pressed once until you stop, without rolling, talking or "
+     "picking things up. Turning it "
+     "on changes your controls: Shift moves from B to Sprint (B goes to V) and the left stick's press from LS to Sprint. "
+     "Turning it off puts them back. Controls you rebound yourself are left alone.", nullptr, false, true},
     {TAB_CONTROLS, "Mouse sensitivity", &opts.mouse_sens, 10, 500, 10, tx_sens,
      "How far the camera turns for a mouse movement, with either Mouse camera: at 1.00 native look turns 0.1 degree a "
      "count. The - and = keys change it in game too.", nullptr, false, true},
@@ -2107,7 +2112,7 @@ const char* ini_key(const Row& r) {
 const char* const bind_names[HOS_KEY_N] = {"a", "b", "x", "y", "ls", "rs", "l", "r", "zl", "zr", "plus", "minus",
                                            "left", "up", "right", "down", "move_up", "move_down", "move_left",
                                            "move_right", "cam_up", "cam_down", "cam_left", "cam_right",
-                                           "note_l", "note_r", "note_a", "note_y", "note_x", "walk"};
+                                           "note_l", "note_r", "note_a", "note_y", "note_x", "walk", "sprint"};
 bool can_bind() { return host && host->binding && host->bind && host->pad_raw; }
 const char* tx_pad_layout(int v) {
     static const char* t[] = {"Nintendo (Def)", "Xbox / PC", "Swap Face", "Custom"};
@@ -2264,8 +2269,8 @@ void save() {
         fprintf(f, "options_version=6\n");
         fputs(others.c_str(), f);
         if (!can_bind()) fputs(kept.c_str(), f);
-        for (int i = 0; i < HOS_KEY_N && can_bind(); i++) {   // (the stick's and camera's rows, HOS_KEY_MOVE_*/CAM_*, have no pad_ line; the ocarina note rows do)
-            if (i < HOS_SW_N || (i >= HOS_KEY_OC_NOTE_L && i <= HOS_KEY_OC_NOTE_X)) {
+        for (int i = 0; i < HOS_KEY_N && can_bind(); i++) {   // (the stick's and camera's rows, HOS_KEY_MOVE_*/CAM_*, have no pad_ line; the ocarina note rows and Sprint do)
+            if (i < HOS_SW_N || (i >= HOS_KEY_OC_NOTE_L && i <= HOS_KEY_OC_NOTE_X) || i == HOS_KEY_SPRINT) {
                 const int alternate = host->binding(HOS_BIND_PAD, i, 1);
                 fprintf(f, "pad_%s=%d", bind_names[i], host->binding(HOS_BIND_PAD, i, 0));
                 if (alternate >= 0) fprintf(f, ",%d", alternate);
@@ -2680,6 +2685,46 @@ void share_pipeline_list() {
     }
 }
 
+/// (hookshot) The Controls tab's Sprint row turned on: Sprint gets Shift and the left stick's press where they are still
+/// the defaults' (Shift on B, which moves to V when no control has V; the press on LS, which keeps its other input), and only
+/// when Sprint has none of its own. Off: those go back to B and LS. A control the player rebound is left as it is
+void apply_sprint_layout(bool on) {
+    if (!can_bind()) return;
+    constexpr int kShift = 0x10, kV = 'V';   // (Windows key codes)
+    auto key = [](int b, int s) { return host->binding(HOS_BIND_KEY, b, s); };
+    auto pad = [](int b, int s) { return host->binding(HOS_BIND_PAD, b, s); };
+    auto key_used = [&](int code) {
+        for (int i = 0; i < HOS_KEY_N; i++)
+            for (int s = 0; s < 2; s++)
+                if (key(i, s) == code) return true;
+        return false;
+    };
+    const int S = HOS_KEY_SPRINT;
+    if (on) {
+        if (!key(S, 0) && !key(S, 1)) {
+            if (key(HOS_SW_B, 0) == kShift && !key_used(kV)) host->bind(HOS_BIND_KEY, HOS_SW_B, 0, kV);
+            if (!key_used(kShift)) host->bind(HOS_BIND_KEY, S, 0, kShift);
+        }
+        if (pad(S, 0) < 0 && pad(S, 1) < 0 && pad(HOS_SW_LS, 0) == HOS_PAD_LSTICK) {
+            const int other = pad(HOS_SW_LS, 1);   // (LS's Input 2 moves into its Input 1)
+            host->bind(HOS_BIND_PAD, HOS_SW_LS, 1, -1);
+            host->bind(HOS_BIND_PAD, HOS_SW_LS, 0, other);
+            host->bind(HOS_BIND_PAD, S, 0, HOS_PAD_LSTICK);
+        }
+        return;
+    }
+    if (key(HOS_SW_B, 0) == kV && (key(S, 0) == kShift || key(S, 1) == kShift))
+        host->bind(HOS_BIND_KEY, HOS_SW_B, 0, kShift);   // (taken from Sprint; V is free again)
+    for (int s = 0; s < 2; s++)
+        if (key(S, s) == kShift) host->bind(HOS_BIND_KEY, S, s, 0);
+    if (pad(S, 0) == HOS_PAD_LSTICK || pad(S, 1) == HOS_PAD_LSTICK) {
+        for (int s = 0; s < 2; s++)
+            if (pad(S, s) == HOS_PAD_LSTICK) host->bind(HOS_BIND_PAD, S, s, -1);
+        if (pad(HOS_SW_LS, 0) < 0) host->bind(HOS_BIND_PAD, HOS_SW_LS, 0, HOS_PAD_LSTICK);
+        else if (pad(HOS_SW_LS, 1) < 0) host->bind(HOS_BIND_PAD, HOS_SW_LS, 1, HOS_PAD_LSTICK);
+    }
+}
+
 /// A row's new value v, as the arrows set it (dir: 1 up, -1 down, for the rows that skip or wrap), saved unless !keep
 /// (a slider's drag: saved once it is let go)
 void set_row(Row& r, int v, int dir, bool keep = true) {
@@ -2731,6 +2776,7 @@ void set_row(Row& r, int v, int dir, bool keep = true) {
         }
     }
     if (r.value == &opts.mic && can_mic()) mic_chosen();   // (hookshot)
+    if (r.value == &opts.sprint) apply_sprint_layout(*r.value != 0);   // (hookshot: the bindings follow the row)
     // (hookshot: the samplers made again, at once: their anisotropy, and the upscalers' LOD bias, vk_draw.cpp upscale_lod_bias)
     if (r.value == &opts.anisotropy || r.value == &opts.dlss || r.value == &opts.resolution || r.value == &opts.preset)
         samplers_changed();
@@ -2749,14 +2795,14 @@ void set_row(Row& r, int v, int dir, bool keep = true) {
 
 // ---- (hookshot) the Controls page: what presses each of the Switch's buttons, a gamepad input and up to two keys ----
 struct Control {
-    int button;   // HOS_SW_*, or HOS_KEY_* (keys only)
+    int button;   // HOS_SW_*, or HOS_KEY_* (the stick's and camera's: keys only)
     const char* name;
 };
 const Control controls[] = {{HOS_SW_A, "A"}, {HOS_SW_B, "B"}, {HOS_SW_X, "X"}, {HOS_SW_Y, "Y"}, {HOS_SW_L, "L"},
                             {HOS_SW_R, "R"}, {HOS_SW_ZL, "ZL"}, {HOS_SW_ZR, "ZR"}, {HOS_SW_PLUS, "Plus"},
                             {HOS_SW_MINUS, "Minus"}, {HOS_SW_LS, "Left stick press"}, {HOS_SW_RS, "Right stick press"},
                             {HOS_SW_UP, "D-pad up"}, {HOS_SW_DOWN, "D-pad down"}, {HOS_SW_LEFT, "D-pad left"},
-                            {HOS_SW_RIGHT, "D-pad right"}, {HOS_KEY_MOVE_UP, "Move forward"},
+                            {HOS_SW_RIGHT, "D-pad right"}, {HOS_KEY_SPRINT, "Sprint"}, {HOS_KEY_MOVE_UP, "Move forward"},
                             {HOS_KEY_MOVE_DOWN, "Move back"}, {HOS_KEY_MOVE_LEFT, "Move left"},
                             {HOS_KEY_MOVE_RIGHT, "Move right"}, {HOS_KEY_CAM_UP, "Camera up"},
                             {HOS_KEY_CAM_DOWN, "Camera down"}, {HOS_KEY_CAM_LEFT, "Camera left"},
@@ -2764,7 +2810,7 @@ const Control controls[] = {{HOS_SW_A, "A"}, {HOS_SW_B, "B"}, {HOS_SW_X, "X"}, {
                             {HOS_KEY_OC_NOTE_R, "Ocarina note (R)"}, {HOS_KEY_OC_NOTE_A, "Ocarina note (A)"},
                             {HOS_KEY_OC_NOTE_Y, "Ocarina note (Y)"}, {HOS_KEY_OC_NOTE_X, "Ocarina note (X)"}};
 constexpr int kControls = sizeof controls / sizeof controls[0];   // (then "Reset to defaults")
-// (the stick's and camera's directions and Walk: keys only; the ocarina's note rows take a gamepad input too, host/nn_hid.c)
+// (the stick's and camera's directions and Walk: keys only; the ocarina's note rows and Sprint take a gamepad input too, host/nn_hid.c)
 bool keys_only(int i) {
     return i < kControls && ((controls[i].button >= HOS_KEY_MOVE_UP && controls[i].button <= HOS_KEY_CAM_RIGHT) ||
                              controls[i].button == HOS_KEY_WALK);
@@ -3618,6 +3664,11 @@ void draw_controls(ui::Ctx& c) {
     const char* title = page_row ? page_row->name : sel_i < kControls ? controls[sel_i].name : "Reset to defaults";
     const char* help = listening ? (listening == 1 ? "Press the gamepad button to use. Esc cancels." : "Press the key to use. Esc cancels.")
                        : page_row ? page_row->help
+                       : sel_i < kControls && controls[sel_i].button == HOS_KEY_SPRINT
+                           ? "Link runs while you move: the key while it is held, the gamepad button pressed once until you "
+                             "stop, without rolling, talking or picking things up. Only with the Controls tab's Sprint row on, "
+                             "which gives it Shift and the "
+                             "left stick's press. Enter binds; Delete clears it."
                        : can_toggle(sel_i) && ccol == kCtlToggle
                            ? "Hold-to-toggle: press once to hold this Switch button, again to release it. Either gamepad input or a "
                              "bound key works. Opening Insert, pressing Plus or Minus, focus loss or rebinding releases it. Off by default."
@@ -5465,6 +5516,7 @@ void menu_tick() {
                         host->bind(HOS_BIND_PAD, -1, 0, 0);
                         opts.pad_layout = 0;
                         opts.hold_toggle = 0;
+                        if (opts.sprint) apply_sprint_layout(true);   // (the defaults give Sprint nothing)
                         save();
                     }
                     else if (col == kCtlToggle) {
