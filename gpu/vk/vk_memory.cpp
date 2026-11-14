@@ -1232,6 +1232,7 @@ bool cap_buf_get(uint64_t need, VkBuffer& buffer, VmaAllocation& alloc, void*& m
 std::vector<std::pair<uint64_t, uint64_t>> cap_ranges;   // (the mirrored pools the captures take, as of the last one)
 std::mutex cap_ranges_mu;
 uint64_t cap_ranges_ver = 1;   // (any of the captures' range lists changed: cap_ranges_mu)
+// doc: docs/design.md#4-the-lessons-from-mkw-as-rules-here (rule 2: nothing the replay reads comes from live guest memory)
 // (and the game's pools up to RX_VK_CAPTURE_POOL_MB (default 64; 0: none) from when they are made, mirrored or not:
 // pools are imported, and mirrored, at the replay's first binding of them, two presents behind the game, and the
 // captures taken before that left them out. MK World moves its per-frame data to a new pool every so many frames:

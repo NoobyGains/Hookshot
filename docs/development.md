@@ -176,7 +176,7 @@ See [the format and history rules](temporal-history.md#psychov35-with-dlssdlaa-a
 | `HOS_INPUT_LIVE=<file>` | A file the test appends lines of presses to, read every 30 ms; each line's times count from when it is read. A line `!cheat <n>` sends a Cheats page action, `!synclog` logs the NVN syncs (`!dump`, `!shots`, `!rdoc` and `!flasharm` are the WebGPU renderer's) |
 | `HOS_INPUT_FRAME_CLOCK=1` | The script's time runs at 60 game frames a second instead of the wall clock |
 | `HOS_INPUT_EXCLUSIVE`, `HOS_INPUT_BACKGROUND`, `HOS_INPUT_SCRIPT_BACKGROUND` (set) | As above; the last lets every device count while the window is behind another one |
-| `RX_VK_MENU_SCRIPT=<seconds>:<key>,...` | Timed Insert menu keys: `INS`, `UP`, `DOWN`, `LEFT`, `RIGHT`, `ESC`, `ENTER`, `TABL`, `TABR` |
+| `RX_VK_MENU_SCRIPT=<seconds>:<key>,...` | Timed Insert menu keys: `INS`, `UP`, `DOWN`, `LEFT`, `RIGHT`, `ESC`, `ENTER`, `TABL`, `TABR`; `SHOT`, the Screenshot key (F12) |
 | `RX_VK_UI_PROMPTS=pad` or `keys` | The menu's button prompts for a controller or the keys, whatever was used last (screenshots) |
 | `RX_VK_UI_GAME_FONT=0` | The menu, the counter and the start-up screen in the included Libertinus, not the game's own font |
 
@@ -269,6 +269,7 @@ Pipeline-cache file ownership, temporary storage and failure behavior are descri
 | `RX_VK_HANDLE_TABLE_COUNT=<n>` | The elements of such an array (64; 2 to 256). An element index past it reads the last one |
 | `RX_VK_PCACHE_STAMP=0` | Keeps `mkw_vk_pipelines.bin` and its play files whatever translator made them. By default they are dropped at a start when `mkw_vk_pipelines.stamp` says another translator made them (as the program cache starts over), since their pipelines can no longer be hit |
 | `RX_VK_PCACHE_FETCH_LOCK=0` or `1` | A pipeline cache's data fetched (`vkGetPipelineCacheData`, the saves) only while no pipeline is being built with a cache, and a build waiting for a fetch: Intel's Windows driver crashes in `igvk64.dll` when the two overlap. The lock is held around `vkGetPipelineCacheData` alone, never across a file's write nor a wait for the builds. The background save waits up to 2 s for a moment with no build, else is put off to the next one (after 3 in a row the next one queues, up to 10 s); the forced saves wait; the window's close waits up to 10 s for the builds under way, then leaves the play file unwritten rather than hang (and up to 10 s more for each of its two fetches). With it off every wait is as before: the close waits for the builds. Default 1 with Intel's Windows driver, 0 elsewhere |
+| `RX_VK_UNSWIZZLE_IMPORT=1` | A big block-linear texture unswizzled on the GPU may import its guest memory for that one upload, as before (22-25 ms on the replay thread each). By default the GPU unswizzle takes a texture only from a pool an import already holds whole, and any other one takes the CPU path. This restores the imports only: the CPU unswizzle still runs on several threads from 4 MB (16 MB before) |
 | `RX_VK_FETCH_BOUNDS=0` or `1`, `RX_VK_NAN_BITS=0` or `1`, `RX_VK_GATHER_OFFSET=0` or `1` | The translation's vendor and driver workarounds (`gpu/vk/vk_vendor.h`) off or on for one run, whatever the GPU; the log's `vk: vendor fixes` line says which are on. By default: out-of-bounds texel fetches answered with 0 on every GPU but NVIDIA's; NaN tests on a value's bits on AMD's older Windows shader compiler (RX 5000 and RX 6000); gathers nudged by 1/512 of a texel on AMD's and Intel's drivers. They change the shaders' translation (one preparation of the shaders) |
 | `RX_VK_NATIVE_FADD=0` or `1` | The shaders' float adds to storage buffers: 1 the GPU's own atomic where it has `VK_EXT_shader_atomic_float`'s `shaderBufferFloat32AtomicAdd`, 0 a compare-exchange loop on every GPU, the extension not enabled. By default the GPU's own on NVIDIA's driver, and on Intel's Windows driver from 101.9175 with the Meteor Lake and Arrow Lake iGPUs (PCI device 0x7Dxx): what it was tried on in the game. Changing it, or the first start after an update that changes it, empties the whole program cache and `mkw_vk_pipelines.bin` (the translator's stamp holds it): everything is translated and prepared again, one long start on an iGPU. Elsewhere (AMD, Mesa's Intel driver, Intel's other GPUs and older drivers on Windows) the loop until runs there show the native add works (the log's `vk: float atomic add on storage buffers:` line says which, and why). The loop gives up after 1024 attempts, and an add that gives up is lost |
 | `RX_VK_UB_WORD_HASH=0` | A/B test: use the old low-address-bit index for cached uniform words (default: mix upper address bits to reduce aligned-buffer collisions) |
@@ -530,6 +531,55 @@ is made from. A record that no longer matches what play asks for builds a pipeli
 compiles in play. When the record's format changes (its magic and record size, `MAGIC` and `SIZE` in
 `nx2/pipeline_states.py`), the old lists no longer read and the release checks stop. Convert each source in place, or
 record it again, and make a new tour list. The folder's layout stays the same.
+
+### The pipeline tour
+
+`scripts/pipeline_tour.py` plays the game for the tour's list, unattended, on Linux, and writes `tour.bin.xz` with its note
+(ported from Hookshot's draft #2048, now driven through the [control bridge](control.md)):
+
+```sh
+python -I scripts/pipeline_tour.py tour --game <game folder> --out <tour dir> --name play --publish
+python -I scripts/pipeline_tour.py run --game <game folder copy> --out <dir> --part child-overworld --first "Market" --stops 3 --skip-opening
+python -I scripts/pipeline_tour.py run --game x --out x --dry-run          # the route, without the game
+```
+
+`tour` runs its parts (the opening; the child overworld; the dungeons at both ages; the adult overworld) one after another,
+one game at a time, in a reflinked copy of the game folder, at nice 19 (on `--cpus` if given), in games of `--chunk` stops
+(8; a fresh game each, as one game's memory only grows), and merges their lists; `--publish` then runs
+`nx2/pipeline_states.py tour` with the GPU and build the bridge reported and the settings and route the runs used
+(`merge` merges any lists). Each game runs under a memory guard (the script's `MEM`, `--mem key=value`): it starts only with
+8 GB available and at most 16 GB of swap in use (else it waits, 30 minutes at most); a game holding more than 9 GB after a
+stop ends there and a fresh one goes on from the next stop; past 12 GB, under 3 GB available or past 20 GB of swap it is
+stopped at once and a fresh game goes on from the stop it was at (a stop that does it twice is left out). With systemd the
+game also runs in a scope of its own with `MemoryMax` (16 GB).
+
+Each part starts with no save, in a data folder of its own: the title, New Game and the opening (watched whole by the
+opening part, skipped by the game itself, `HOS_SKIP_OPENING`, in the others), until the bridge's `status` says Link is in a
+map with no event playing and nothing loading; then every item from the Debug tab's inventory but the story's (medallions,
+stones and songs start scenes that wait for the player), and each Teleport destination: the camera all around, at a few
+the sword, the shield and an item from the pause menu's Items page, at Lake Hylia a dive (and, as the adult, the iron boots
+and the Zora tunic on the lake's bottom), and on to the next once no new pipeline came for 2.5 s of game time. A few stops
+are left out: one starts a scene the tour cannot finish, others added almost nothing (the script's `LEFT_OUT`). `value <run
+dirs>` measures that: each step's pipelines that neither the players' lists (`contrib/`) nor any other step has, its
+seconds, and the steps under `--floor` (10) cut (`--sub`: a stop's arrival, look around, item use and settling apart).
+
+It is driven through the bridge (`HOS_CONTROL`, a socket in the run's folder): `teleport` by the destination's index and
+`age`, asked again while the game answers `refused` (an event playing, a map loading, another teleport in the last 8 s),
+`timeout` or `cancelled`, with A or B now and then when a conversation holds the game; given up on when the refusal is one
+asking again cannot change (no map for Link's age) or a request is sent five times without Link moving (the Haunted
+Wasteland, visited last). Arrival is `wait map` (`loading_end` after the age switch), then `status` until the arrival's
+event is over; the presses are `sequence` in game frames, the waits `wait present`. Only the Debug tab's inventory, which
+the bridge does not do, goes through `HOS_INPUT_LIVE`'s `!cheat` lines (`HOS_OOT_CHEATS=1`). No controller is opened
+(`HOS_NO_SDL`) and nothing reaches the desktop. It runs as fast as the game goes, with settings that change no pipeline's
+key (formats and draw state, not sizes or rates): headless, 640x360 with the game's own upscaler at 50%, the cap Uncapped
+(`HOS_FPS_MAX=1000`) with every frame a 60th of a second of game time (`HOS_FPS_STEP=0`, Game speed Per frame), pacing and
+V-Sync off, text at once, no frame generation, sharpening or HDR, in the run's own copy of the options file (restored
+after). `run` is one part (`--part`, `--first <stop>` to start again at a stop, `--stops N`, `--dry-run`); `--env` and
+`--ini` change the settings (a list for the mesh fallback: `--env RX_VK_FORCE_MESH_FALLBACK=1`), and `--window WxH` shows
+it. Each run writes `states.bin`, `report.txt` and `report.json` (each step's pipelines, the new ones it added, its frames,
+seconds and the game's memory: a flattening curve says the list is nearly whole), `log.txt`, `steps.txt` (each request, at
+its frame) and a small picture every 600 frames (`shots/`). `tests/test_pipeline_tour.py` checks it without the game,
+against a fake bridge.
 
 ## The options file
 

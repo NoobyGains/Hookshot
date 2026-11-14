@@ -642,6 +642,13 @@ std::atomic<WideSides> wide_now;   // (wide_sides_tick's, each present)
 // (the middle 16:9's left edge while Ultrawide menus has the menus there and the picture is wider, as wide_sides has it; else 0)
 float wide_margin() { return opts.wide_menus && host && host->wide_menus ? host->wide_menus(0xfu & ~kMenus) : 0.0f; }
 bool wide_sides_possible() { return wide_possible.load(std::memory_order_relaxed); }
+// (hookshot) Whether a row of the window pass's own asks for it (framegen_scale's early-out): do_present makes the picture's
+// sampled view for the pass then, as for the filter and the sharpen. It made it only for those, HDR and the menu sides, so with
+// the Window scaling filter Off, Sharpness 0 and SDR the pass never ran and these rows did nothing
+bool scale_post_wanted() {
+    return opts.fxaa > 0 || opts.bloom > 0 || opts.grade > 0 || opts.retro > 0 || opts.brightness != 100 ||
+           opts.colour_vision > 0;
+}
 
 VkImage framegen_scale(VkCommandBuffer cmd, VkImageView src, VkImage image, uint32_t sw, uint32_t sh, const int crop[4], uint32_t dw, uint32_t dh,
                        bool pq) {
@@ -654,13 +661,19 @@ VkImage framegen_scale(VkCommandBuffer cmd, VkImageView src, VkImage image, uint
     const int fxaa = !pq && opts.fxaa ? 1 : 0;
     // (and the Retro look, nor that on pq: its 5-bit steps and dither are of the SDR picture's codes, as the console's were)
     const int retro = pq ? 0 : std::clamp(opts.retro, 0, kRetroLooks - 1);
+    // (and the Brightness row, the code to the power 100 / brightness: for an SDR window only, as HDR paper white does it there)
+    const float gamma = pq || dev.hdr ? 1.0f : 100.0f / (float)std::clamp(opts.brightness, 70, 150);
+    // (and the Colour vision row, the picture daltonized for a colour blindness: not on pq, whose codes are not the light its
+    // model is made for)
+    const int cvd = pq ? 0 : std::clamp(opts.colour_vision, 0, kCvds - 1);
     if (!src || !image || !sw || !sh || !dw || !dh) return VK_NULL_HANDLE;
     const PresentSourceRect source = present_source_rect(sw, sh, crop);
     if (!source.w || !source.h) return VK_NULL_HANDLE;
     // (a picture larger than the window takes the pass even with the filter Off: the blit's linear filter reads 2 x 2 of the
     // picture whatever the shrink, and fine detail shimmered)
     const bool shrink = source.w > dw || source.h > dh;
-    if (!window_filter() && !opts.sharpness && !wide.side && !wide.cover && !look && bloom <= 0.0f && !fxaa && !retro && !shrink)
+    if (!window_filter() && !opts.sharpness && !wide.side && !wide.cover && !look && bloom <= 0.0f && !fxaa && !retro &&
+        gamma == 1.0f && !cvd && !shrink)
         return VK_NULL_HANDLE;   // (hookshot fork: window_filter, vk_menu.h)
     if (!init_scale()) return VK_NULL_HANDLE;
     // (pq: the game's own HDR10 picture (Native HDR), PQ codes in RGB10A2. Scaled into RGB10A2 images by fg_scale_pq: through
@@ -734,7 +747,16 @@ VkImage framegen_scale(VkCommandBuffer cmd, VkImageView src, VkImage image, uint
     }
     // (the Retro look is not sharpened: the sharpen's neighbours are the full picture's, which would show through it)
     ScalePush pc{window_filter(), retro ? 0.0f : opts.sharpness / 100.0f, wide.x0, 1.0f - wide.x0, wide.side, wide.cover / 65535.0f,
-                 kGradeLooks[look][0], kGradeLooks[look][1], kGradeLooks[look][2], kGradeLooks[look][3], look, bloom, fxaa, retro};
+                 kGradeLooks[look][0], kGradeLooks[look][1], kGradeLooks[look][2], kGradeLooks[look][3], look, bloom, fxaa, retro,
+                 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, gamma, cvd};
+    if (retro == 2) {   // (N64 + CRT's rows, each cut to its range as an options file may hold any number)
+        const int curve = std::clamp(opts.crt_curvature, 0, kCrtCurves - 1);
+        pc.scan = kCrtScan[std::clamp(opts.crt_scanlines, 0, kCrtScans - 1)];
+        pc.mask = std::clamp(opts.crt_mask, 0, kCrtMasks - 1);
+        pc.mask_str = std::clamp(opts.crt_mask_strength, 10, 100) / 100.0f;
+        pc.glow = kCrtGlow[std::clamp(opts.crt_glow, 0, kCrtGlows - 1)];
+        pc.warp_x = kCrtCurve[curve][0], pc.warp_y = kCrtCurve[curve][1], pc.corner = kCrtCurve[curve][2];
+    }
     // (the blurred sides and the Bloom read the picture at 1/8, the Retro look its picture of kRetroLines)
     const bool small_wanted = wide.side == 1 || bloom > 0.0f || retro;
     if (small_wanted) {   // (the blurred sides: first the picture at 1/8, each pixel the mean of its 8 x 8, which they blur)

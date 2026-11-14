@@ -50,6 +50,7 @@
 #include "vk_xfer.h"
 #include "vk_present_rect.h"
 #include "vk_present_trace.h"
+#include "vk_screenshot.h"   // (hookshot: the Screenshot key, present_image)
 
 #include "vk_internal.h"
 #ifndef HOOKSHOT_ENV_H   // (env_on: the switches' one rule)
@@ -1285,6 +1286,7 @@ void replay(VkCommandBuffer& cmd, NvnState& s, const uint8_t* p, const uint8_t* 
             const bool samples = (uint32_t)c.type == NVN_COUNTER_TYPE_SAMPLES_PASSED;
             // (timestamps on the guest tick clock in counter ticks (19.2 MHz, nvnDeviceGetTimestampInNanoseconds
             // converts), the replay's time; occlusion counts grow with every draw, as in the WebGPU renderer)
+            // doc: docs/design.md#4-the-lessons-from-mkw-as-rules-here (rule 4: GPU timestamps drive dynamic resolution)
             // (the GPU's time as the game measures it: from the frame's present on, at RX_VK_TS_SCALE (default 0.1)
             // times the real clock. The reports are written as the replay records them, so the real clock gave the
             // replay's time and its lag, not the GPU's: MKW's dynamic resolution moved every frame (each new size a
@@ -2746,6 +2748,7 @@ void sync_watch() {
     }
 }
 
+// doc: docs/design.md#4-the-lessons-from-mkw-as-rules-here (rule 1: cross-queue event waits are honoured)
 /// A submit on the replay thread: replayed as far as its waits allow, or (its queue stopped) after its queue's
 void submit_job(std::vector<uint64_t>& handles, uint64_t value, uint64_t queue) {
     const bool may_stop = event_waits_on() && !dump_on();
@@ -4039,7 +4042,8 @@ void do_present(const nvn_tex* t, const int crop[4], float cover) {
                                                                                         : "the SDR picture expanded to HDR10");
             }
         }
-        if (tex && !dev.offscreen && (window_filter() || opts.sharpness || dev.hdr || wide_sides_possible())) {   // (and ultrawide's menu sides)
+        // (and ultrawide's menu sides, and the window pass's own rows: scale_post_wanted)
+        if (tex && !dev.offscreen && (window_filter() || opts.sharpness || dev.hdr || wide_sides_possible() || scale_post_wanted())) {
             // Keep the sampled view with the same cached image as the direct present, before advancing its age.
             direct_view = texture_view(tex, t, nullptr, VK_IMAGE_VIEW_TYPE_2D, ViewUse::Sample);
             tex->last_frame = texture_frame_no();
@@ -4657,6 +4661,7 @@ void present_image(VkImage src, uint32_t sw, uint32_t sh, const int crop[4], VkI
     const int64_t fence_t0 = fps_breakdown_on() ? fps_clock() : 0;   // (the FPS counter's Breakdown: this frame slot's last copy)
     if (vkWaitForFences(dev.device, 1, &f.done, VK_TRUE, UINT64_MAX) == VK_ERROR_DEVICE_LOST) device_lost();
     framelog_collect(log_slot);
+    screenshot_collect(log_slot);   // (hookshot: the Screenshot key's copy made in this slot, now complete: vk_screenshot.h)
     uint32_t index = 0;
     const int64_t acquire_t0 = fence_t0 ? fps_clock() : 0;   // (then the swapchain's image: the display's pace)
     if (fence_t0) fps_wait(fps_stats::kGpuWait, acquire_t0 - fence_t0);
@@ -4758,6 +4763,9 @@ void present_image(VkImage src, uint32_t sw, uint32_t sh, const int crop[4], VkI
         capture_host_read_barrier(f.cmd, l.buf, (VkDeviceSize)kLogW * kLogH * 4);
         l.used = true, l.at = host->now_ns(), l.seq = seq++, l.kind = present_kind.load();
     }
+    // (hookshot) the Screenshot key's copy (vk_screenshot.h): the picture as it went into the window, the scale pass's image when
+    // that ran (the Retro look, Colour grade, Bloom and FXAA in it), before the menu and the FPS counter are drawn over it
+    screenshot_record(f.cmd, log_slot, {scaled, src, sw, sh, crop, rect.w, rect.h, native_pq, present_kind.load() != 0});
     // Geometry trace: after choosing the actual presentation route, without frame-log pixel readback.
     static const bool trace_geometry = getenv("RX_VK_PRESENT_LOG") && atoi(getenv("RX_VK_PRESENT_LOG")) != 0;
     if (trace_geometry) {
@@ -5496,6 +5504,7 @@ bool register_at_once() {
     static const bool v = env_on("RX_VK_REGISTER_AT_ONCE");
     return v;
 }
+// doc: docs/design.md#4-the-lessons-from-mkw-as-rules-here (rule 3: registrations are queued in order with the submits)
 void register_texture_queued(int id, const nvn_tex* t, const nvn_view* v) {
     if (!async_on() || register_at_once()) return register_texture_locked(id, t, v);
     if (id < 0 || id >= (1 << 20) || !t) return;

@@ -12,6 +12,7 @@
    free registered buffer (host memory: the pool's guest memory is not used). The video service itself (nn::gsv) is
    not emulated: nn::codec::video::Initialize does nothing. */
 #include "hos.h"
+#include "game_profile.h"   /* (GAME_VIDEO_CATCHUP: the game's movie catch-up) */
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -842,7 +843,7 @@ static void dec_acquire(Ctx *c) {
            now decodes ahead again, and a picture late for another reason is made up. At most one picture's time of
            decoding ahead in an acquire, so the frame that takes it waits no longer. HOS_VIDEO_NO_CATCHUP=1: nothing skipped */
         static int off = -1;
-        if (off < 0) off = env_on("HOS_VIDEO_NO_CATCHUP");
+        if (off < 0) off = env_on("HOS_VIDEO_NO_CATCHUP") || !GAME_VIDEO_CATCHUP;   /* (the game profile's) */
         const int64_t now = hos_now_ns(), late = 25000000;   /* (a frame and a half at 60 fps) */
         Picture *h = &d->queue[d->qhead];
         if (!d->clock_set || h->pts < d->clock_pts) d->clock_set = 1, d->clock_ns = now, d->clock_pts = h->pts;   /* (a start, a loop) */

@@ -9,6 +9,7 @@ import tempfile
 ENV_ON_H = str(Path(__file__).resolve().parents[1] / "gpu" / "vk" / "compat" / "hookshot_env.h")
 
 RUN_ALL_ARGS = ["--cxx", "{cxx}", "--headers", "{vulkan_headers}"]
+RUN_ALL_SANITIZE = ["--sanitize"]   # (run_all.py --sanitize: the sanitizer lane)
 
 ROOT=Path(__file__).resolve().parents[1]
 

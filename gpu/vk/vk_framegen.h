@@ -65,5 +65,9 @@ void wide_sides_tick(float cover);
 float wide_cover_sample();
 /// Whether ultrawide's menu sides can show at all: Ultrawide with a margin and the Insert menu's setting on
 bool wide_sides_possible();
+/// Whether a row of framegen_scale's own (FXAA, Bloom, the Colour grade, Brightness, Colour vision, the Retro look) asks for
+/// the window pass: do_present
+/// makes the picture's sampled view for it
+bool scale_post_wanted();
 
 } // namespace mkwvk

@@ -14,13 +14,18 @@ release lacks). Scripts the build does not use (.ps1, .bat, .js,
 
 --reuse: a part whose tools/<name> folder the package lacks is taken from that list as it is (its line, with its URL), so a
 package made in CI (.github/workflows/windows-builder.yml) carries the Python, emsdk, CPM and wgpu-native parts the maintainer
-made. Without the folder and without the part in that list it is an error.
+made. Without the folder and without the part in that list it is an error. A reused part is served from --base when that
+release has the same file (served_from): a list from another repository's release may name a release that is gone (the
+builder-parts of a repository that was deleted, whose emsdk and wgpu-native zips every list since v2.1.0 carried), and a part this
+repository serves itself does not depend on it. A part found in neither place is an error that names the file to upload.
 """
 import argparse
 import concurrent.futures
 import hashlib
 import os
 import sys
+import urllib.error
+import urllib.request
 import zipfile
 
 SKIP_EXT = {".ps1", ".psm1", ".bat", ".cmd", ".js", ".vbs", ".html", ".htm", ".hta", ".wsf", ".pyc"}
@@ -33,6 +38,30 @@ OPTIONAL_PARTS = ("amd-fsr",)
 LLVM = ("552191b5754c49a5a20723276a6fc56541ea1922c4c50b7b669022333fc1b40f", 191037046,
         "llvm-mingw-20261104-ucrt-x86_64",
         "https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/llvm-mingw-20261104-ucrt-x86_64.zip")
+
+
+def reachable(url):
+    """1 when url answers a HEAD request (GitHub's release downloads redirect to their storage first)"""
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, method="HEAD", headers={"User-Agent": "hookshot-setup-parts"}),
+                                    timeout=30) as r:
+            return 200 <= r.status < 300
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
+def served_from(line, base, check=reachable):
+    """A reused part's line, with its URL moved to base when base has the same file; as it was when only its own URL serves it.
+    None when neither does (a part whose release is gone and that was never copied to base)"""
+    w = line.split()
+    url = w[6]
+    name = url.rsplit("/", 1)[-1]
+    here = "%s/%s" % (base, name)
+    if url == here:
+        return line if check(url) else None
+    if check(here):
+        return " ".join(w[:6] + [here])
+    return line if check(url) else None
 
 
 def files_under(root, top):
@@ -114,14 +143,13 @@ def main():
                                          todo)))
     for name in names:
         if not parts.get(name):
-            if name in OPTIONAL_PARTS:
-                if name in reuse:
-                    lines.append(reuse[name])
-                    print("%-12s (as in %s)" % (name, os.path.basename(a.reuse)), flush=True)
-                continue
-            if a.reuse and name in TOOLS_PARTS:
-                lines.append(reuse[name])
-                print("%-12s (as in %s)" % (name, os.path.basename(a.reuse)), flush=True)
+            if (name in OPTIONAL_PARTS and name in reuse) or (a.reuse and name in TOOLS_PARTS):
+                line = served_from(reuse[name], base)
+                if line is None:
+                    sys.exit("%s: %s answers nowhere: upload %s to %s" % (name, reuse[name].split()[6],
+                                                                         reuse[name].split()[6].rsplit("/", 1)[-1], base))
+                lines.append(line)
+                print("%-12s (as in %s, from %s)" % (name, os.path.basename(a.reuse), line.split()[6].rsplit("/", 2)[0]), flush=True)
             continue
         zp = os.path.join(a.out, "HookshotBuilder-%s.zip" % name)
         sha, size = zipped[name]

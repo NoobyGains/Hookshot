@@ -47,6 +47,7 @@
 #include "vk_framegen.h"   // (framegen_here: what AMD's frame generation makes on this PC; Frame generation by: who makes the frames now, framegen_maker)
 #include "vk_dlss.h"
 #include "vk_bug_report.h"   // (the Gameplay tab's Bug report: what it writes, and how)
+#include "vk_screenshot.h"   // (the Controls tab's Screenshot key: the press, and the note once the picture is written)
 #include "../../host/hos_wide_size.h"   // (the widescreen picture's size, as host/hos_main.c works it out)
 #include "vk_fsr3.h"      // (the Upscaler row: whether AMD FSR 3.1 runs on this GPU)
 #include "vk_fsr3fi.h"    // (the Frame generation row: whether FSR 3.1 makes the frame)
@@ -146,6 +147,7 @@ const char* tx_compact_menu_key(int v) {
     static const char* const names[] = {"Right Shift", "Right Ctrl"};
     return names[std::clamp(v, 0, 1)];
 }
+const char* tx_screenshot_key(int v) { return v ? "F12" : "Off"; }   // (hookshot: vk_screenshot.h)
 const char* tx_hdr(int v) { return v == 1 ? "Expanded" : v == 2 ? "Native (the game's)" : "Off"; }
 const char* tx_tonemap(int v) { return v == 1 ? "PsychoV35" : "Vanilla"; }
 const char* tx_nits(int v) {
@@ -838,9 +840,30 @@ const char* tx_grade(int v) {
     static const char* t[kGrades] = {"Off", "Rich", "Vivid", "Warm", "Cool", "Cinematic"};
     return (unsigned)v < kGrades ? t[v] : t[0];
 }
+const char* tx_colour_vision(int v) {   // (the Colour vision row)
+    static const char* t[kCvds] = {"Off", "Protanopia", "Deuteranopia", "Tritanopia"};
+    return (unsigned)v < kCvds ? t[v] : t[0];
+}
 const char* tx_retro(int v) {   // (the Retro look row)
     static const char* t[kRetroLooks] = {"Off", "N64", "N64 + CRT"};
     return (unsigned)v < kRetroLooks ? t[v] : t[0];
+}
+// (N64 + CRT's rows: fg_scale_post.h's kCrtScan, the masks, kCrtGlow, kCrtCurve)
+const char* tx_crt_scanlines(int v) {
+    static const char* t[kCrtScans] = {"Off", "Light", "Medium", "Strong"};
+    return (unsigned)v < kCrtScans ? t[v] : t[0];
+}
+const char* tx_crt_mask(int v) {
+    static const char* t[kCrtMasks] = {"Off", "Aperture grille", "Slot mask", "Shadow mask"};
+    return (unsigned)v < kCrtMasks ? t[v] : t[0];
+}
+const char* tx_crt_glow(int v) {
+    static const char* t[kCrtGlows] = {"Off", "Low", "Medium", "High"};
+    return (unsigned)v < kCrtGlows ? t[v] : t[0];
+}
+const char* tx_crt_curvature(int v) {
+    static const char* t[kCrtCurves] = {"Off", "Subtle", "Strong"};
+    return (unsigned)v < kCrtCurves ? t[v] : t[0];
 }
 const char* tx_text_speed(int v) {
     static const char* t[] = {"Normal", "2x", "4x", "Instant"};
@@ -1407,11 +1430,38 @@ Row rows[] = {
     {TAB_GRAPHICS, "Colour grade", &opts.grade, 0, kGrades - 1, 1, tx_grade,
      "A colour grade on the finished picture: richer colour and contrast, a warm or cool tone, a soft vignette. Off shows the "
      "game's own colours. Not with HDR set to Native. Changes at once.", nullptr, false, true},
+    // (hookshot: in the same pass, last on the picture: vk_framegen.cpp framegen_scale, fg_scale.comp finish())
+    {TAB_GRAPHICS, "Brightness", &opts.brightness, 70, 150, 5, tx_percent,
+     "The picture's mid-tones lighter or darker, its black and white kept: a gamma curve, as a TV's or ReShade's Levels "
+     "gamma. 100% is the game's picture. For SDR: with HDR on, set HDR paper white instead. Changes at once.", nullptr, false,
+     true},
+    {TAB_GRAPHICS, "Colour vision", &opts.colour_vision, 0, kCvds - 1, 1, tx_colour_vision,
+     "For colour blindness: the colours a player with it confuses moved to ones they can tell apart (daltonization: Machado, "
+     "Oliveira and Fernandes' 2009 model of what they see, then Fidaner, Lin and Ozguven's shift of what they miss). "
+     "Protanopia and Deuteranopia: red and green; Tritanopia: blue and yellow. Not a simulation; greys and white stay as "
+     "they are. Not with HDR set to Native. Changes at once.", nullptr, false, true},
     // (hookshot: in the same pass, after the three above)
     {TAB_GRAPHICS, "Retro look", &opts.retro, 0, kRetroLooks - 1, 1, tx_retro,
-     "The picture as a Nintendo 64 showed it on the TVs of its day: 240 lines, soft, its colours cut to the console's 16 bits "
-     "with its dither. N64 + CRT adds faint scanlines and darker corners. While on, it takes the place of the Window scaling "
-     "filter, FXAA and Sharpness; this menu stays sharp. Not with HDR set to Native. Changes at once.", nullptr, false, true},
+     "The picture as a Nintendo 64 made it: 240 lines, soft, its colours cut to the console's 16 bits with its dither. N64 + "
+     "CRT shows it on a CRT of the day, its lines of light, its phosphors and its glow, set by the CRT rows below. While on, it "
+     "takes the place of the Window scaling filter, FXAA and Sharpness; this menu stays sharp. Not with HDR set to Native. "
+     "Changes at once.", nullptr, false, true},
+    // (N64 + CRT's, shown only with it (row_shown): after Timothy Lottes' public-domain CRT shader, fg_scale.comp crt())
+    {TAB_GRAPHICS, "CRT scanlines", &opts.crt_scanlines, 0, kCrtScans - 1, 1, tx_crt_scanlines,
+     "How much the dark between the CRT's lines of light shows. Each line is a beam of light, wider where the picture is bright, "
+     "so bright parts fill out and dark parts show the lines most. Off runs the lines together.", nullptr, false, true},
+    {TAB_GRAPHICS, "CRT mask", &opts.crt_mask, 0, kCrtMasks - 1, 1, tx_crt_mask,
+     "The red, green and blue a CRT's screen is made of, drawn on your screen's own pixels: an aperture grille's stripes "
+     "(Trinitron), a TV's slot mask or a monitor's shadow mask. Finest at 4K; at 1080p it shows more.", nullptr, false, true},
+    {TAB_GRAPHICS, "CRT mask strength", &opts.crt_mask_strength, 10, 100, 10, tx_percent,
+     "How strongly the mask shows. The picture keeps its brightness; at high strength its brightest parts lose a little.",
+     nullptr, false, true},
+    {TAB_GRAPHICS, "CRT glow", &opts.crt_glow, 0, kCrtGlows - 1, 1, tx_crt_glow,
+     "Light spreading in the CRT's glass: a soft glow around bright parts that brightens the picture a little.", nullptr, false,
+     true},
+    {TAB_GRAPHICS, "CRT curvature", &opts.crt_curvature, 0, kCrtCurves - 1, 1, tx_crt_curvature,
+     "A curved screen with darker corners, the picture's own corners just outside it. Strong is as Lottes' shader has it.",
+     nullptr, false, true},
     {TAB_GRAPHICS, "Texture detail", &opts.texture_detail, 0, 3, 1, tx_texture_detail,
      "How much of the big textures (ground, walls, buildings) is kept in video memory. Lower uses less, for a softer "
      "picture up close: for 6 and 8 GB cards that slow down after a while. Applies to textures made after the change; "
@@ -1549,6 +1599,11 @@ Row rows[] = {
     {TAB_CONTROLS, "Compact menu key", &opts.compact_menu_key, 0, 1, 1, tx_compact_menu_key,
      "Which key switches between the full menu and the compact bar (or opens directly to the compact bar when held "
      "with the menu shortcut).",
+     nullptr, false, true},
+    // (hookshot) vk_screenshot.h: the picture as the window shows it, without this menu or the FPS counter
+    {TAB_CONTROLS, "Screenshot key", &opts.screenshot_key, 0, 1, 1, tx_screenshot_key,
+     "Saves the picture as the window shows it, with the Graphics tab's looks and without this menu or the FPS counter, as a "
+     "PNG in the screenshots folder of the game folder.",
      nullptr, false, true},
     // Debug: the tools' switch, the tools themselves below it while they are on (cheat: menu_tick does what they do), then the
     // developer's rows
@@ -1918,7 +1973,8 @@ int ask_sel = 0;   // (the restart question's choice: 0 Later, 1 Restart now)
 
 /// A row on its tab: the debug tools only with them on; a row for what this PC cannot run not at all (Reflex and Anti-Lag 2
 /// only where the driver has them, the Upscaler only where more than the game's own runs, the DLSS model only where DLSS
-/// runs); HDR's paper white, peak brightness and contrast only with HDR on. A row that comes or goes moves those after it: the
+/// runs); HDR's paper white, peak brightness and contrast only with HDR on; the CRT rows only with the Retro look's N64 + CRT
+/// (they keep their values meanwhile). A row that comes or goes moves those after it: the
 /// selection is a place on its tab (tab_selected), so a row hidden after the selected one leaves the selection where it is,
 /// and menu_tick brings back one past the end
 /// (hookshot) The Intel shader compiles row: Intel graphics on Windows, the only place IntelDriverGate holds the compiler
@@ -1936,7 +1992,9 @@ bool row_shown(int i) {
            (v != &opts.dlss || ur::upscaler_shown(upscalers_available())) &&
            (v != &opts.dlss_model || ur::model_shown(dlss_why() == DLSS_OK)) &&
            ((v != &opts.hdr_white && v != &opts.hdr_peak && v != &opts.hdr_contrast) || opts.hdr != 0) &&
-           (v != &opts.hdr_tonemap || opts.hdr == 2);
+           (v != &opts.hdr_tonemap || opts.hdr == 2) &&
+           ((v != &opts.crt_scanlines && v != &opts.crt_mask && v != &opts.crt_mask_strength && v != &opts.crt_glow &&
+             v != &opts.crt_curvature) || opts.retro == 2);
 }
 int tab_row_count(int t) {
     int c = 0;
@@ -2783,13 +2841,13 @@ const char* key_name(int vk) {
     }
     return snprintf(b, sizeof b, "Key %d", vk), b;
 }
-// the keys a binding can take (Esc cancels, Insert and F1 are the menu's, Delete clears)
+// the keys a binding can take (Esc cancels, Insert and F1 are the menu's, F12 the Screenshot key's, Delete clears)
 const std::vector<int>& bindable_keys() {
     static std::vector<int> k;
     if (k.empty()) {
         for (int c = 'A'; c <= 'Z'; c++) k.push_back(c);
         for (int c = '0'; c <= '9'; c++) k.push_back(c);
-        for (int c = VK_F2; c <= VK_F12; c++) k.push_back(c);
+        for (int c = VK_F2; c <= VK_F11; c++) k.push_back(c);
         for (int c = VK_NUMPAD0; c <= VK_NUMPAD0 + 9; c++) k.push_back(c);
         for (int c : {VK_SPACE, VK_SHIFT, VK_CONTROL, VK_MENU, VK_TAB, VK_RETURN, VK_BACK, VK_CAPITAL, VK_UP, VK_DOWN,
                       VK_LEFT, VK_RIGHT, VK_HOME, VK_END, VK_PRIOR, VK_NEXT, VK_ADD, VK_SUBTRACT, VK_MULTIPLY,
@@ -4367,6 +4425,16 @@ void draw_corner(ui::Ctx& c, bool timer, bool deaths) {
     }
 }
 
+/// (hookshot) The Screenshot key's note, for 2 s once the picture is written (vk_screenshot.h): outlined as the timer's lines,
+/// in the middle of the bottom edge, which no overlay of ours uses; the Death counter's red when it could not be saved. Never in
+/// the picture: that was copied before the overlays are drawn
+void draw_screenshot_note(ui::Ctx& c, bool saved) {
+    const char* text = i18n::tr(saved ? "Screenshot saved" : "Screenshot not saved");
+    const float px = 20 * c.s, tw = ui::size_of(c.f.strong, px, text).x;
+    outlined_right(c, c.f.strong, px, c.w * 0.5f + tw * 0.5f, c.h - c.safe - px * 2.0f,
+                   saved ? ui::rgba(255, 255, 255) : ui::rgba(255, 140, 130), text);
+}
+
 constexpr double kLogoTurnSeconds = 2.4;   // (the start-up screen's logo: one whole turn in this long)
 
 /// The start-up screen: the logo, the wordmark, what the start is doing, a bar, on a warm dark. A little below the middle; what
@@ -5271,8 +5339,10 @@ void menu_tick() {
         press[1] |= pad(HOS_PAD_UP), press[2] |= pad(HOS_PAD_DOWN), press[3] |= pad(HOS_PAD_LEFT);
         press[4] |= pad(HOS_PAD_RIGHT), press[5] |= pad(pad_back), press[7] |= pad(pad_confirm);
     }
+    bool shot_script = false;   // (RX_VK_MENU_SCRIPT's SHOT: the Screenshot key, below)
     {   // RX_VK_MENU_SCRIPT (test runs, which never have the focus): timed menu keys, "<seconds>:<INS|UP|DOWN|LEFT|RIGHT|ESC|ENTER|TABL|TABR>,...";
-        // and the gamepad's face buttons by position, PADS PADE PADW PADN (bottom, right, left, top), as a controller's press
+        // and the gamepad's face buttons by position, PADS PADE PADW PADN (bottom, right, left, top), as a controller's press;
+        // SHOT, the Screenshot key
         static const char* next = getenv("RX_VK_MENU_SCRIPT");
         static const int64_t start = prof_now();
         double at;
@@ -5287,8 +5357,18 @@ void menu_tick() {
                     press[5] |= p == pad_back, press[7] |= p == pad_confirm;
                     pad_last = true;
                 }
+            shot_script |= !strcmp(key, "SHOT");
             next = next[n] == ',' ? next + n + 1 : nullptr;
         }
+    }
+    {   // (hookshot) the Screenshot key, F12 (its row Off: nothing), read as the menu's keys are. present_image takes the picture at
+        // the next of the game's frames, without this menu whether it is open or not (vk_screenshot.h)
+        static bool shot_held = false;
+        const bool shot_down = mine && (GetAsyncKeyState(VK_F12) & 0x8000) != 0;
+        const bool shot_queued = host && host->take_key_press && host->take_key_press(VK_F12);
+        const bool shot_press = host && host->take_key_press ? mine && shot_queued : shot_down && !shot_held;
+        shot_held = shot_down;
+        if ((shot_press || shot_script) && opts.screenshot_key) screenshot_ask();
     }
     bool tab_left = press[10] || pad(HOS_PAD_LSHOULDER) || pad(HOS_PAD_LTRIGGER);
     bool tab_right = press[11] || press[12] || pad(HOS_PAD_RSHOULDER) || pad(HOS_PAD_RTRIGGER);
@@ -5666,7 +5746,9 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     const int rupees = opts.classic_counters && !start && !open ? hud_rupees.load(std::memory_order_relaxed) : -1;
     timer_tick(opts.speedrun_timer && !start, open);   // (the Speedrun timer counts at every present, shown or not)
     const bool timer = opts.speedrun_timer && !start && !open, deaths = opts.death_counter && !start && !open;
-    if (!start && !fps && !open && rupees < 0 && !timer && !deaths) {   // (nothing shows: no ImGui frame, no render pass)
+    bool shot_saved = false;
+    const bool shot_note = screenshot_note(&shot_saved);   // (hookshot: "Screenshot saved", 2 s after the Screenshot key)
+    if (!start && !fps && !open && rupees < 0 && !timer && !deaths && !shot_note) {   // (nothing shows: no ImGui frame, no render pass)
         // (but a new window size or Menu size since the last bake: one frame with nothing drawn that bakes the menu's glyphs
         // and measures its page for the new size, so the next open has no hitch whatever was resized while nothing showed)
         if (prebake_needed(w, h) && ui::begin(w, h)) {
@@ -5693,6 +5775,7 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     if (fps) draw_fps(c, open);
     if (rupees >= 0) draw_rupees(c, rupees);   // (Classic counters)
     if (timer || deaths) draw_corner(c, timer, deaths);
+    if (shot_note) draw_screenshot_note(c, shot_saved);   // (over everything: the picture is already copied)
     ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
     ui::record(cmd, index, w, h);
 }

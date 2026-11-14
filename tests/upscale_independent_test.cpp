@@ -13,7 +13,8 @@
 #include <mutex>
 #include "fg_scale_post.h"   // (framegen_scale's push constants and the FXAA, Bloom, Colour grade and Retro look rows' tables)
 using mkwvk::ScalePush, mkwvk::kGrades, mkwvk::kBloomSteps, mkwvk::kGradeLooks, mkwvk::kBloomLevels, mkwvk::kRetroLooks,
-    mkwvk::kRetroLines;
+    mkwvk::kRetroLines, mkwvk::kCrtScans, mkwvk::kCrtMasks, mkwvk::kCrtGlows, mkwvk::kCrtCurves, mkwvk::kCrtScan, mkwvk::kCrtGlow,
+    mkwvk::kCrtCurve, mkwvk::kCvds;
 #include <utility>
 #include "vk_present_rect.h"
 using mkwvk::PresentSourceRect;
@@ -46,7 +47,10 @@ struct Layers { int aspect = 0, level = 0, first = 0, count = 0; };
 struct VkImageBlit { Layers srcSubresource, dstSubresource; Offset srcOffsets[2], dstOffsets[2]; };
 struct Extent { uint32_t width = 0, height = 0, depth = 0; };
 struct VkImageCopy { Layers srcSubresource; Offset srcOffset; Layers dstSubresource; Offset dstOffset; Extent extent; };
-struct { int upscale = 0, sharpness = 0, framegen = 0, fxaa = 0, bloom = 0, grade = 0, retro = 0; } opts;
+struct {
+    int upscale = 0, sharpness = 0, framegen = 0, fxaa = 0, bloom = 0, grade = 0, retro = 0, brightness = 100, colour_vision = 0;
+    int crt_scanlines = 2, crt_mask = 1, crt_mask_strength = 30, crt_glow = 2, crt_curvature = 1;   // (vk_menu.h's defaults)
+} opts;
 // (hookshot) The Upscaling row carries two things: 0-2 filter the finished picture and 3-4 name a
 // scene upscaler. framegen_scale wants only the first half, exactly as the inline in vk_menu.h
 // gives it, so the spy mirrors that rather than reading opts.upscale raw.
@@ -58,7 +62,7 @@ struct SpyMutex {
     void lock() { CHECK(!held); held = true; }
     void unlock() { CHECK(held); held = false; }
 };
-struct { bool push_descriptor = true, offscreen = false; int device = 1; SpyMutex present_mu; } dev;
+struct { bool push_descriptor = true, offscreen = false, hdr = false; int device = 1; SpyMutex present_mu; } dev;
 // Only used by framegen_on and by the original scaler's negative control. No interpolation is initialized.
 struct {
     bool init = false, failed = false, thread_started = false;
@@ -79,6 +83,7 @@ float dispatched_cover = -1.0f;
 int dispatched_look = -1, dispatched_fxaa = -1;   // (the Colour grade, Bloom and FXAA rows)
 float dispatched_bloom = -1.0f, dispatched_sat = -1.0f;
 int dispatched_retro = -1;   // (the Retro look row)
+ScalePush dispatched_pc{};   // (the last dispatch's push constants whole: N64 + CRT's rows)
 VkImageView small_bound = 0;   // (binding 2 of the last dispatch: the small picture, or the picture itself)
 VkImageView sampled_view = 0;
 VkImageBlit last_blit;
@@ -132,7 +137,7 @@ void pass(int, const Pipe& p, std::initializer_list<std::pair<VkImageView, VkSam
     ScalePush pc;
     std::memcpy(&pc, data, sizeof pc);
     dispatched_look = pc.look, dispatched_bloom = pc.bloom, dispatched_fxaa = pc.fxaa, dispatched_sat = pc.sat;
-    dispatched_retro = pc.retro, small_bound = (b.begin() + 2)->first;
+    dispatched_retro = pc.retro, small_bound = (b.begin() + 2)->first, dispatched_pc = pc;
     ++dispatches; dispatched_mode = pc.mode; dispatched_sharp = pc.sharp;
     dispatched_side = pc.side; dispatched_x0 = pc.x0; dispatched_x1 = pc.x1; dispatched_cover = pc.cover;
     dispatched_w = w; dispatched_h = h; sampled_view = b.begin()->first; dispatched_pipe = p.pipe;
@@ -140,7 +145,7 @@ void pass(int, const Pipe& p, std::initializer_list<std::pair<VkImageView, VkSam
 void logf(const char*, ...) { CHECK(dispatches > 0); ++logs; }
 // PRODUCTION_FUNCTIONS
 void reset() {
-    scale = {}; fg = {}; opts = {}; wide_now = WideSides{}; dev.push_descriptor = true; vkCmdPushDescriptorSetKHR = true;
+    scale = {}; fg = {}; opts = {}; wide_now = WideSides{}; dev.push_descriptor = true; dev.hdr = false; vkCmdPushDescriptorSetKHR = true;
     pipe_calls = sampler_calls = image_calls = dispatches = blits = copies = waits = flushes = 0;
     destroyed_pipes = destroyed_layouts = destroyed_sets = 0;
     pipe_fail = sampler_fail = image_fail = pq_pipe_fail = false;
@@ -187,6 +192,38 @@ int main() {
     reset(); opts.retro = 2; opts.fxaa = 1; CHECK(draw(nullptr, 3440, 1440));   // (an ultrawide window: 573 x 240)
     CHECK(dispatched_retro == 2 && made_w == 573 && made_h == 240 && dispatched_fxaa == 1);   // (the shader puts it before FXAA)
     reset(); opts.retro = kRetroLooks + 2; CHECK(draw()); CHECK(dispatched_retro == kRetroLooks - 1);
+    // (N64 + CRT pushes its rows: the defaults Lottes' hardScan -8, an aperture grille at 30%, his bloom 0.15, a subtle curve;
+    // each cut to its range. N64 and Off push none of them)
+    reset(); opts.retro = 2; CHECK(draw());
+    CHECK(dispatched_pc.scan == -8.0f && dispatched_pc.mask == 1 && dispatched_pc.mask_str == 0.3f && dispatched_pc.glow == 0.15f);
+    CHECK(dispatched_pc.warp_x == kCrtCurve[1][0] && dispatched_pc.warp_y == kCrtCurve[1][1] && dispatched_pc.corner == kCrtCurve[1][2]);
+    reset(); opts.retro = 2; opts.crt_scanlines = 9; opts.crt_mask = -1; opts.crt_mask_strength = 400; opts.crt_glow = -5;
+    opts.crt_curvature = 7; CHECK(draw());
+    CHECK(dispatched_pc.scan == kCrtScan[kCrtScans - 1] && dispatched_pc.mask == 0 && dispatched_pc.mask_str == 1.0f &&
+          dispatched_pc.glow == 0.0f && dispatched_pc.warp_x == 0.031f && dispatched_pc.corner == kCrtCurve[kCrtCurves - 1][2]);
+    reset(); opts.retro = 2; opts.crt_mask = 3; opts.crt_mask_strength = 0; opts.crt_scanlines = 0; CHECK(draw());
+    CHECK(dispatched_pc.mask == 3 && dispatched_pc.mask_str == 0.1f && dispatched_pc.scan == 0.0f);
+    reset(); opts.retro = 1; CHECK(draw());
+    CHECK(dispatched_pc.scan == 0.0f && dispatched_pc.mask == 0 && dispatched_pc.glow == 0.0f && dispatched_pc.warp_x == 0.0f);
+    reset(); opts.retro = 2; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
+    // (Brightness: at 100% no pass and the gamma 1; else the pass alone, the code to the power 100 / brightness, cut to 70..150;
+    // never for an HDR window, where HDR paper white does it, nor on the game's own HDR10 picture)
+    reset(); CHECK(!draw()); CHECK(dispatches == 0);
+    reset(); opts.brightness = 150; CHECK(draw()); CHECK(dispatches == 1 && dispatched_pc.gamma == 100.0f / 150.0f && dispatched_retro == 0);
+    reset(); opts.brightness = 70; opts.grade = 1; CHECK(draw()); CHECK(dispatched_pc.gamma == 100.0f / 70.0f && dispatched_look == 1);
+    reset(); opts.brightness = 400; CHECK(draw()); CHECK(dispatched_pc.gamma == 100.0f / 150.0f);
+    reset(); opts.brightness = 150; dev.hdr = true; CHECK(!draw()); CHECK(dispatches == 0);
+    opts.grade = 2; CHECK(draw()); CHECK(dispatched_pc.gamma == 1.0f); dev.hdr = false;
+    reset(); opts.brightness = 150; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
+    reset(); opts.grade = 1; CHECK(draw()); CHECK(dispatched_pc.gamma == 1.0f && dispatched_pc.cvd == 0);
+    // (Colour vision: each of the three alone runs the pass with its type, a value past the last the last; not on pq; with HDR
+    // expanded it still runs, on the SDR picture before the expansion)
+    for (int type = 1; type <= 3; type++) {
+        reset(); opts.colour_vision = type; CHECK(draw()); CHECK(dispatches == 1 && dispatched_pc.cvd == type);
+    }
+    reset(); opts.colour_vision = 9; CHECK(draw()); CHECK(dispatched_pc.cvd == 3);
+    reset(); opts.colour_vision = 2; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
+    reset(); opts.colour_vision = 1; dev.hdr = true; CHECK(draw()); CHECK(dispatched_pc.cvd == 1 && dispatched_pc.gamma == 1.0f);
     reset(); opts.retro = -3; CHECK(!draw()); CHECK(dispatches == 0);
     reset(); opts.retro = 2; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
     // (a picture under 240 lines: its own size, never more pixels than it has, however wide the window)

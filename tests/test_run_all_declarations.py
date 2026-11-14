@@ -1,4 +1,5 @@
-"""tests/run_all.py's reader of what a test declares in its own file (RUN_ALL_ARGS, RUN_ALL_MODULES, RUN_ALL_SKIP): the
+"""tests/run_all.py's reader of what a test declares in its own file (RUN_ALL_ARGS, RUN_ALL_MODULES, RUN_ALL_SKIP,
+RUN_ALL_SANITIZE): the
 valid shapes, the malformed ones that stop the run with the file and line, placeholders find_tools does not know, OSes
 it does not know, and the retired central tables, which a branch from before the move must not fill again.
 
@@ -45,7 +46,7 @@ class Reader(unittest.TestCase):
 
     def test_nothing_declared(self):
         self.assertEqual(self.read('"""RUN_ALL_ARGS in the docstring is not a declaration"""\nimport os\n'),
-                         {"args": [], "modules": [], "skip": {}, "unparsed": None})
+                         {"args": [], "modules": [], "skip": {}, "sanitize": [], "unparsed": None})
 
     def test_all_three(self):
         d = self.read('''
@@ -67,6 +68,13 @@ class Reader(unittest.TestCase):
         self.assertEqual(d["args"], ["--cxx", "{cxx}", "--headers", "{vulkan_headers}", "--cc", "gcc"])
         self.assertEqual(d["modules"], ["zstandard"])
         self.assertEqual(d["skip"], {"linux": "needs a Vulkan device", "windows": "needs a Vulkan device"})
+
+    def test_sanitize(self):
+        """RUN_ALL_SANITIZE: what run_all.py --sanitize adds to the test's arguments (the sanitizer lane)"""
+        self.assertEqual(self.read('RUN_ALL_SANITIZE = ["--sanitize", "address,undefined"]\n')["sanitize"],
+                         ["--sanitize", "address,undefined"])
+        self.bad("RUN_ALL_SANITIZE = True\n", "list of strings")
+        self.bad("RUN_ALL_SANITIZE = []\n", "what turns the sanitizers on")
 
     def test_annotated_and_concatenated(self):
         d = self.read('RUN_ALL_SKIP: dict = {"windows": "a long reason"\n                               " in two parts"}\n')
@@ -145,6 +153,24 @@ class Runner(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("nx2/test_bad.py:3:", err)
         self.assertEqual(out, "")
+
+    def test_the_sanitizer_lane_runs_the_checks_that_declare_it_with_their_arguments(self):
+        with tempfile.TemporaryDirectory() as root:
+            for d in ("tests", "nx2"):
+                os.mkdir(os.path.join(root, d))
+            with open(os.path.join(root, "tests", "test_san.py"), "w", encoding="utf-8") as f:
+                f.write('import sys\n\nRUN_ALL_SANITIZE = ["--sanitize", "address"]\n\n'
+                        'sys.exit(0 if sys.argv[1:] == ["--sanitize", "address"] else 3)\n')
+            with open(os.path.join(root, "tests", "test_plain.py"), "w", encoding="utf-8") as f:
+                f.write("import sys\n\nsys.exit(4)\n")   # (not in the lane: it would fail if it ran)
+            rc, out, err = self.run_main(root, "--sanitize", "--no-skip")   # (--no-skip: on Windows too)
+            self.assertEqual(rc, 0, out + err)
+            self.assertIn("tests/test_san.py", out)
+            self.assertNotIn("tests/test_plain.py", out)
+            self.assertNotIn("byte-compile", out)
+            rc, out, err = self.run_main(root, "--sanitize")
+            if run_all.WINDOWS:
+                self.assertIn("the sanitizer lane runs on Linux", out)
 
     def test_bad_declaration_elsewhere_does_not_stop_a_named_run(self):
         with tempfile.TemporaryDirectory() as root:

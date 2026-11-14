@@ -40,7 +40,17 @@ struct Options {
     int fxaa = 0;         // (hookshot, from Ocarina Reborn) FXAA on the finished picture: 0 Off, 1 On (vk_framegen.cpp framegen_scale)
     int bloom = 0;        // a glow around bright light on the finished picture: 0 Off, 1 Low, 2 Medium, 3 High (fg_scale_post.h)
     int grade = 0;        // the Colour grade: 0 Off, 1 Rich, 2 Vivid, 3 Warm, 4 Cool, 5 Cinematic (fg_scale_post.h)
+    int brightness = 100;   // (hookshot) Brightness, 70 to 150 (%): the SDR picture's code to the power 100 / brightness, black and
+                            // white kept (vk_framegen.cpp framegen_scale; with HDR on, HDR paper white does this)
+    int colour_vision = 0;   // (hookshot) Colour vision: 0 Off, 1 Protanopia, 2 Deuteranopia, 3 Tritanopia, the picture daltonized
+                             // for it (fg_scale.comp daltonize; vk_framegen.cpp framegen_scale)
     int retro = 0;        // (hookshot) the Retro look: 0 Off, 1 N64, 2 N64 + CRT (fg_scale_post.h; vk_framegen.cpp framegen_scale)
+    // (N64 + CRT's rows, shown with it: fg_scale_post.h's kCrtScan, the masks, kCrtGlow, kCrtCurve)
+    int crt_scanlines = 2;       // Off, Light, Medium, Strong
+    int crt_mask = 1;            // Off, Aperture grille, Slot mask, Shadow mask
+    int crt_mask_strength = 30;  // 10 to 100 (%)
+    int crt_glow = 2;            // Off, Low, Medium, High
+    int crt_curvature = 1;       // Off, Subtle, Strong
     int texture_detail = 0;   // (hookshot) Texture detail: 0 Auto, 1 Full, 2 Medium, 3 Low (the big textures' top levels left out,
                               // gpu/vk/vk_texture.cpp texture_detail_dims; read as each texture is made)
     int anisotropy = 4;   // (hookshot) Anisotropic filtering: 0 the game's own (1x or 2x), 1 2x, 2 4x, 3 8x, 4 16x (the
@@ -63,6 +73,8 @@ struct Options {
     int menu_shortcut = 2;   // 0 Insert or F1, 1 F1 only, 2 Insert, F1 or Esc (F1 always opens the menu). 2 by default, as a PC
                              // game's pause menu; an older file's 0, the default it then was, moves to 2 (options_version 5)
     int compact_menu_key = 0; // 0 Right Shift, 1 Right Ctrl (key to switch to or open the compact menu)
+    int screenshot_key = 1;   // (hookshot) the Screenshot key: 0 Off, 1 F12, the picture as the window shows it into screenshots/
+                              // (vk_screenshot.h). On out of the box: it changes nothing in the game until it is pressed
     int menu_size = 2;   // (hookshot) the overlays' size: 1 Small, 2 Medium, 3 Large (gpu/vk/vk_ui.h unit; an older file's 0 Auto: Medium)
     int fullscreen = 0;   // borderless, at the monitor's size: F11 is the same setting
     int gpu_device = 0;   // graphics card index: 0 Auto, 1..N device 0..N-1 (gpu/vk/vk_main.cpp; RX_VK_DEVICE)

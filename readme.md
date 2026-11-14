@@ -104,10 +104,29 @@ and the cliffs around it fit on screen.
 <img src="docs/images/features/retro-look.jpg" alt="Gerudo Valley with adult Link: Retro look off, and N64 with the picture at 240 lines and the console's dither, full frame and 1:1 pixels">
 
 **Retro look** (Graphics tab, off by default) brings back the 1998 picture: **N64** draws the game at the console's 240
-lines, with colours cut to 16 bits through the N64's own 4x4 "magic square" dither (the same matrix angrylion's
-cycle-accurate N64 renderer uses), scaled up soft. It costs nothing measurable (60 FPS either way on an RTX 5090), and
-the Insert menu stays sharp over it. An **N64 + CRT** look with adjustable scanlines, phosphor mask, glow and curvature
-is being reworked after the first version's plain stripes.
+lines, with colours cut to 16 bits through the N64's own 4x4 "magic square" dither, scaled up soft. It costs nothing measurable (60 FPS either way on an RTX 5090), and
+the Insert menu stays sharp over it.
+
+<img src="docs/images/features/crt-look.jpg" alt="Gerudo Valley with N64 + CRT at 1:1 pixels: the default look, then a shadow mask with strong curvature, strong scanlines with a slot mask and high glow, and light scanlines with no mask">
+
+**N64 + CRT** puts that picture on a CRT: each line is a beam that
+widens where the picture is bright, so dark parts show the lines and bright parts fill out without the picture getting
+darker, with a phosphor mask on your screen's own pixels, a soft glow and a curved screen. Five rows set it to taste:
+**CRT scanlines** (Off to Strong), **CRT mask** (aperture grille, slot or shadow mask), **CRT mask strength**, **CRT glow**
+and **CRT curvature**. The pictures above are 1:1: a shrunk screenshot of a mask shows stripes the screen does not.
+
+### Brightness, colour vision and a screenshot key
+
+<img src="docs/images/features/brightness-colour-vision.jpg" alt="Top: a shaded corner of Kokiri Forest at brightness 80, 100, 130 and 150 percent. Bottom: Kakariko Village with colour vision off, then protanopia, deuteranopia and tritanopia">
+
+**Brightness** (Graphics tab, 70% to 150%) lifts or darkens the shadows and mid-tones while black stays black and white
+stays white, for screens without HDR. **Colour vision** (Off, Protanopia, Deuteranopia, Tritanopia) moves the colours
+each kind of colour blindness confuses to ones that can be told apart; greys and the HUD's text stay as they are. It is
+meant to look different to other eyes.
+
+**F12 saves a screenshot** as a PNG in a `screenshots` folder beside the game, as the window shows it (with the Retro
+look, Colour grade, Brightness and the rest) but without the Insert menu or the FPS counter. Saving runs beside the game:
+the frame rate held at 59 to 60 FPS through ten presses on an RTX 5090. The Screenshot key row (Controls tab) turns it off.
 
 ### DLSS 5 neural rendering, tested
 
@@ -127,6 +146,8 @@ model's settings for when NVIDIA does ([DLSS 5 neural rendering](#dlss-5-neural-
 
 **Colour grade** (Graphics tab: Rich, Vivid, Warm, Cool, Cinematic), with **Bloom** (a glow around bright light) and **FXAA**, plus **View distance, Grass and Shadow distance** rows that change
 how far the game draws models, grass and shadows. Each has an Original setting that looks exactly like the game.
+Fixed since the first version: Bloom, Colour grade, FXAA and the Retro look did nothing unless the Window scaling filter
+or Sharpness was also on. They now work at the default settings.
 
 Behind the scenes: the Builder's **"Preparing shaders" step no longer hangs at 99%** on a driver that never finishes a
 shader, and closing the game while shaders build no longer counts against you. On Windows,
@@ -136,7 +157,7 @@ when the game closes.
 ## Roadmap
 
 <p align="center">
-  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 5 done, 5 in progress, 6 coming next, 5 feature requests, each as a card. The same items are listed as text below." width="820">
+  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 8 done, 12 in progress, 14 coming next, each as a card. The same items are listed as text below." width="820">
 </p>
 
 **Done** is on `main` now. **In progress** is being worked on at the moment. **Coming next** is planned but not
@@ -150,23 +171,35 @@ reaches.
 
 - **Smooth above 60 FPS:** Gohma steers instead of sticking to the walls, slow motions keep their length, water, ice
   and sand keep moving
-- **New graphics options:** View distance, Grass and Shadow distance (memory locations by hotoni, via Ocarina Reborn),
-  Bloom, Colour grade and FXAA
+- **New graphics options:** View distance, Grass and Shadow distance, Bloom, Colour grade and FXAA
 - **Timer and counters:** Speedrun timer, Death counter and the N64's rupee counter
 - **No more stuck at 99%:** the Builder's shader preparation carries on past a graphics driver that never finishes a
   shader, and closing the game while shaders build no longer counts against you
 - **Retro N64 look:** the picture at the console's 240 lines with its own dither; the loading screen's 3D Hookshot
-- Also: the one-click Windows HDR launcher, fixes from the Longshot fork and Ocarina Reborn, the water's per-light
-  shadow maps (YakuzaFanA), several users, each game in its own folders, the RX 6600 / 6650 XT / 6500 XT fallback
+- **A better CRT look:** scanline beams, a phosphor mask, glow and curvature for the Retro look, each set in the menu
+- **Brightness and colour vision:** a brightness slider for screens without HDR, and colour-blind modes
+- **Screenshot key:** F12 saves the picture as you see it, as a PNG beside the game
+- Also: the one-click Windows HDR launcher, the water's per-light shadow maps, several users, each game in its own
+  folders, the RX 6600 / 6650 XT / 6500 XT fallback
 
-**🟡 In progress**: being worked on now
+**🟡 In progress**: being built and tested now
 
-- **A better CRT look:** soft scanlines, a phosphor mask, glow and curvature for the Retro look, each adjustable in
-  the menu (after Timothy Lottes' public-domain CRT shader)
 - **Mod manager:** your own mods listed in the menu, on and off, their load order and conflicts
 - **Hero mode and quiet Navi:** double damage and no recovery hearts; Navi's callouts off
-- **Screenshot key:** F12 saves the picture as you see it (with the Retro look or Colour grade), as a PNG beside the game
-- **Brightness and colour vision:** a brightness slider for non-HDR displays and colour-blind modes (next after the CRT look)
+- **Hookshot Launcher:** several builds side by side, stable, release-candidate and nightly channels, saves imported
+  and exported, an installer and updates of its own, in Hookshot's 3D look
+- **Toggle buttons and Mono:** tap a button to hold it (the shield, aiming), and a Mono sound output
+- **Less memory, a faster start:** video memory only where the game uses it; the button prompts ready in about 20 s
+  instead of 160
+- **A steadier picture:** HUD labels that stay sharp, the Gossip Stones whole with frame generation, no HDR flicker,
+  sharper scaling when the picture is larger than the window
+- **Intel and AMD fixes:** Intel Arc and Iris, the Radeon RX 6600 family; the mouse cursor hidden in play
+- **Walk, sprint and mouse look:** a walk key, a sprint button, and the mouse for aiming, locking on and riding
+- **Pro Controller and amiibo:** the Switch 2 Pro Controller over USB, and NFC tags from your own files
+- **Every screen shape:** the HUD placed right on ultrawide screens, filling the window, any output size, field of view
+  up to 300%
+- **Straight into play:** skip the title screen into your newest save, and open the menu from the pause screen
+- **Hundreds of fixes:** renderer, runtime and build fixes, each checked by tests
 
 **⚪ Coming next**: planned, not started
 
@@ -175,18 +208,17 @@ reaches.
 - **Faster towns and fields:** Castle Town and Hyrule Field, where each frame waits on the processor
 - **Jump loop after Gohma:** Link repeating a jump in dialogue above 60 FPS
 - **Invisible doors and walls** in a few places of the game
-- **AMD on Windows:** crashes on some Radeon cards (needs an AMD tester)
-- **amiibo**, from Ocarina Reborn
-- Later: a signed Builder, Intel cards, cards without mesh shaders
-
-**➕ Feature requests**: what players of the remake ask for most (GameBanana's most-liked mods and requests, and the
-ports' coverage, in its first week), limited to what Hookshot can build as a toggle over your own game files
-
-- **Photo mode:** a free camera with the HUD hidden
+- **Play in VR:** PC VR headsets through OpenXR, with a VR tab in the menu
+- **Steam Deck profile:** settings made for the Deck, on by themselves on a Deck
+- **Item wheel:** pick items from a wheel, with instant equip
+- **Find my best settings:** the menu measures your PC and picks the settings
+- **Photo mode:** a free camera with the HUD hidden (F12 screenshots already work)
 - **First-person aim:** bow, slingshot and Hookshot from Link's eyes, with the mouse
 - **Small toggles:** auto jump, Young Link on Epona, gear on and off, N64-style controls
-- **Randomizer:** items shuffled each run, Ship of Harkinian's best-known feature
-- **Online co-op:** shown working on another port, not released yet
+- **Randomizer:** items shuffled each run, a new game every time
+- **Online co-op:** play the adventure together with a friend
+- **AMD on Windows:** crashes on some Radeon cards (needs an AMD tester)
+- Later: a signed Builder, Intel cards, cards without mesh shaders
 
 Mods that swap in Nintendo's own models, textures, music or voices are for players to add from their own files
 (Hookshot loads them from the `mods` folder, see [Mods](#mods)); the project ships none of them.
@@ -564,7 +596,14 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | FXAA | Off, On (on the finished picture, in the Window scaling filter's place; not with HDR set to Native; changes at once) | Off |
 | | Bloom | Off, Low, Medium, High (a glow around bright light; not with HDR set to Native; changes at once) | Off |
 | | Colour grade | Off, Rich, Vivid, Warm, Cool, Cinematic (not with HDR set to Native; changes at once) | Off |
-| | Retro look | Off, N64 (the picture at the Nintendo 64's 240 lines, soft, its colours cut to 16 bits with the console's dither), N64 + CRT (with faint scanlines and darker corners); in the Window scaling filter's, FXAA's and Sharpness's place, the menu left sharp; not with HDR set to Native; changes at once | Off |
+| | Brightness | 70% to 150% (a gamma curve: the mid-tones lighter or darker, black and white kept; for SDR, with HDR on set HDR paper white instead; changes at once) | 100% |
+| | Colour vision | Off, Protanopia, Deuteranopia, Tritanopia (daltonization for colour blindness: the colours it confuses moved to ones that can be told apart; not a simulation; greys unchanged; not with HDR set to Native; changes at once) | Off |
+| | Retro look | Off, N64 (the picture at the Nintendo 64's 240 lines, soft, its colours cut to 16 bits with the console's dither), N64 + CRT (that picture on a CRT, set by the five CRT rows below); in the Window scaling filter's, FXAA's and Sharpness's place, the menu left sharp; not with HDR set to Native; changes at once | Off |
+| | CRT scanlines | Off, Light, Medium, Strong (the dark between the lines of light; bright parts fill out; with Retro look N64 + CRT) | Medium |
+| | CRT mask | Off, Aperture grille, Slot mask, Shadow mask (the screen's red, green and blue on your screen's pixels; with N64 + CRT) | Aperture grille |
+| | CRT mask strength | 10% to 100% (the picture keeps its brightness; with N64 + CRT) | 30% |
+| | CRT glow | Off, Low, Medium, High (light spreading in the glass around bright parts; with N64 + CRT) | Medium |
+| | CRT curvature | Off, Subtle, Strong (a curved screen with darker corners; with N64 + CRT) | Subtle |
 | | Texture detail | Auto, Full, Medium, Low | Auto |
 | | Anisotropic filtering | Game's, 2x, 4x, 8x, 16x | 16x |
 | | View distance | Short, Original, Far, Very far, Max (how far trees, bushes and detailed models reach; changes at once) | Original |
@@ -608,6 +647,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Controls | Opens the Controls page | |
 | | Menu shortcut | Insert or F1; F1 only; Insert, F1 or Esc | Insert, F1 or Esc |
 | | Compact menu key | Right Shift, Right Ctrl | Right Shift |
+| | Screenshot key | Off, F12 (saves the picture as the window shows it, without the menu or the FPS counter, as a PNG in the `screenshots` folder: [Controls](#controls)) | F12 |
 | Debug | Debug tools | Off, On (the tools below it while on) | Off |
 | | Player: Damage taken | Half, Normal, Double, Quadruple (live, while Debug tools is on; Half rounds damage up to a quarter heart; Heart protection wins) | Normal |
 | | Developer: Descriptor reuse | Off, On (changes at once) | On |
@@ -841,6 +881,13 @@ Use a controller, or the keyboard and mouse. On the keyboard, <kbd>W</kbd> <kbd>
 and the arrow keys (or <kbd>I</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd>) turn the camera.
 With the default keyboard bindings, press <kbd>E</kbd> to select **New Game** on the title screen.
 
+**Screenshots:** press <kbd>F12</kbd> to save the picture as the window shows it: at its size in the window, with the
+Graphics tab's looks in it (Retro look, Colour grade, Bloom, FXAA, Sharpness, the scaling filter) and without the menu, the
+FPS counter or the other overlays. It goes into the `screenshots` folder of the game folder as
+`Hookshot <date> <time>.png`, and "Screenshot saved" shows for two seconds. The PNG is not compressed (about 25 MB at
+4K). With HDR set to Native, the game's HDR picture is tone mapped to SDR for it (its paper white as the white).
+**Controls → Screenshot key** turns the key off; F12 cannot be bound to a control.
+
 **Mouse in the game's menus (Windows):** the title screen and its file list, the pause menu, the Key Items, Threads of
 Time and Map pages, the options and the save dialogs free the mouse while they are shown. Point at an entry to select
 it, left-click to choose it (A) and right-click to go back (B); the tabs, the L and R signs and the Back prompt can be
@@ -1027,7 +1074,8 @@ measured and what is not.
 Put mods in a `mods` folder in the game folder, beside `hookshot.exe` (or point `HOS_MODS` at another folder), in the
 layout emulators use: `mods/<name>/romfs/...` holds files that replace or add to the game's own. Deeper layouts such as
 `mods/contents/<title id>/<name>/romfs` work too. A folder whose name starts with `-` or `_` is off. When two mods
-have the same file, the one whose folder name sorts last wins, so name them `01-...`, `02-...` to set the order.
+have the same file, the one whose whole path relative to `mods` sorts last (ignoring case) wins. Use `01-...`, `02-...`
+at the same level to set the order. Stop the game before changing mods, then restart.
 
 Only RomFS mods are loaded. `exefs` patches (`.pchtxt`, `.ips`) are left out: Hookshot compiles the game's code ahead
 of time, so patching its instructions would need a rebuild. The log (`hookshot_log.txt`) names each mod and the files
@@ -1044,6 +1092,9 @@ entries into that table (each file gets the larger of the two), so your controll
 format, or a zstd frame that does not give its size) is used as it is, with the Switch's icons.
 If a mod includes tables for several game versions, the prompts use the table name from the game's own RomFS,
 not the first table found in the mod. Other versions' tables do not change the prompts' font or its size entries.
+
+For authors: the [existing file contract and game-free example](docs/mods.md) cover discovery, conflicting files,
+disabling and what this loader does not provide. The example contains only invented text, not a seed or game data.
 
 </details>
 
@@ -1454,6 +1505,14 @@ looks like.
 
 </details>
 
+## Related projects
+
+- **[Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot)**: another build of the same engine, by the Magic Bean
+  team, with its own [Longshot Launcher](https://git.magicbean.dev/MagicBeanDev/LongshotLauncher).
+- **[oot-mod](https://github.com/craftycorvid/oot-mod)** by craftycorvid: ultrawide (21:9, 32:9) and 16:10 patches for
+  playing the remake on an emulator. Hookshot has the same built in: the Aspect ratio row widens the view and keeps the
+  HUD and movies in the middle 16:9.
+
 ## Credits
 
 <details>
@@ -1489,6 +1548,12 @@ Hookshot exists thanks to the work of many people:
 - **hotoni** (the Graphics-Menu mod): where the game keeps its view, grass and shadow distances.
 - **[angrylion-rdp-plus](https://github.com/ata4/angrylion-rdp-plus)**: the Nintendo 64's colour dither (its magic square),
   which the Retro look uses.
+- **Machado, Oliveira and Fernandes** ([A Physiologically-based Model for Simulation of Color Vision
+  Deficiency](https://www.inf.ufrgs.br/~oliveira/pubs_files/CVD_Simulation/CVD_Simulation.html), IEEE TVCG 2009) and
+  **Fidaner, Lin and Ozguven** (Analysis of Color Blindness, Stanford 2005): the Colour vision row's model and its daltonization.
+- **Timothy Lottes**: his public-domain CRT shader
+  ([crt-lottes](https://github.com/libretro/glsl-shaders/blob/master/crt/shaders/crt-lottes.glsl)), the model of the Retro
+  look's N64 + CRT: its scanline beams, horizontal softness, glow, masks and curvature.
 - **Mesa (NAK)**: the reference for Ampere's instruction encoding.
 - Everyone who sent fixes: SkippySteve (Linux and the AppImage, and many more), monsterlag, klimovich008, hckrman101 (NVIDIA
   DLSS, DLAA and Reflex, the exposure flicker and fog fixes, build speed, CI), madebyjordan (AMD FSR 4.1), N3oTraX (FSR 4 on

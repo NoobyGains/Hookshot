@@ -12,6 +12,8 @@ import subprocess
 import tempfile
 import unittest
 
+RUN_ALL_SANITIZE = ["--sanitize"]   # (run_all.py --sanitize: the sanitizer lane)
+
 ROOT = Path(__file__).resolve().parents[1]
 
 def _with_cache(path):
