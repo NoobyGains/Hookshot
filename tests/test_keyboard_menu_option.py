@@ -23,7 +23,7 @@ def block(text, marker):
 
 
 def main():
-    menu = (ROOT / 'gpu/vk/vk_menu.cpp').read_text()
+    menu = (ROOT / 'gpu/vk/vk_menu.cpp').read_text(encoding='utf-8')
     tick = menu[menu.index('void menu_tick() {'):]
     poll = tick[tick.index('    enum { K_N ='):tick.index('    // (hookshot) the gamepads')]
     hid = (ROOT / 'host/nn_hid.c').read_text()
