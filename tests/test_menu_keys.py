@@ -28,6 +28,7 @@ RUN_ALL_ARGS = ["--cxx", "{cxx}"]
 ROOT = Path(__file__).resolve().parents[1]
 
 FIXTURE = r'''#include "gpu/vk/vk_menu_keys.h"
+#include "gpu/vk/vk_api.h"
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
@@ -202,12 +203,14 @@ static int rumble_step(int v) { return v; }
 static void fork_options_moved(int, bool, int, bool) {}   // (hookshot fork: two of its rows that moved; not this row)
 struct Row { int tab; const char* name; int* value; int lo, hi; };
 // INI_KEY
+// BIND_NAMES
 static Row rows[] = {{0, "Menu shortcut", &opts.menu_shortcut, 0, 2}};
 
 // The Menu shortcut after menu_init reads a file with menu_shortcut=<shortcut> and options_version=<version> (-1: no line)
-static int loaded_as(int shortcut, int version) {
+static int loaded_as(int shortcut, int version, const char* toggles = "") {
     if (FILE* w = fopen(ini_file.c_str(), "w")) {
         fputs("output_res=2560x1440\n", w);
+        fputs(toggles, w);
         if (shortcut >= 0) fprintf(w, "menu_shortcut=%d\n", shortcut);
         if (version >= 0) fprintf(w, "options_version=%d\n", version);
         fclose(w);
@@ -220,7 +223,18 @@ static int loaded_as(int shortcut, int version) {
     return opts.menu_shortcut;
 }
 
+static int input_option(int id) {
+    // TOGGLE_OPTION
+    return 0;
+}
+
 static void test_saved() {
+    CHECK(Options{}.hold_toggle == 0);
+    loaded_as(2, SAVED_VERSION, "toggle_r=1\ntoggle_zl=0\ntoggle_a=9\ntoggle_move_up=1\ntoggle_plus=1\ntoggle_minus=1\n");
+    CHECK(opts.hold_toggle == (1 << HOS_SW_R));
+    CHECK(input_option(HOS_OPT_HOLD_TOGGLE) == opts.hold_toggle);
+    loaded_as(2, SAVED_VERSION, "toggle_r=1\ntoggle_r=0\n");
+    CHECK(opts.hold_toggle == 0);
     // (from before the version Esc came with, ESC_FROM (-1, no line: before 2): Insert or F1 was the default, written
     // whether chosen or not, and moves to Insert, F1 or Esc; F1 only was chosen and stays; no line: the default)
     for (int old = -1; old < ESC_FROM; old++) {
@@ -275,9 +289,12 @@ def main():
         raise SystemExit("FAIL: vk_menu.cpp: menu_init does not move an older file's Insert or F1 to Insert, F1 or Esc")
     if int(esc_from.group(1)) > int(saved_version.group(1)):
         raise SystemExit("FAIL: vk_menu.cpp: save() writes a version below the Menu shortcut's move: a choice would move again")
+    bind_names = re.search(r"const char\* const bind_names\[HOS_KEY_N\] = \{.*?\};", menu, re.S).group(0)
+    replay = (ROOT / "gpu/vk/vk_replay.cpp").read_text(encoding="utf-8")
+    toggle_option = re.search(r"if \(id == HOS_OPT_HOLD_TOGGLE\) return opts.hold_toggle;", replay).group(0)
     keyboard = (KEYBOARD.replace("// OPTIONS", options.group(0)).replace("// TX_MENU_SHORTCUT", tx)
                 .replace("    // KEY_POLL", key_poll).replace("    // ESC_BLOCK", esc_block)
-                .replace("// INI_KEY", ini_key).replace("    // LOAD_OPTIONS", load)
+                .replace("// INI_KEY", ini_key).replace("// BIND_NAMES", bind_names).replace("// TOGGLE_OPTION", toggle_option).replace("    // LOAD_OPTIONS", load)
                 .replace("SAVED_VERSION", saved_version.group(1)).replace("ESC_FROM", esc_from.group(1)))
     fixture = FIXTURE.replace("// KEYBOARD_FIXTURE", keyboard)
     with tempfile.TemporaryDirectory(prefix="menu-keys-") as tmp:
@@ -290,6 +307,17 @@ def main():
 
     need(menu, r'\{TAB_CONTROLS, "Menu shortcut", &opts\.menu_shortcut, 0, 2, 1, tx_menu_shortcut,[^}]*nullptr, false, true\}',
          "the shortcut choice must be saved in Controls and exempt from presets")
+    # (one rule for which rows toggle, can_toggle: no Plus or Minus; the Toggle cell drawn off by it, and Left and Right
+    # (menu_hit::ctl_step, tests/test_menu_hit.cpp) and the selected column pass over it by it)
+    need(menu, r"bool can_toggle\(int i\) \{\s*return i >= 0 && i < kControls && controls\[i\]\.button < HOS_SW_N && "
+               r"controls\[i\]\.button != HOS_SW_PLUS && controls\[i\]\.button != HOS_SW_MINUS;",
+         "can_toggle must leave out Plus, Minus, the stick directions and the notes")
+    need(menu, r"const bool disabled = \(keys && !keyboard\) \|\| \(toggle && !can_toggle\(i\)\);",
+         "Plus and Minus must have disabled Toggle cells")
+    need(tick, r"ccol = menu_hit::ctl_step\(ccol, press\[3\] \? -1 : 1, keys_only\(i\), can_toggle\(i\)\);",
+         "keyboard navigation must skip Plus and Minus Toggle cells")
+    need(tick, r"const int col = menu_hit::ctl_column\(ccol, keys_only\(i\), can_toggle\(i\)\);",
+         "a row without a Toggle must not act on the Toggle column")
     # (Insert, F1 or Esc: Esc on a closed menu opens it, and that press does not also go back a page)
     need(tick, r"const bool esc_opens = opts\.menu_shortcut == 2 && press\[5\] && !open_now\.load\(\);\s*"
                r"if \(esc_opens\) press\[5\] = false;", "Esc does not open a closed menu with the Esc shortcut")

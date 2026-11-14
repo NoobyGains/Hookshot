@@ -57,6 +57,9 @@ enum { HOS_OPT_AUTO_RUN = 55 };
 /* (HOS_OPT_FPS_CAP, 53: the Game frame rate cap row, host/nn_vi.c fps_refresh reads it at each present: 0 the console's 60, then
    90, 120, 144, 165, 240, 6 Uncapped; a change applies in play) */
 enum { HOS_OPT_FPS_CAP = 53 };
+/* (HOS_OPT_HOLD_TOGGLE, 54: the Controls page's Toggle column, host/nn_hid.c: the Switch buttons held by one press and let go by
+   the next, 1 << HOS_SW_* (never Plus or Minus); 0, none, by default. Longshot has it at 54 too) */
+enum { HOS_OPT_HOLD_TOGGLE = 54 };
 /* (HOS_OPT_DAMAGE_TAKEN, 56: Damage taken, 0 Half, 1 Normal (unchanged), 2 Double, 3 Quadruple; Longshot has it at 55, which
    the Auto run row has here) */
 enum { HOS_OPT_DAMAGE_TAKEN = 56 };

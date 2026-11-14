@@ -55,9 +55,10 @@ struct Control { int button; };
 static const Control controls[] = {{0}, {1}, {2}};
 static const int kTop = 1, kControls = 3;
 static bool keys_only(int i) { return i == 2; }
+static bool can_toggle(int i) { return i != 2; }   // (the Toggle column: Switch buttons, not the keys-only rows)
 static int csel, ccol, listening;
 static bool changed, press[16];
-static struct { int pad_layout; } opts;
+static struct { int pad_layout, hold_toggle; } opts;
 static int detect_pad_layout() { return 0; }
 static void save() {}
 
@@ -101,6 +102,16 @@ int main() {
     press[8] = true;
     clear_cell(1);
     CHECK("a gamepad cell's clear leaves the keys", pads[1][1] == -1 && keys[1][0] == 'W' && keys[1][1] == 'S');
+    start(1, kCtlToggle);
+    pads[1][0] = 3, pads[1][1] = 4, opts.hold_toggle = (1 << 1) | (1 << 0);
+    press[8] = true;
+    clear_cell(1);
+    CHECK("the Toggle cell's clear turns its own Toggle off alone",
+          opts.hold_toggle == 1 && pads[1][0] == 3 && pads[1][1] == 4 && keys[1][0] == 'W' && keys[1][1] == 'S');
+    start(2, kCtlToggle);   // (a keys-only row has no Toggle: its selection is a key cell)
+    press[8] = true;
+    clear_cell(2);
+    CHECK("a keys-only row's clear from the Toggle column clears Key 1", keys[2][0] == 0 && keys[2][1] == 'S' && opts.hold_toggle == 1);
     return 0;
 }
 '''

@@ -855,6 +855,13 @@ control takes two of each), press <kbd>Enter</kbd> (or the bottom face button), 
 puts them all back. A gamepad button taken from another Switch button swaps with it. The page saves them in
 `hookshot_options.ini`.
 
+**Toggle:** on the Controls page, set a Switch button's Toggle column to On to hold it with one press and release it
+with the next. Both gamepad inputs, bound keys and mouse buttons share the latch. Every Toggle starts Off.
+Plus, Minus, stick directions and ocarina note rows have no Toggle. Opening Insert, pressing Plus or Minus,
+losing focus, rebinding or Reset to defaults releases latched buttons. With Controller in background On, a new
+press can latch again behind another window. On Linux, other game dialogs do not necessarily clear the latch;
+press Insert to release it. There is no separate on-screen latch indicator.
+
 **Ocarina notes:** the page gains five rows, `Ocarina note (L)`, `(R)`, `(A)`, `(Y)`, `(X)`, unset by default: the game's own
 buttons play until you bind a note to a key or gamepad input of your own, and a bound note then answers only that input while
 the game waits for it. A dialogue or cutscene that takes the buttons ends the wait, and a song lesson keeps the game's own too.
@@ -865,6 +872,7 @@ the game waits for it. A dialogue or cutscene that takes the buttons ends the wa
 ```ini
 pad_a=0
 key_a=69,13
+toggle_a=0
 ```
 
 `pad_<button>` is a gamepad input by position: 0 bottom face button, 1 right, 2 left, 3 top, 4 Select or Back, 5 Home,
@@ -876,7 +884,9 @@ buttons), and count while the mouse is captured. The buttons are `a` `b` `x` `y`
 `rs` `left` `up` `right` `down`, for keys only the left stick's and the camera's directions: `move_up`
 `move_down` `move_left` `move_right` `cam_up` `cam_down` `cam_left` `cam_right`, and the ocarina's five notes,
 which also take a `pad_` line: `note_l` `note_r` `note_a` `note_y` `note_x`. A button the file leaves out keeps
-its default.
+its default. `toggle_<button>=0|1` sets that button's Toggle (0 Off, the default; 1 On). It accepts the Switch
+buttons above except `plus` and `minus`; stick directions and note rows do not accept it. Other values mean Off.
+The file saves enabled flags, not held state; a restart starts with no button latched.
 
 </details>
 
