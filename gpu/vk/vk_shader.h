@@ -150,6 +150,9 @@ void program_cache_note_built(const Program& p);
 /// (hookshot) p's graphics modules were let go (program_cache_drop_modules) and not made again yet: no pipeline is built from it
 /// until program_cache_complete_graphics has made them
 bool program_modules_dropped(const Program& p);
+/// (hookshot) The same without waiting for Intel's compiler gate on Windows (IntelDriverGate): while another thread holds it,
+/// *busy is set, false comes back and the program is left as it was, its code still to read (a worker completes it)
+bool program_cache_complete_ask(Program& p, bool* busy);
 /// (hookshot) Every kept graphics and mesh program's key, in the file's order, no record read; *loaded: the variants in memory already
 std::vector<uint64_t> program_cache_keys(std::vector<Program*>* loaded);
 const Program* program_find(uint64_t key, uint64_t variant);
