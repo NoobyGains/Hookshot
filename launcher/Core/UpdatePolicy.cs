@@ -16,6 +16,11 @@ public static class UpdatePolicy
     {
         if (newest == null || version == null || newest == version) return null;
         if (!Versions.IsRelease(version) && Versions.TrackOf(version) != Versions.Nightly) return newest;
+        // (Hookshot's nightly is one rolling release that only moves forward along main: another nightly there is the newer one,
+        // unless this build's is known to be newer. A fork with no tags names its nightlies v0.0.0-0-g<commit>, which are not
+        // ordered, so without this its builds were never offered one)
+        if (channel == Versions.Nightly && Versions.TrackOf(version) == Versions.Nightly && Versions.TrackOf(newest) == Versions.Nightly)
+            return Versions.Newer(version, newest) ? null : newest;
         return Versions.Newer(newest, version) ? newest : null;
     }
 

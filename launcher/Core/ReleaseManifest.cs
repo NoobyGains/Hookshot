@@ -1,56 +1,84 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace HookshotLauncher.Core;
 
-/// A file a release has: where it is, and its SHA-256 (from the release's signed SHA256SUMS) and size, which the download is
-/// checked against
+/// A file a release has: where it is, and its SHA-256 (from the release's SHA256SUMS) and size, which the download is checked
+/// against
 public sealed record FileRef(string Url, string Sha256, long Size);
 
-/// What a release belongs to: Hookshot (its builders, the releases of MagicBeanDev/Hookshot) or the launcher itself (the releases
-/// of MagicBeanDev/HookshotLauncher). Each has its own versions and its own three channels (docs/releases.md)
-public sealed record Product(string Name, string Display, string Repo, int FirstMajor)
+/// What a release belongs to: Hookshot (its builders) or the launcher itself. Both are released from the same GitHub repository
+/// (Repository.Current), each with its own versions and its own three channels (docs/launcher.md):
+///   Hookshot  tags vX.Y.Z and vX.Y.Z-rc.N; its nightly is the rolling release "nightly", whose version is in its setup lists
+///   launcher  tags launcher-vX.Y.Z and launcher-vX.Y.Z-rc.N; its nightly is the rolling release "launcher-nightly", whose version
+///             (nightly-&lt;count&gt;-&lt;commit&gt;) is in its files' names
+/// TagPrefix: what a version's tag has before the version; NightlyTag: the rolling nightly's tag
+public sealed record Product(string Name, string Display, string Repo, int FirstMajor, string TagPrefix, string NightlyTag)
 {
-    public const string Server = "https://git.magicbean.dev";
-    public static readonly Product Hookshot = new("hookshot", "Hookshot", "MagicBeanDev/Hookshot", Versions.FirstMajor);
-    public static readonly Product Launcher = new("launcher", "Hookshot Launcher", "MagicBeanDev/HookshotLauncher", Versions.LauncherFirstMajor);
+    public const string Api = "https://api.github.com";
+    public static Product Hookshot => For(Repository.Current, "hookshot");
+    public static Product Launcher => For(Repository.Current, "launcher");
 
-    public string Api => Server + "/api/v1/repos/" + Repo;
+    /// One of the two products, released from repo
+    public static Product For(string repo, string name) => name == "launcher"
+        ? new Product("launcher", "Hookshot Launcher", repo, Versions.LauncherFirstMajor, "launcher-", "launcher-nightly")
+        : new Product("hookshot", "Hookshot", repo, Versions.FirstMajor, "", "nightly");
+
+    public string RepoApi => Api + "/repos/" + Repo;
+    public string Releases => Repository.Page(Repo) + "/releases";
+
+    /// The tag a version's files are on: the rolling nightly's for a nightly, else its own
+    public string TagOf(string version) => Versions.IsNightly(version) ? NightlyTag : TagPrefix + version;
+
+    /// The version a tag names (null: the rolling nightly, whose version is in its files, or a tag of the other product)
+    public string? VersionOf(string tag)
+    {
+        if (tag == NightlyTag || !tag.StartsWith(TagPrefix, StringComparison.Ordinal)) return null;
+        var v = tag[TagPrefix.Length..];
+        return Versions.IsRelease(v, FirstMajor) ? v : null;
+    }
 }
 
-/// One version's release, its files checked against its signed SHA256SUMS: for each system ("windows-x64", "linux-x64"),
-/// Hookshot's builder (Builder: HookshotBuilder-&lt;v&gt;-windows-x64.zip, Hookshot-&lt;v&gt;-x86_64.AppImage) and the Windows builder's
-/// tools.lock (Tools), or the launcher's own program (Launcher: also "windows-x64-portable", the portable zip). Notes: the release's page
+/// One version's release, its files checked against its SHA256SUMS: for each system ("windows-x64", "linux-x64"), Hookshot's
+/// builder (Tools["windows-x64"]: hookshot-setup.txt, whose parts are Setup; Builder["linux-x64"]: the AppImage), or the launcher's
+/// own program (Launcher: also "windows-x64-portable", the portable zip). Notes: the release's page. Tag: the GitHub release the files
+/// are on (the rolling nightly's for a nightly). Signed: its SHA256SUMS was signed by a key this launcher trusts (ReleaseKeys)
 public sealed record ReleaseInfo(string Product, string Version, string Commit, DateTimeOffset? Published, string? Notes,
                                  IReadOnlyDictionary<string, FileRef> Launcher, IReadOnlyDictionary<string, FileRef> Tools,
-                                 IReadOnlyDictionary<string, FileRef> Builder);
+                                 IReadOnlyDictionary<string, FileRef> Builder)
+{
+    public string Tag { get; init; } = Version;
+    public bool Signed { get; init; }
+    /// Windows: the builder's parts, from the release's hookshot-setup.txt (null for the launcher, and on Linux)
+    public PartsList? Setup { get; init; }
+}
 
-/// A release as Forgejo's API lists it (GET /repos/{repo}/releases): its tag, whether it is a draft or a pre-release, its
-/// files (name, download link, size), its page and its commit
+/// A release as GitHub's API lists it (GET /repos/{repo}/releases): its tag, whether it is a draft or a pre-release, its files
+/// (name, download link, size), its page and its commit (or branch)
 public sealed record ListedRelease(string Tag, bool Draft, bool Prerelease, DateTimeOffset? Published, string? Page, string Commit,
                                    IReadOnlyList<(string Name, string Url, long Size)> Assets);
 
-/// Reading Forgejo's release list, and the channels from it (scripts/release.py newest has the same rules):
-///   stable   the newest vX.Y.Z that is not a draft nor a pre-release
-///   rc       the newest vX.Y.Z-rc.N or vX.Y.Z that is not a draft
-///   nightly  the newest nightly-&lt;count&gt;-&lt;commit&gt; that is not a draft, by its count
+/// Reading GitHub's release list, and the channels from it:
+///   stable   the newest &lt;prefix&gt;vX.Y.Z that is not a draft nor a pre-release (Hookshot's fork may have none yet: then none)
+///   rc       the newest &lt;prefix&gt;vX.Y.Z-rc.N or &lt;prefix&gt;vX.Y.Z that is not a draft
+///   nightly  the product's rolling nightly release, when it is there and not a draft
 /// A draft is a release CI is still making; a version pulled back to a draft, or deleted, is gone from its channel, which then
-/// offers the one before. Anything else in the list (a 2.x tag) is on no channel. (The build tools are generic packages, not
-/// releases.)
+/// offers the one before. Anything else in the list (builder-parts, linux-parts, upstream's rolling rc, the other product's tags)
+/// is on no channel.
 public static class ReleaseManifest
 {
     public const long MaxFile = 16L << 30;
-    public const string Sums = "SHA256SUMS", Sig = "SHA256SUMS.sig", ToolsLock = "tools.lock";
+    public const string Sums = "SHA256SUMS", Sig = "SHA256SUMS.sig";
 
     public static string PlatformKey(Platform platform) => platform == Platform.Windows ? "windows-x64" : "linux-x64";
 
     /// The launcher's files, by key: the Windows program as its setup (the program itself, which offers to install itself when it
-    /// is first started), the same program in a zip with its "portable" file, and the AppImage (scripts/package.sh)
+    /// is first started), the same program in a zip with its "portable" file, and the AppImage (.github/workflows/launcher.yml)
     public const string WindowsPortable = "windows-x64-portable";
     public static readonly IReadOnlyList<string> LauncherKeys = new[] { "windows-x64", WindowsPortable, "linux-x64" };
 
-    /// The file names a release of product has, per system (scripts/package.sh, Hookshot's release workflow)
     public static string LauncherFile(string version, string key) => key switch
     {
         "windows-x64" => $"HookshotLauncher-{version}-windows-x64-setup.exe",
@@ -58,8 +86,25 @@ public static class ReleaseManifest
         _ => $"HookshotLauncher-{version}-x86_64.AppImage",
     };
 
-    public static string BuilderFile(string version, string platform) =>
-        platform == "windows-x64" ? $"HookshotBuilder-{version}-windows-x64.zip" : $"Hookshot-{version}-x86_64.AppImage";
+    static readonly Regex LauncherName = new(@"^HookshotLauncher-(.+)-(?:windows-x64-setup\.exe|windows-x64-portable\.zip|x86_64\.AppImage)$",
+                                             RegexOptions.CultureInvariant);
+
+    /// The version a rolling launcher nightly's files are named with: every launcher file SHA256SUMS names must name the same one
+    public static string LauncherVersionOf(IEnumerable<string> names)
+    {
+        var versions = names.Select(n => LauncherName.Match(n)).Where(m => m.Success).Select(m => m.Groups[1].Value).Distinct().ToList();
+        if (versions.Count != 1) throw new InvalidDataException(versions.Count == 0 ? "The release has no launcher." : "The release's launchers are of different versions.");
+        return versions[0];
+    }
+
+    /// Hookshot's Linux builder in a release: the AppImage named for the version (scripts/linux/appimage.sh,
+    /// &lt;project&gt;-&lt;version&gt;-x86_64.AppImage), the one SHA256SUMS names
+    public static string? AppImageOf(IEnumerable<string> names, string version)
+    {
+        var name = new Regex("^[A-Za-z0-9._+-]+-" + Regex.Escape(version) + @"-x86_64\.AppImage$", RegexOptions.CultureInvariant);
+        var found = names.Where(n => name.IsMatch(n)).ToList();
+        return found.Count == 1 ? found[0] : null;
+    }
 
     public static IReadOnlyList<ListedRelease> ParseList(string json)
     {
@@ -106,49 +151,32 @@ public static class ReleaseManifest
                                  Opt(r, "target_commitish") ?? "", assets);
     }
 
-    /// What a channel offers from the list, null when nothing
+    /// The tag of what a channel offers from the list, null when nothing
     public static string? Newest(IEnumerable<ListedRelease> list, string channel, Product product)
     {
         var published = list.Where(r => !r.Draft && Versions.IsTagName(r.Tag)).ToList();
-        IEnumerable<string> tags = channel switch
+        if (channel == Versions.Nightly)
+            return published.Any(r => r.Tag == product.NightlyTag) ? product.NightlyTag : null;
+        IEnumerable<(string Tag, string Version)> tags = channel switch
         {
-            Versions.Nightly => published.Where(r => Versions.TrackOf(r.Tag, product.FirstMajor) == Versions.Nightly).Select(r => r.Tag),
-            Versions.Candidate => published.Where(r => Versions.IsRelease(r.Tag, product.FirstMajor)).Select(r => r.Tag),
-            Versions.Stable => published.Where(r => !r.Prerelease && Versions.IsRelease(r.Tag, product.FirstMajor)
-                                                    && Versions.TrackOf(r.Tag, product.FirstMajor) == Versions.Stable).Select(r => r.Tag),
+            Versions.Candidate => published.Select(r => (r.Tag, V: product.VersionOf(r.Tag))).Where(t => t.V != null).Select(t => (t.Tag, t.V!)),
+            Versions.Stable => published.Where(r => !r.Prerelease).Select(r => (r.Tag, V: product.VersionOf(r.Tag)))
+                .Where(t => t.V != null && Versions.TrackOf(t.V, product.FirstMajor) == Versions.Stable).Select(t => (t.Tag, t.V!)),
             _ => throw new ArgumentException("Not a channel: " + channel, nameof(channel)),
         };
-        string? best = null;
+        (string Tag, string Version)? best = null;
         foreach (var t in tags)
-            if (best == null || Versions.Newer(t, best, product.FirstMajor)) best = t;
-        return best;
+            if (best == null || Versions.Newer(t.Version, best.Value.Version, product.FirstMajor)) best = t;
+        return best?.Tag;
     }
 
-    /// The release's files, each with the SHA-256 its signed SHA256SUMS gives; a file the list does not name is not taken
-    public static ReleaseInfo Build(ListedRelease r, IReadOnlyDictionary<string, string> sums, Product product)
+    /// The files a release has that SHA256SUMS names, with the SHA-256 it gives; one it does not name is not taken
+    public static FileRef? File(ListedRelease r, IReadOnlyDictionary<string, string> sums, string name)
     {
-        var assets = r.Assets.ToDictionary(a => a.Name, a => a, StringComparer.Ordinal);
-        Dictionary<string, FileRef> Pick(Func<string, string> name, IEnumerable<string>? keys = null)
-        {
-            var files = new Dictionary<string, FileRef>(StringComparer.Ordinal);
-            foreach (var platform in keys ?? new[] { "windows-x64", "linux-x64" })
-            {
-                var n = name(platform);
-                if (assets.TryGetValue(n, out var a) && sums.TryGetValue(n, out var sha))
-                {
-                    if (a.Size < 0 || a.Size > MaxFile) throw new InvalidDataException($"{n}: a size out of range.");
-                    files[platform] = new FileRef(a.Url, sha, a.Size);
-                }
-            }
-            return files;
-        }
-        var empty = new Dictionary<string, FileRef>();
-        if (product.Name == Product.Launcher.Name)
-            return new ReleaseInfo(product.Name, r.Tag, r.Commit, r.Published, r.Page, Pick(p => LauncherFile(r.Tag, p), LauncherKeys), empty, empty);
-        var tools = new Dictionary<string, FileRef>(StringComparer.Ordinal);
-        if (assets.TryGetValue(ToolsLock, out var lockFile) && sums.TryGetValue(ToolsLock, out var lockSha))
-            tools["windows-x64"] = new FileRef(lockFile.Url, lockSha, lockFile.Size);
-        return new ReleaseInfo(product.Name, r.Tag, r.Commit, r.Published, r.Page, empty, tools, Pick(p => BuilderFile(r.Tag, p)));
+        var a = r.Assets.FirstOrDefault(x => x.Name == name);
+        if (a.Url == null || !sums.TryGetValue(name, out var sha)) return null;
+        if (a.Size < 0 || a.Size > MaxFile) throw new InvalidDataException($"{name}: a size out of range.");
+        return new FileRef(a.Url, sha, a.Size);
     }
 
     /// A small file a release has, into memory, checked for its size and SHA-256
@@ -161,7 +189,7 @@ public static class ReleaseManifest
         return data;
     }
 
-    /// A small file into memory, no larger than max (SHA256SUMS and its signature, which the signature itself checks)
+    /// A small file into memory, no larger than max (SHA256SUMS and its signature)
     public static async Task<byte[]> FetchUncheckedAsync(IFetcher fetcher, string url, long max, CancellationToken cancel)
     {
         using var bytes = new MemoryStream();

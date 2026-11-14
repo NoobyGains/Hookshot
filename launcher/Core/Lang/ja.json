@@ -88,7 +88,7 @@
   "The list of builds could not be read (kept as builds.json.broken): {0}": "ビルドの一覧を読み込めませんでした（builds.json.broken として保管しました）: {0}",
   "Checking for updates…": "アップデートを確認しています…",
   "Updates were not checked: {0}": "アップデートを確認しませんでした: {0}",
-  "Could not reach git.magicbean.dev: updates were not checked.": "git.magicbean.dev に接続できなかったため、アップデートを確認できませんでした。",
+  "Could not reach GitHub: updates were not checked.": "GitHub に接続できなかったため、アップデートを確認できませんでした。",
   "Could not check for updates: {0}": "アップデートを確認できませんでした: {0}",
   "Everything is up to date, the launcher too. Checked at {0}.": "ランチャーも含め、すべて最新です。{0} に確認しました。",
   "Not found": "見つかりません",
@@ -389,8 +389,8 @@
   "Hookshot turns your own copy of Ocarina of Time into a PC game. It takes about 15 to 30 minutes, once per version.": "Hookshot は、お持ちの Ocarina of Time を PC ゲームにします。かかる時間は約 15〜30 分で、バージョンごとに 1 回だけです。",
   "Builds": "ビルド",
   "Change": "変更",
-  "Asking git.magicbean.dev for the newest version…": "git.magicbean.dev に最新バージョンを問い合わせています…",
-  "git.magicbean.dev did not answer, so the version to build is not known.": "git.magicbean.dev から応答がなかったため、ビルドするバージョンがわかりません。",
+  "Asking GitHub for the newest version…": "GitHub に最新バージョンを問い合わせています…",
+  "GitHub did not answer, so the version to build is not known.": "GitHub から応答がなかったため、ビルドするバージョンがわかりません。",
   "You need your dump of the game: a .nup file, or its romfs and exefs folders.": "ゲームのダンプが必要です: .nup ファイル、または romfs と exefs フォルダー。",
   "Your saves, which every version shares: import them, export them": "すべてのバージョンで共有するセーブデータ: インポートとエクスポート",
   "Manage saves": "セーブデータを管理",
@@ -552,5 +552,8 @@
   "TO HOOKSHOT": "Hookshot へ",
   "Build a Hookshot version first, then import its graphics and controls. You can import saves before building.": "先に Hookshot のバージョンをビルドしてから、グラフィックと操作設定をインポートしてください。セーブデータはビルド前でもインポートできます。",
   "Choose the Hookshot version whose settings will be replaced.": "設定を置き換える Hookshot バージョンを選んでください。",
-  "Longshot's graphics and controls replace the same settings in this version's hookshot_options.ini; its other settings stay as they are. The game language replaces this version's. Longshot keeps its originals. Saves are imported separately.": "Longshot のグラフィックと操作設定で、このバージョンの hookshot_options.ini の同じ設定を置き換えます。それ以外の設定はそのままです。ゲーム言語もこのバージョンのものを置き換えます。Longshot 側の元の設定は残ります。セーブデータは別にインポートします。"
+  "Longshot's graphics and controls replace the same settings in this version's hookshot_options.ini; its other settings stay as they are. The game language replaces this version's. Longshot keeps its originals. Saves are imported separately.": "Longshot のグラフィックと操作設定で、このバージョンの hookshot_options.ini の同じ設定を置き換えます。それ以外の設定はそのままです。ゲーム言語もこのバージョンのものを置き換えます。Longshot 側の元の設定は残ります。セーブデータは別にインポートします。",
+  "There is no release on this channel yet.": "このチャンネルにはまだリリースがありません。",
+  "None released yet": "まだリリースなし",
+  "Choose another channel": "別のチャンネルを選ぶ"
 }

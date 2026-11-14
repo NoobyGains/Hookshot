@@ -127,14 +127,18 @@
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding Checking}">
           <c:Spinner VerticalAlignment="Center"/>
-          <TextBlock Classes="note" Text="{c:T 'Asking git.magicbean.dev for the newest version…'}"/>
+          <TextBlock Classes="note" Text="{c:T 'Asking GitHub for the newest version…'}"/>
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,8,0,0" IsVisible="{Binding ShowCheckLine}">
           <c:Spinner VerticalAlignment="Center"/>
           <TextBlock Classes="note" Text="{Binding CheckCommand.Status}"/>
         </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding NoneYet}">
+          <TextBlock Classes="note" Text="{Binding NoneYetText}"/>
+          <Button Classes="link" Content="{c:T 'Choose another channel'}" Command="{Binding ChannelCommand}"/>
+        </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0" IsVisible="{Binding CheckFailed}">
-          <TextBlock Classes="note" Text="{c:T 'git.magicbean.dev did not answer, so the version to build is not known.'}"/>
+          <TextBlock Classes="note" Text="{c:T 'GitHub did not answer, so the version to build is not known.'}"/>
           <Button Classes="link" Content="{c:T 'Try again'}" Command="{Binding RetryCheckCommand}"/>
         </StackPanel>
         <TextBlock Classes="faint" HorizontalAlignment="Center" Margin="0,8,0,0"

@@ -59,7 +59,6 @@ static partial class Program
         await SelfUpdateChecks();
         await InstallChecks();
         await ToolchainChecks();
-        await CdnChecks();
         RegistryChecks();
         SettingsChecks();
         ProgressChecks();
@@ -107,6 +106,11 @@ static partial class Program
                 && Versions.Shown("nightly-2029-c544828f-dirty") == "Nightly 2029 \u00b7 c544828f-dirty"
                 && Versions.Shown("v3.1.0-rc.3") == "v3.1.0-rc.3" && Versions.Shown("nightly-2029-c544828") == "nightly-2029-c544828"
                 && Versions.Shown(null) == "", "A nightly as players see it: its number and its commit.");
+        Require(Versions.Shown("v2.3.0-rc.8-2-gf33ca75d") == "Nightly v2.3.0-rc.8+2 · f33ca75d"
+                && Versions.Shown("v2.3.0-rc.8-2-gf33ca75d0123-dirty") == "Nightly v2.3.0-rc.8+2 · f33ca75d-dirty"
+                && Versions.Shown("v0.0.0-0-g179d8124") == "Nightly · 179d8124" && Versions.Shown("179d8124") == "Nightly · 179d8124"
+                && Versions.Shown("179d8124179d8124179d8124179d8124179d8124") == "Nightly · 179d8124",
+                "Hookshot's nightly as players see it: the release it follows, its count past it, and its commit.");
         Require(!Versions.Newer("v3.1.0", "dev") && !Versions.Newer("dev", "v3.1.0") && !Versions.Newer("v99999999999999999999.0.0", "v1.0.0"),
                 "A name that is no version is never newer, nor older.");
         Require(Versions.IsTagName("v3.1.0-rc.1-3-g1a2b3c4") && Versions.IsTagName("nightly-2029-c544828f-dirty") && !Versions.IsTagName("..") && !Versions.IsTagName("a/b")
@@ -145,7 +149,7 @@ static partial class Program
 
     static Func<string> Fail(int? status) => () => throw new FetchException("authored failure", status);
 
-    // ---- releases (Releases, ReleaseManifest, SignedSums, ToolsLock) ----
+    // ---- releases (Releases, ReleaseManifest, SignedSums, SetupList, ToolsLock) ----
 
     const string Commit = "0123456789abcdef0123456789abcdef01234567";
     static readonly Func<TimeSpan, CancellationToken, Task> NoWait = (_, _) => Task.CompletedTask;
@@ -158,38 +162,48 @@ static partial class Program
 
     static string ShaOf(byte[] data) => Convert.ToHexStringLower(SHA256.HashData(data));
 
-    /// A Forgejo server with releases: each (tag, draft, prerelease, files) published with SHA256SUMS signed by key (null: none)
-    sealed class FakeForgejo
+    /// GitHub with releases of one repository: each (tag, draft, prerelease, files) published with SHA256SUMS (sums: false, none),
+    /// signed by key when one is given; the API's list and its release by tag, and each file's download link
+    sealed class FakeGitHub
     {
-        public readonly FakeFetcher Server = new();
+        public readonly FakeFetcher Server;
         readonly List<JsonObject> list = new();
-        readonly Product product;
-        public FakeForgejo(Product product) => this.product = product;
+        public readonly string Repo;
+        public FakeGitHub(string repo = "someone/Hookshot", FakeFetcher? server = null)
+        {
+            Repo = repo;
+            Server = server ?? new FakeFetcher();
+        }
 
-        public void Add(string tag, ECDsa? key, bool draft = false, bool? prerelease = null, Dictionary<string, byte[]>? files = null,
-                        Func<string, string>? sums = null)
+        public Product Hookshot => Product.For(Repo, "hookshot");
+        public Product Launcher => Product.For(Repo, "launcher");
+
+        public void Add(string tag, ECDsa? key = null, bool draft = false, bool? prerelease = null, Dictionary<string, byte[]>? files = null,
+                        Func<string, string>? sums = null, bool withSums = true)
         {
             files ??= new Dictionary<string, byte[]>();
             var assets = new JsonArray();
             void Asset(string name, byte[] data)
             {
-                var url = $"https://git.magicbean.dev/{product.Repo}/releases/download/{tag}/{name}";
+                var url = $"https://github.com/{Repo}/releases/download/{tag}/{name}";
                 Server.Files[url] = data;
                 assets.Add(new JsonObject { ["name"] = name, ["browser_download_url"] = url, ["size"] = data.Length });
             }
             foreach (var (name, data) in files) Asset(name, data);
-            if (key != null)
+            if (withSums)
             {
                 var text = string.Concat(files.OrderBy(f => f.Key, StringComparer.Ordinal).Select(f => $"{ShaOf(f.Value)}  {f.Key}\n"));
                 var sumBytes = Encoding.UTF8.GetBytes(sums?.Invoke(text) ?? text);
                 Asset("SHA256SUMS", sumBytes);
-                Asset("SHA256SUMS.sig", Encoding.ASCII.GetBytes(Convert.ToBase64String(
-                    key.SignData(Encoding.UTF8.GetBytes(text), HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence)) + "\n"));
+                if (key != null)
+                    Asset("SHA256SUMS.sig", Encoding.ASCII.GetBytes(Convert.ToBase64String(
+                        key.SignData(Encoding.UTF8.GetBytes(text), HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence)) + "\n"));
             }
             var rel = new JsonObject
             {
-                ["tag_name"] = tag, ["draft"] = draft, ["prerelease"] = prerelease ?? !System.Text.RegularExpressions.Regex.IsMatch(tag, @"^v\d+\.\d+\.\d+$"),
-                ["published_at"] = "2026-11-12T10:00:00Z", ["html_url"] = $"https://git.magicbean.dev/{product.Repo}/releases/tag/{tag}",
+                ["tag_name"] = tag, ["draft"] = draft,
+                ["prerelease"] = prerelease ?? !System.Text.RegularExpressions.Regex.IsMatch(tag, @"^(launcher-)?v\d+\.\d+\.\d+$"),
+                ["published_at"] = "2026-11-12T10:00:00Z", ["html_url"] = $"https://github.com/{Repo}/releases/tag/{tag}",
                 ["target_commitish"] = Commit, ["assets"] = assets,
             };
             list.RemoveAll(r => (string?)r["tag_name"] == tag);
@@ -206,13 +220,36 @@ static partial class Program
         void Publish()
         {
             var json = new JsonArray(list.Select(r => (JsonNode)JsonNode.Parse(r.ToJsonString())!).ToArray()).ToJsonString();
-            Server.Texts[$"{product.Api}/releases?limit=50&page=1"] = () => json;
+            var api = $"https://api.github.com/repos/{Repo}";
+            Server.Texts[$"{api}/releases?per_page=100&page=1"] = () => json;
+            foreach (var key in Server.Texts.Keys.Where(k => k.StartsWith(api + "/releases/tags/", StringComparison.Ordinal)).ToList())
+                Server.Texts.Remove(key);
             foreach (var r in list)
             {
                 var one = r.ToJsonString();
-                Server.Texts[$"{product.Api}/releases/tags/{(string?)r["tag_name"]}"] = () => one;
+                Server.Texts[$"{api}/releases/tags/{(string?)r["tag_name"]}"] = () => one;
             }
         }
+    }
+
+    /// A Hookshot release's builder files: its setup lists (tag lines naming version, Windows' with its parts: one, by default, an
+    /// authored builder at https://parts/&lt;version&gt;.zip) and its Linux AppImage named for the version
+    static Dictionary<string, byte[]> Builder(string version, byte[]? image = null, string? setup = null, FakeFetcher? server = null)
+    {
+        if (setup == null)
+        {
+            var app = Zip(("HookshotBuilder/HookshotBuilder.exe", "MZ builder " + version, null, 0x1A4),
+                          ("HookshotBuilder/tools/nx2/make_game.py", "print('authored')\n", null, 0x1A4));
+            if (server != null) server.Files[$"https://parts/{version}.zip"] = app;
+            setup = $"tag {version}\npart {ShaOf(app)} {app.Length} . - - https://parts/{version}.zip\nrun HookshotBuilder/HookshotBuilder.exe\n";
+        }
+        return new()
+        {
+            ["hookshot-setup.txt"] = Encoding.UTF8.GetBytes(setup),
+            ["hookshot-linux.txt"] = Encoding.UTF8.GetBytes($"tag {version}\npart {new string('a', 64)} 10 usr/share/hookshot https://parts/l.zip\ntree\n"),
+            [$"Hookshot-{version}-x86_64.AppImage"] = image ?? Encoding.UTF8.GetBytes("\x7fELF the builder " + version),
+            ["HookshotBuilder.exe"] = Encoding.UTF8.GetBytes("MZ the setup"),
+        };
     }
 
     static Dictionary<string, byte[]> LauncherFiles(string v) => new()
@@ -228,98 +265,189 @@ static partial class Program
         var (key, trusted) = NewKey();
         var (stranger, _) = NewKey();
         var keys = new[] { trusted };
+        var unsigned = Array.Empty<ReleaseKey>();
 
-        // (the channels, from the release list: drafts are not there yet, pre-releases are not stable)
-        var forge = new FakeForgejo(Product.Hookshot);
-        var hookshot = new Releases(forge.Server, Platform.Linux, keys, NoWait, Product.Hookshot);
-        Require(hookshot.ListUrl(1) == "https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Hookshot/releases?limit=50&page=1"
-                && hookshot.VersionUrl("v3.0.0") == "https://git.magicbean.dev/api/v1/repos/MagicBeanDev/Hookshot/releases/tags/v3.0.0",
-                "Where Hookshot's releases are.");
-        var image = Encoding.UTF8.GetBytes("\x7fELF the builder");
-        Dictionary<string, byte[]> Builder(string v) => new()
-        {
-            [ReleaseManifest.BuilderFile(v, "linux-x64")] = image,
-            [ReleaseManifest.BuilderFile(v, "windows-x64")] = Encoding.UTF8.GetBytes("PK the builder"),
-            ["tools.lock"] = Encoding.UTF8.GetBytes("# no tools\n"),
-        };
-        forge.Add("v3.0.0", key, files: Builder("v3.0.0"));
-        forge.Add("v3.1.0-rc.1", key, files: Builder("v3.1.0-rc.1"));
-        forge.Add("v3.1.0-rc.2", key, draft: true, files: Builder("v3.1.0-rc.2"));
-        forge.Add("nightly-9-aaaaaaaa", key, files: Builder("nightly-9-aaaaaaaa"));
-        forge.Add("nightly-12-bbbbbbbb", key, files: Builder("nightly-12-bbbbbbbb"));
-        forge.Add("tools", null);
-        forge.Add("v2.9.0", key, prerelease: false, files: Builder("v2.9.0"));
-        Require(await hookshot.NewestAsync("stable") == "v3.0.0" && await hookshot.NewestAsync("rc") == "v3.1.0-rc.1"
-                && await hookshot.NewestAsync("nightly") == "nightly-12-bbbbbbbb",
-                "Each channel's newest: stable, the newest release candidate (not a draft), the nightly by its count; never 2.x or tools.");
+        // (where the releases are: the repository's, by GitHub's API; a fork's launcher follows the fork)
+        var gh = new FakeGitHub();
+        var hookshot = new Releases(gh.Server, Platform.Linux, unsigned, NoWait, gh.Hookshot);
+        Require(hookshot.ListUrl(1) == "https://api.github.com/repos/someone/Hookshot/releases?per_page=100&page=1"
+                && hookshot.TagUrl("v2.3.0") == "https://api.github.com/repos/someone/Hookshot/releases/tags/v2.3.0"
+                && gh.Hookshot.TagOf("v2.3.0-rc.8-2-gf33ca75d") == "nightly" && gh.Hookshot.TagOf("v2.3.0-rc.8") == "v2.3.0-rc.8"
+                && gh.Launcher.TagOf("v1.0.0") == "launcher-v1.0.0" && gh.Launcher.TagOf("nightly-30-cccccccc") == "launcher-nightly"
+                && gh.Hookshot.Releases == "https://github.com/someone/Hookshot/releases", "Where Hookshot's releases are.");
+        Require(Repository.Resolve(_ => null, null) == Repository.Default && Repository.Default == "notquiteog/Hookshot"
+                && Repository.Resolve(k => k == Repository.Variable ? "NoobyGains/Hookshot" : null, null) == "NoobyGains/Hookshot"
+                && Repository.Resolve(k => k == Repository.Variable ? "not a repo" : null, null) == Repository.Default
+                && Repository.Resolve(k => k == Repository.Variable ? "../x" : null, null) == Repository.Default
+                && Repository.IsName("a-b/c.d_e") && !Repository.IsName("a/..") && !Repository.IsName("a/b/c") && !Repository.IsName("a_b/c"),
+                "The repository: HOOKSHOT_LAUNCHER_REPOSITORY when it is owner/name, else the stamp, else the builder's default.");
+
+        // (the channels: stable the newest vX.Y.Z, rc the newest vX.Y.Z-rc.N or vX.Y.Z, nightly the rolling nightly with its setup
+        // list's version; never a draft, builder-parts, upstream's rolling rc or the launcher's tags)
+        gh.Add("v2.2.0", files: Builder("v2.2.0"));
+        gh.Add("v2.3.0-rc.7", files: Builder("v2.3.0-rc.7"));
+        gh.Add("v2.3.0-rc.8", files: Builder("v2.3.0-rc.8"));
+        gh.Add("v2.3.0-rc.9", draft: true, files: Builder("v2.3.0-rc.9"));
+        gh.Add("nightly", files: Builder("v2.3.0-rc.8-2-gf33ca75d"));
+        gh.Add("builder-parts");
+        gh.Add("linux-parts");
+        gh.Add("rc", files: new() { ["Hookshot-v2.3.0-rc.8-x86_64.AppImage"] = Encoding.UTF8.GetBytes("x") });
+        gh.Add("launcher-v1.0.0", files: LauncherFiles("v1.0.0"));
+        gh.Add("v1.9.0", prerelease: false, files: Builder("v1.9.0"));
+        Require(await hookshot.NewestAsync("stable") == "v2.2.0" && await hookshot.NewestAsync("rc") == "v2.3.0-rc.8"
+                && await hookshot.NewestAsync("nightly") == "v2.3.0-rc.8-2-gf33ca75d",
+                "Each channel's newest: stable, the newest release candidate (not a draft), the nightly's version; never 1.x or another tag.");
         var rc = (await hookshot.ChannelAsync("rc"))!;
-        Require(rc.Builder["linux-x64"].Size == image.Length && rc.Builder["linux-x64"].Sha256 == ShaOf(image) && rc.Tools.ContainsKey("windows-x64")
-                && rc.Commit == Commit && rc.Notes == "https://git.magicbean.dev/MagicBeanDev/Hookshot/releases/tag/v3.1.0-rc.1",
-                "A release's files, with the SHA-256 its signed SHA256SUMS gives.");
-        Require((await hookshot.BuilderAsync("v3.1.0-rc.1")).Url.EndsWith("/Hookshot-v3.1.0-rc.1-x86_64.AppImage", StringComparison.Ordinal),
-                "The Linux builder of a version.");
-        forge.Add("v3.1.0", key, files: Builder("v3.1.0"));
-        Require(await hookshot.NewestAsync("rc") == "v3.1.0" && await hookshot.NewestAsync("stable") == "v3.1.0", "rc offers a stable once it is out.");
+        var image = Builder("v2.3.0-rc.8")["Hookshot-v2.3.0-rc.8-x86_64.AppImage"];
+        Require(rc.Builder["linux-x64"].Size == image.Length && rc.Builder["linux-x64"].Sha256 == ShaOf(image) && rc.Tag == "v2.3.0-rc.8"
+                && !rc.Signed && rc.Setup == null && rc.Tools.Count == 0
+                && rc.Commit == Commit && rc.Notes == "https://github.com/someone/Hookshot/releases/tag/v2.3.0-rc.8",
+                "A release's Linux builder, with the SHA-256 its SHA256SUMS gives.");
+        var nightly = (await hookshot.ChannelAsync("nightly"))!;
+        Require(nightly.Tag == "nightly" && nightly.Version == "v2.3.0-rc.8-2-gf33ca75d"
+                && nightly.Builder["linux-x64"].Url.EndsWith("/nightly/Hookshot-v2.3.0-rc.8-2-gf33ca75d-x86_64.AppImage", StringComparison.Ordinal),
+                "The nightly: its version from its setup list, its AppImage the one named for it.");
+        Require((await hookshot.BuilderAsync("v2.3.0-rc.8")).Url.EndsWith("/v2.3.0-rc.8/Hookshot-v2.3.0-rc.8-x86_64.AppImage", StringComparison.Ordinal)
+                && (await hookshot.BuilderAsync("v2.3.0-rc.8-2-gf33ca75d")).Url.Contains("/nightly/", StringComparison.Ordinal),
+                "The Linux builder of a version, a nightly's from the rolling nightly.");
+        // (Windows: the setup list's parts)
+        var win = new Releases(gh.Server, Platform.Windows, unsigned, NoWait, gh.Hookshot);
+        var w = (await win.ChannelAsync("rc"))!;
+        Require(w.Setup is { Kind: ListKind.Setup, Tag: "v2.3.0-rc.8", Run: "HookshotBuilder/HookshotBuilder.exe" } && w.Setup.Parts.Count == 1
+                && w.Tools["windows-x64"].Url.EndsWith("/v2.3.0-rc.8/hookshot-setup.txt", StringComparison.Ordinal) && w.Builder.Count == 0
+                && (await win.ToolsListAsync("v2.3.0-rc.8")).Parts[0].Url == "https://parts/v2.3.0-rc.8.zip",
+                "Windows: the release's hookshot-setup.txt, checked, and its parts.");
+        // (a fork with no tags: its nightly is v0.0.0-0-g<commit> on Windows, the commit alone on Linux; no stable yet)
+        var fork = new FakeGitHub("NoobyGains/Hookshot");
+        fork.Add("nightly", files: Builder("179d8124"));
+        var forkLinux = new Releases(fork.Server, Platform.Linux, unsigned, NoWait, fork.Hookshot);
+        Require(await forkLinux.NewestAsync("nightly") == "179d8124" && await forkLinux.NewestAsync("stable") == null
+                && await forkLinux.NewestAsync("rc") == null && forkLinux.Problem == null && forkLinux.Answered,
+                "A fork's nightly by its commit; no stable or release candidate, and nothing wrong.");
+        fork.Add("nightly", files: Builder("v0.0.0-0-g179d8124"));
+        Require(await new Releases(fork.Server, Platform.Windows, unsigned, NoWait, fork.Hookshot).NewestAsync("nightly") == "v0.0.0-0-g179d8124",
+                "A fork's Windows nightly, git describe's with no tag.");
+        // (the nightly moved on: a version it no longer is cannot be installed from it)
+        gh.Add("nightly", files: Builder("v2.3.0-rc.8-3-gaaaaaaaa"));
+        await ThrowsAsync<FetchException>(() => new Releases(gh.Server, Platform.Linux, unsigned, NoWait, gh.Hookshot).BuilderAsync("v2.3.0-rc.8-2-gf33ca75d"),
+                                          "A nightly the rolling one moved past was taken from it.");
+        gh.Add("v2.3.0", files: Builder("v2.3.0"));
+        Require(await hookshot.NewestAsync("rc") == "v2.3.0" && await hookshot.NewestAsync("stable") == "v2.3.0", "rc offers a stable once it is out.");
         // (pulling a bad version: deleted, or back to a draft, its channel falls back by itself)
-        forge.Remove("v3.1.0");
-        Require(await hookshot.NewestAsync("stable") == "v3.0.0", "A deleted stable is gone from its channel.");
-        forge.Add("v3.0.0", key, draft: true, files: Builder("v3.0.0"));
+        gh.Remove("v2.3.0");
+        Require(await hookshot.NewestAsync("stable") == "v2.2.0", "A deleted stable is gone from its channel.");
+        gh.Add("v2.2.0", draft: true, files: Builder("v2.2.0"));
         Require(await hookshot.NewestAsync("stable") == null, "A stable set back to a draft is gone from its channel.");
-        forge.Add("v3.0.0", key, files: Builder("v3.0.0"));
+        gh.Add("v2.2.0", files: Builder("v2.2.0"));
 
-        // (refused: no signature, another key, a list changed after it was signed, a release of the other product's numbers)
-        async Task Refused(string tag, ECDsa? signer, string why, Func<string, string>? sums = null)
+        // (refused: no SHA256SUMS; a file that is not the one it names; a list of another version; while a key is trusted, no
+        // signature, another key's, or a list changed after it was signed)
+        async Task Refused(string tag, string why, IReadOnlyList<ReleaseKey> trust, ECDsa? signer = null, Func<string, string>? sums = null,
+                           bool withSums = true, Dictionary<string, byte[]>? files = null)
         {
-            forge.Add(tag, signer, files: Builder(tag), sums: sums);
-            var r = new Releases(forge.Server, Platform.Linux, keys, NoWait, Product.Hookshot);
+            gh.Add(tag, signer, files: files ?? Builder(tag), sums: sums, withSums: withSums);
+            var r = new Releases(gh.Server, Platform.Linux, trust, NoWait, gh.Hookshot);
             await ThrowsAsync<InvalidDataException>(() => r.VersionAsync(tag), why);
-            forge.Remove(tag);
+            gh.Remove(tag);
         }
-        await Refused("v3.2.0", null, "A release with no SHA256SUMS was taken.");
-        await Refused("v3.2.0", stranger, "A release signed by a key this launcher does not trust was taken.");
-        await Refused("v3.2.0", key, "A SHA256SUMS changed after it was signed was taken.", s => s.Replace("v3.2.0", "v3.9.9"));
-        await ThrowsAsync<InvalidDataException>(() => new Releases(forge.Server, Platform.Linux, Array.Empty<ReleaseKey>(), NoWait).VersionAsync("v3.1.0-rc.1"),
-                                                "A launcher with no key took a release.");
-        await ThrowsAsync<FetchException>(() => hookshot.VersionAsync("v3.5.0"), "A version with no release.");
-        forge.Add("v3.3.0", stranger, files: Builder("v3.3.0"));
-        var fresh = new Releases(forge.Server, Platform.Linux, keys, NoWait, Product.Hookshot);
-        Require(await fresh.ChannelAsync("stable") == null && fresh.Problem!.Contains("not signed by a key"),
+        await Refused("v2.4.0", "A release with no SHA256SUMS was taken.", unsigned, withSums: false);
+        await Refused("v2.4.0", "A setup list that is not the one SHA256SUMS names was taken.", unsigned,
+                      sums: s => s.Replace(ShaOf(Builder("v2.4.0")["hookshot-linux.txt"]), new string('0', 64)));
+        await Refused("v2.4.0", "A release whose setup list is another version's was taken.", unsigned, files: Builder("v2.4.1"));
+        await Refused("v2.4.0", "A release with no AppImage of its version was taken.", unsigned,
+                      files: Builder("v2.4.0").Where(f => !f.Key.EndsWith(".AppImage", StringComparison.Ordinal)).ToDictionary(f => f.Key, f => f.Value));
+        await Refused("v2.4.0", "An unsigned release was taken by a launcher that trusts a key.", keys);
+        await Refused("v2.4.0", "A release signed by a key this launcher does not trust was taken.", keys, stranger);
+        await Refused("v2.4.0", "A SHA256SUMS changed after it was signed was taken.", keys, key, s => s.Replace("v2.4.0", "v2.9.9"));
+        gh.Add("v2.4.0", key, files: Builder("v2.4.0"));
+        var signedOk = await new Releases(gh.Server, Platform.Linux, keys, NoWait, gh.Hookshot).VersionAsync("v2.4.0");
+        Require(signedOk.Signed && signedOk.Version == "v2.4.0", "A release signed by a trusted key, taken as signed.");
+        Require(!(await new Releases(gh.Server, Platform.Linux, unsigned, NoWait, gh.Hookshot).VersionAsync("v2.4.0")).Signed,
+                "A launcher that trusts no key takes a release unsigned, and says it is.");
+        gh.Remove("v2.4.0");
+        await ThrowsAsync<FetchException>(() => hookshot.VersionAsync("v2.5.0"), "A version with no release.");
+        gh.Add("v2.6.0", files: Builder("v2.6.0"), withSums: false);
+        var fresh = new Releases(gh.Server, Platform.Linux, unsigned, NoWait, gh.Hookshot);
+        Require(await fresh.ChannelAsync("stable") == null && fresh.Problem!.Contains("no SHA256SUMS"),
                 "The newest stable, refused, offers nothing, and says why.");
-        forge.Remove("v3.3.0");
-        // (a file of the release that SHA256SUMS does not name is not taken, nor one that is not this system's)
-        forge.Add("v3.4.0-rc.1", key, files: Builder("v3.4.0-rc.1"), sums: s => string.Join("", s.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Where(l => !l.EndsWith("x86_64.AppImage", StringComparison.Ordinal)).Select(l => l + "\n")));
-        await ThrowsAsync<InvalidDataException>(() => new Releases(forge.Server, Platform.Linux, keys, NoWait).BuilderAsync("v3.4.0-rc.1"),
-                                                "A file the signed SHA256SUMS does not name was taken.");
-        // (the server: tried twice, then nothing; the window says the check failed, quietly)
+        gh.Remove("v2.6.0");
+        // (GitHub's API: tried twice on a server error, then nothing; its rate limit said as such)
         var tries = 0;
         var flaky = new FakeFetcher();
         flaky.Texts[hookshot.ListUrl(1)] = () => ++tries < 2 ? throw new FetchException("authored", 502) : "[]";
-        Require(await new Releases(flaky, Platform.Linux, keys, NoWait).NewestAsync("stable") == null && tries == 2, "A server error is tried again.");
-        Require(await new Releases(new FakeFetcher(), Platform.Linux, keys, NoWait).ChannelAsync("stable") == null, "No answer, no channel.");
+        Require(await new Releases(flaky, Platform.Linux, unsigned, NoWait, gh.Hookshot).NewestAsync("stable") == null && tries == 2,
+                "A server error is tried again.");
+        var limited = new FakeFetcher();
+        limited.Texts[hookshot.ListUrl(1)] = () => throw new FetchException("GitHub's limit on update checks from this network was reached", 429);
+        var lr = new Releases(limited, Platform.Linux, unsigned, NoWait, gh.Hookshot);
+        Require(await lr.ChannelAsync("stable") == null && lr.Problem!.Contains("limit"), "GitHub's rate limit: no channel, and why.");
+        Require(HttpFetcher.RateLimited(403, "0") && HttpFetcher.RateLimited(429, " 0 ") && !HttpFetcher.RateLimited(403, "12")
+                && !HttpFetcher.RateLimited(403, null) && !HttpFetcher.RateLimited(500, "0"), "GitHub's rate limit answer.");
+        var silent = new Releases(new FakeFetcher(), Platform.Linux, unsigned, NoWait, gh.Hookshot);
+        Require(await silent.ChannelAsync("stable") == null && !silent.Answered, "No answer, no channel, and not answered.");
 
-        // (the launcher's own releases: its own versions, from v1.0.0)
-        var own = new FakeForgejo(Product.Launcher);
-        var launcher = new Releases(own.Server, Platform.Linux, keys, NoWait, Product.Launcher);
-        own.Add("v1.0.0", key, files: LauncherFiles("v1.0.0"));
-        own.Add("v1.1.0-rc.1", key, files: LauncherFiles("v1.1.0-rc.1"));
-        own.Add("nightly-30-cccccccc", key, files: LauncherFiles("nightly-30-cccccccc"));
+        // (the launcher's own releases: launcher-vX.Y.Z, and the rolling launcher-nightly named by its files)
+        var own = new FakeGitHub();
+        var launcher = new Releases(own.Server, Platform.Linux, unsigned, NoWait, own.Launcher);
+        own.Add("launcher-v1.0.0", files: LauncherFiles("v1.0.0"));
+        own.Add("launcher-v1.1.0-rc.1", files: LauncherFiles("v1.1.0-rc.1"));
+        own.Add("launcher-nightly", files: LauncherFiles("nightly-30-cccccccc"));
+        own.Add("v2.3.0", files: Builder("v2.3.0"));
         var stable = (await launcher.ChannelAsync("stable"))!;
-        Require(stable.Version == "v1.0.0" && stable.Launcher["linux-x64"].Url.EndsWith("/HookshotLauncher-v1.0.0-x86_64.AppImage", StringComparison.Ordinal)
+        Require(stable.Version == "v1.0.0" && stable.Tag == "launcher-v1.0.0"
+                && stable.Launcher["linux-x64"].Url.EndsWith("/launcher-v1.0.0/HookshotLauncher-v1.0.0-x86_64.AppImage", StringComparison.Ordinal)
                 && stable.Launcher["windows-x64"].Url.EndsWith("/HookshotLauncher-v1.0.0-windows-x64-setup.exe", StringComparison.Ordinal)
                 && stable.Launcher[ReleaseManifest.WindowsPortable].Url.EndsWith("/HookshotLauncher-v1.0.0-windows-x64-portable.zip", StringComparison.Ordinal)
                 && stable.Builder.Count == 0 && await launcher.NewestAsync("rc") == "v1.1.0-rc.1"
                 && await launcher.NewestAsync("nightly") == "nightly-30-cccccccc", "The launcher's own three channels, and its three files.");
         // (an update check reads each product's release list once, whatever the number of channels)
         own.Server.Asked.Clear();
-        var three = await new Releases(own.Server, Platform.Linux, keys, NoWait, Product.Launcher).ChannelsAsync(Versions.Channels);
+        var three = await new Releases(own.Server, Platform.Linux, unsigned, NoWait, own.Launcher).ChannelsAsync(Versions.Channels);
         Require(three["stable"]?.Version == "v1.0.0" && three["rc"]?.Version == "v1.1.0-rc.1" && three["nightly"]?.Version == "nightly-30-cccccccc"
                 && own.Server.Asked.Count(u => u.Contains("/releases?", StringComparison.Ordinal)) == 1, "Three channels from one fetch of the list.");
-        Require(launcher.ListUrl(1).StartsWith("https://git.magicbean.dev/api/v1/repos/MagicBeanDev/HookshotLauncher/", StringComparison.Ordinal),
-                "The launcher's releases are its own repository's.");
+        // (a launcher nightly whose files name two versions, or a release one, is refused)
+        var mixed = LauncherFiles("nightly-31-dddddddd");
+        mixed[ReleaseManifest.LauncherFile("nightly-30-cccccccc", "linux-x64")] = new byte[] { 1 };
+        own.Add("launcher-nightly", files: mixed);
+        await ThrowsAsync<InvalidDataException>(() => new Releases(own.Server, Platform.Linux, unsigned, NoWait, own.Launcher).VersionAsync("nightly-31-dddddddd"),
+                                                "A launcher nightly with files of two versions was taken.");
+        own.Add("launcher-nightly", files: LauncherFiles("v1.2.0"));
+        Require(await new Releases(own.Server, Platform.Linux, unsigned, NoWait, own.Launcher).ChannelAsync("nightly") == null,
+                "A launcher nightly whose files are a release's was taken as the nightly.");
 
-        // (tools.lock: the Windows builder's tools; a prefix becomes the dest, mirrors are kept, other systems left out)
+        // (hookshot-setup.txt: what the builder's setup takes, and nothing it refuses)
         var sha = new string('a', 64);
+        var list = SetupList.Parse(
+            "tag v2.3.0-rc.8-2-gf33ca75d\n" +
+            $"part {sha} 13698476 . - - https://github.com/x/y/releases/download/builder-parts/app.zip\n" +
+            $"part {sha} 191037046 HookshotBuilder/tools llvm-mingw-20261104-ucrt-x86_64 llvm-mingw https://github.com/m/l/l.zip\n" +
+            "future line the setup skips\n" +
+            "run HookshotBuilder/HookshotBuilder.exe\n");
+        Require(list is { Tag: "v2.3.0-rc.8-2-gf33ca75d", Run: "HookshotBuilder/HookshotBuilder.exe", Kind: ListKind.Setup } && list.Parts.Count == 2
+                && list.Parts[0] is { Dest: ".", From: null, To: null, Size: 13698476 }
+                && list.Parts[1] is { Dest: "HookshotBuilder/tools", From: "llvm-mingw-20261104-ucrt-x86_64", To: "llvm-mingw" }
+                && SetupList.Tag("part x\ntag v2.2.0\n") == "v2.2.0" && SetupList.Tag("tag ../x\n") == null && SetupList.Tag("no tag\n") == null,
+                "hookshot-setup.txt's lines as parts.");
+        foreach (var bad in new[] { "", $"tag v1\npart {sha} 10 . - - https://u\n", $"run a.exe\npart {sha} 10 . - - https://u\n", "tag v1\nrun a.exe\n",
+                                    $"tag v1\nrun a.exe\npart {sha} 10 ../x - - https://u\n", $"tag v1\nrun a.exe\npart {sha} 10 . - - http://u\n",
+                                    $"tag v1\nrun a.exe\npart {sha.ToUpperInvariant()} 10 . - - https://u\n", $"tag v1\nrun a.exe\npart {sha} 0 . - - https://u\n",
+                                    $"tag v1\nrun a.exe\npart {sha} 10 . top - https://u\n", $"tag v1\nrun a.exe\npart {sha} 10 a\\b - - https://u\n",
+                                    $"tag v1\nrun a.exe\npart {sha} 10 . - - https://u extra\n", $"tag v1\nrun ../a.exe\npart {sha} 10 . - - https://u\n",
+                                    $"tag v1\ntag v2\nrun a.exe\npart {sha} 10 . - - https://u\n", $"tag v1\nrun a.exe\npart {sha} 10 /abs - - https://u\n" })
+            Throws<FormatException>(() => SetupList.Parse(bad), "A bad setup list was taken: " + bad);
+        // (a builder-parts part is looked for on the launcher's repository and the default's too: a deleted repository's)
+        var gone = "https://github.com/someone-gone/Hookshot/releases/download/builder-parts/HookshotBuilder-emsdk-b4c8fc476654.zip";
+        Require(SetupList.Mirrors(gone, new[] { "NoobyGains/Hookshot", "notquiteog/Hookshot", "NoobyGains/Hookshot", "bad name" }).SequenceEqual(new[]
+                {
+                    "https://github.com/NoobyGains/Hookshot/releases/download/builder-parts/HookshotBuilder-emsdk-b4c8fc476654.zip",
+                    "https://github.com/notquiteog/Hookshot/releases/download/builder-parts/HookshotBuilder-emsdk-b4c8fc476654.zip",
+                })
+                && SetupList.Mirrors("https://github.com/notquiteog/Hookshot/releases/download/builder-parts/a.zip", new[] { "notquiteog/Hookshot" }).Count == 0
+                && SetupList.Mirrors("https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/l.zip", new[] { "notquiteog/Hookshot" }).Count == 0
+                && SetupList.WithMirrors(list, new[] { "a/b" }).Parts[0].Mirrors!.Single() == "https://github.com/a/b/releases/download/builder-parts/app.zip",
+                "A builder-parts part's other places: the same name on this repository's and the default's builder-parts.");
+
+        // (tools.lock, which a builder's AppImage may carry for tools it does not: a prefix becomes the dest, mirrors are kept)
         var lockParts = ToolsLock.Parse(
             "# a comment\n" +
             $"tool python 3.14 windows-x64 {sha} 10 HookshotBuilder/tools/python LongshotBuilder/tools/python https://up/p.zip https://mirror/p.zip\n" +
@@ -334,18 +462,27 @@ static partial class Program
                                     "part x y", $"tool p 1 windows-x64 {sha} 10 a /etc https://u" })
             Throws<FormatException>(() => ToolsLock.Parse(bad, "windows-x64"), "A bad tools.lock line was taken: " + bad);
 
-        // (scripts/release.py's SHA256SUMS and signature, made with the test key: the same format on both sides)
+        // (SHA256SUMS: sha256sum's lines; unsigned while no key is trusted, signed by one once a key is)
+        var plain = Encoding.UTF8.GetBytes($"{sha}  a.zip\n{new string('b', 64)} *b.zip\r\n\n");
+        var opened = SignedSums.Open(plain, null, unsigned);
+        Require(opened.Count == 2 && opened["a.zip"] == sha && opened["b.zip"] == new string('b', 64), "SHA256SUMS read unsigned while no key is trusted.");
+        foreach (var bad in new[] { $"{sha} a.zip\n", $"{sha}  dir/a.zip\n", $"{sha.ToUpperInvariant()}  a.zip\n", $"{sha}  a.zip\n{sha}  a.zip\n", "nonsense\n" })
+            Throws<InvalidDataException>(() => SignedSums.Open(Encoding.UTF8.GetBytes(bad), null, unsigned), "A bad SHA256SUMS was read: " + bad);
+        Throws<InvalidDataException>(() => SignedSums.Open(plain, null, keys), "An unsigned SHA256SUMS was taken while a key is trusted.");
+        Throws<InvalidDataException>(() => SignedSums.Open(new byte[SignedSums.MaxBytes + 1], null, unsigned), "A SHA256SUMS too large was read.");
+
+        // (a SHA256SUMS signed by the test key, with openssl: the format the check reads)
         var testKey = ReleaseKey.FromPem(File.ReadAllText(Path.Combine(releaseFixtures, "test-key.pub.pem")));
         var sums = SignedSums.Open(File.ReadAllBytes(Path.Combine(releaseFixtures, "SHA256SUMS")),
                                    File.ReadAllText(Path.Combine(releaseFixtures, "SHA256SUMS.sig")), new[] { testKey });
         Require(sums["HookshotLauncher-v1.0.0-x86_64.AppImage"] == ShaOf(Encoding.UTF8.GetBytes("not a launcher\n")) && sums.Count == 2,
-                "scripts/release.py's SHA256SUMS, signed.");
+                "A SHA256SUMS signed with openssl, checked.");
         Throws<InvalidDataException>(() => SignedSums.Open(File.ReadAllBytes(Path.Combine(releaseFixtures, "SHA256SUMS")),
                                                            File.ReadAllText(Path.Combine(releaseFixtures, "SHA256SUMS.sig")), keys),
-                                     "scripts/release.py's signature by the test key was taken without it.");
-        Require(ReleaseKeys.Current(_ => null) == ReleaseKeys.BuiltIn
+                                     "A signature by the test key was taken without it.");
+        Require(ReleaseKeys.Current(_ => null) == ReleaseKeys.BuiltIn && ReleaseKeys.BuiltIn.Count == 0 && !ReleaseKeys.Required(ReleaseKeys.BuiltIn)
                 && ReleaseKeys.Current(k => k == ReleaseKeys.TrustVariable ? Path.Combine(releaseFixtures, "test-key.pub.pem") : null)
-                    .Any(k => k.Id == testKey.Id), "HOOKSHOT_LAUNCHER_TRUST adds a test key.");
+                    .Any(k => k.Id == testKey.Id), "No key built in (Hookshot's releases are not signed yet); HOOKSHOT_LAUNCHER_TRUST adds a test key.");
         Require(!ReleaseKeys.BuiltIn.Any(k => k.Id == testKey.Id), "The test key is built in.");
     }
 

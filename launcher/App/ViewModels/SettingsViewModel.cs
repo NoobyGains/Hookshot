@@ -59,7 +59,7 @@ public sealed class SettingsViewModel : ViewModelBase
         DefaultWorkCommand = new Command(() => { s.Work = null; Save(); RaiseAll(nameof(Work)); MeasureWork(); });
         FreeSpaceCommand = new BusyCommand(FreeSpaceAsync, () => workBytes > 0 && !measuring,
                                            e => Main.ShowToast(Tr.F("The build files could not all be deleted: {0}", e.Message)));
-        ReleaseNotesCommand = new Command(() => Main.Host?.Open(Releases.Repo + "/releases"));
+        ReleaseNotesCommand = new Command(() => Main.Host?.Open(Product.Hookshot.Releases));
         AddToMenuCommand = new Command(AddToMenu, () => Program.Layout.File != null);
         RemoveFromMenuCommand = new Command(RemoveFromMenu);
         Languages = new[] { new UiLanguageChoice(null, Tr.T("System language")) }

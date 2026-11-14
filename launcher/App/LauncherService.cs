@@ -3,8 +3,8 @@ using HookshotLauncher.Core;
 
 namespace HookshotLauncher;
 
-/// The launcher's state for the window and the command line: its home, its list of builds, its settings, and what git.magicbean.dev said
-/// is newest on each channel
+/// The launcher's state for the window and the command line: its home, its list of builds, its settings, and what GitHub said is
+/// newest on each channel
 public sealed class LauncherService
 {
     public Platform Platform { get; }
@@ -13,23 +13,36 @@ public sealed class LauncherService
     public LauncherSettings Settings { get; private set; }
     public IReadOnlyDictionary<string, string?> Newest => newest;
     public IFetcher Fetcher { get; }
-    /// Hookshot's signed releases on git.magicbean.dev (the builder of each version), checked against the keys this launcher trusts
+    /// Hookshot's releases on GitHub (the builder of each version), every file checked against its release's SHA256SUMS (signed,
+    /// once this launcher trusts a key: ReleaseKeys)
     public Releases Releases { get; }
-    /// The launcher's own signed releases (MagicBeanDev/HookshotLauncher), checked the same way
+    /// The launcher's own releases (launcher-* in the same repository), checked the same way
     public Releases LauncherReleases { get; }
     public Toolchains Tools { get; }
     /// This launcher's own version (SelfUpdate.OwnTag), and the one its channel (LauncherChannel) offers, if any
     public string OwnTag { get; } = SelfUpdate.OwnTag();
     public ReleaseInfo? LauncherUpdate { get; private set; }
     public string LauncherChannel => SelfUpdate.ChannelOf(OwnTag, Settings.LauncherChannel);
-    /// The channel new builds start on: the player's pick, else the launcher's own (LauncherSettings.BuildChannel)
-    public string DefaultChannel => Settings.BuildChannel(OwnTag);
+    /// The channel new builds start on: the player's pick, else the launcher's own (LauncherSettings.BuildChannel), else, when GitHub
+    /// said that one has no release yet (a fork's stable before its first release), the first channel that has one
+    public string DefaultChannel
+    {
+        get
+        {
+            var wanted = Settings.BuildChannel(OwnTag);
+            if (Settings.DefaultChannel != null || !Answered || NewestOf(wanted) != null) return wanted;
+            return Versions.Channels.FirstOrDefault(c => NewestOf(c) != null) ?? wanted;
+        }
+    }
     /// The save folders are worked out from this (the screenshots point it into a temporary folder)
     public SaveEnvironment SaveEnv { get; set; }
     /// The makers of this PC's graphics cards (Linux only for now: SystemInfo.GpuVendors)
     public IReadOnlyList<string> Gpus { get; set; }
     /// Whether the update check has answered (or was not asked: offline)
     public bool Checked { get; set; }
+    /// Whether GitHub answered the last check with the release list: a channel with no newest then has no release yet, rather
+    /// than not being known
+    public bool Answered { get; private set; }
 
     readonly Dictionary<string, string?> newest = new();
 
@@ -39,12 +52,10 @@ public sealed class LauncherService
         Home = home;
         Registry = BuildRegistry.Load(home.Builds);
         Settings = LauncherSettings.Load(home.Settings);
-        // (release files and packages through git-cdn.magicbean.dev first: CdnFetcher; HOOKSHOT_LAUNCHER_NO_CDN=1 turns it off)
-        var cdn = CdnFetcher.EnabledByEnvironment();
-        Fetcher = new CdnFetcher(Slow(new HttpFetcher(TimeSpan.FromSeconds(60))), cdn);
+        Fetcher = Slow(new HttpFetcher(TimeSpan.FromSeconds(60)));
         Tools = new Toolchains(home.Toolchains, Fetcher);
         // (its own timeout, shorter: the check at start should not keep the window waiting on a server that does not answer)
-        var check = new CdnFetcher(Slow(new HttpFetcher(TimeSpan.FromSeconds(20))), cdn);
+        var check = Slow(new HttpFetcher(TimeSpan.FromSeconds(20)));
         var keys = ReleaseKeys.Current();
         Releases = new Releases(check, platform, keys, product: Product.Hookshot);
         // (the launcher's own releases: its own versions on its own three channels, chosen apart from the builds' in Settings)
@@ -128,18 +139,20 @@ public sealed class LauncherService
     public bool IsBuilt(BuildEntry b) => GameFolder.IsBuilt(b.Folder, Platform);
 
     /// The newest version of each channel a build follows, and the one new builds start on; and whether the launcher's own channel
-    /// has a newer launcher. False: the server answered nothing, or no file passed its checks (Releases.Problem says why); the old
-    /// answers are kept
+    /// has a newer launcher. False: GitHub answered nothing, or a release was refused (Releases.Problem says why); the old answers
+    /// are kept for a channel GitHub said nothing of
     public async Task<bool> CheckReleasesAsync(CancellationToken cancel = default)
     {
-        var any = false;
-        // (each product's release list once per check: Hookshot's three channels from one list, the launcher's from its own)
-        foreach (var (channel, info) in await Releases.ChannelsAsync(Versions.Channels, cancel))
+        // (each product's release list once per check: Hookshot's three channels from one list, the launcher's from another)
+        var channels = await Releases.ChannelsAsync(Versions.Channels, cancel);
+        Answered = Releases.Answered;
+        foreach (var (channel, info) in channels)
         {
-            if (info == null) continue;
-            newest[channel] = info.Version;
-            any = true;
+            // (answered with none: no release on that channel, a fork's stable most often; an old answer is kept only when GitHub
+            // said nothing)
+            if (info != null || (Answered && Releases.Problem == null)) newest[channel] = info?.Version;
         }
+        var any = Answered && Releases.Problem == null;
         LauncherUpdate = null;
         if (await LauncherReleases.ChannelAsync(LauncherChannel, cancel) is { } own
             && SelfUpdate.UpdateTo(OwnTag, own, Platform, LauncherChannel, Program.Layout.UpdateKey) != null)

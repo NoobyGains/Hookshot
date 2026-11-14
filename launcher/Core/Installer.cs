@@ -38,7 +38,7 @@ public sealed record InstallPlaces(string Program, string StartMenuLink, string 
 public static class Installer
 {
     public const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\HookshotLauncher";
-    public const string DisplayName = "Hookshot Launcher", Publisher = "Magic Bean", UninstallArgument = "--uninstall", InstallArgument = "--install";
+    public const string DisplayName = "Hookshot Launcher", Publisher = "The Hookshot contributors", UninstallArgument = "--uninstall", InstallArgument = "--install";
 
     /// The "Apps &amp; features" entry for the installed program
     public static IReadOnlyDictionary<string, object> Entry(InstallPlaces at, string version, long bytes) => new Dictionary<string, object>
@@ -50,7 +50,7 @@ public static class Installer
         ["InstallLocation"] = at.Folder,
         ["UninstallString"] = $"\"{at.Program}\" {UninstallArgument}",
         ["QuietUninstallString"] = $"\"{at.Program}\" {UninstallArgument}",
-        ["URLInfoAbout"] = Releases.LauncherRepo,
+        ["URLInfoAbout"] = Repository.Page(Repository.Current),
         ["NoModify"] = 1,
         ["NoRepair"] = 1,
         ["EstimatedSize"] = (int)Math.Min(int.MaxValue, bytes / 1024),

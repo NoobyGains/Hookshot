@@ -9,7 +9,7 @@ public sealed record RequirementResult(RequirementStatus Status, string Summary,
 /// Local, advisory checks against the published requirements. Never blocks downloading or building.
 public static class SystemRequirements
 {
-    public const string Url = "https://hookshot.magicbean.dev/requirements/";
+    public static string Url => Repository.Page(Repository.Current) + "#what-you-need";   // (the readme's "What you need")
     public static RequirementResult Evaluate(bool supportedOs, int memoryGb, int threads, bool avx2,
         bool linux, long? freeBytes, IReadOnlyList<GpuRequirement>? gpus)
     {

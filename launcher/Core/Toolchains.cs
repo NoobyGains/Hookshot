@@ -40,11 +40,14 @@ public sealed class Toolchains
 
     readonly string root;
     readonly IFetcher fetcher;
+    readonly Func<TimeSpan, CancellationToken, Task> delay;
 
-    public Toolchains(string root, IFetcher fetcher)
+    /// delay: the wait before a download is tried again (RetryWaits; the tests pass none)
+    public Toolchains(string root, IFetcher fetcher, Func<TimeSpan, CancellationToken, Task>? delay = null)
     {
         this.root = root;
         this.fetcher = fetcher;
+        this.delay = delay ?? Task.Delay;
     }
 
     public string Root => root;
@@ -200,27 +203,35 @@ public sealed class Toolchains
 
     // ---- download and unpack ----
 
-    /// The part from its link, else from each of its mirrors in turn: the first whose bytes are the ones the list names
+    /// The waits before each try again of a download that failed for a reason that may pass (no answer, a stall, a server error):
+    /// GitHub's release downloads answer 5xx for minutes at a time (builder/setup/setup.c tries 8 times over 3 minutes)
+    public static readonly IReadOnlyList<TimeSpan> RetryWaits = new[] { TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) };
+
+    /// The part from its link, else from each of its mirrors in turn: the first whose bytes are the ones the list names. A link
+    /// whose download failed for a reason that may pass is tried again (RetryWaits) before the next
     async Task Download(Part part, string zip, Action<long> progress, CancellationToken cancel)
     {
         Exception? last = null;
         IReadOnlyList<string> urls = new[] { part.Url }.Concat(part.Mirrors ?? Array.Empty<string>()).ToList();
-        var through = fetcher;
-        if (part.Mirrors is { Count: > 0 } && fetcher is CdnFetcher cdn)
-        {
-            // (a tool's own links, git-cdn's among them: each tried as it is, in order, so that no link is tried twice)
-            urls = cdn.Expand(urls);
-            through = cdn.Inner;
-        }
         foreach (var url in urls)
-        {
-            try
+            for (var attempt = 0; ; attempt++)
             {
-                await DownloadFrom(through, url, part.Sha, part.Size, zip, progress, cancel);
-                return;
+                try
+                {
+                    await DownloadFrom(fetcher, url, part.Sha, part.Size, zip, progress, cancel);
+                    return;
+                }
+                catch (FetchException e) when (e.Transient && attempt < RetryWaits.Count)
+                {
+                    last = e;
+                    await delay(RetryWaits[attempt], cancel);
+                }
+                catch (Exception e) when (e is FetchException or InvalidDataException)
+                {
+                    last = e;
+                    break;
+                }
             }
-            catch (Exception e) when (e is FetchException or InvalidDataException) { last = e; }
-        }
         throw last!;
     }
 
@@ -252,10 +263,11 @@ public sealed class Toolchains
         try
         {
             var image = Path.Combine(work, "builder.AppImage");
-            // (the builder first, then its tools: its share of the bar until its tools.lock says how much more there is)
-            const double builderShare = 0.4;
+            // (the builder first, then its unpacking, and the tools a tools.lock inside names, if any: Hookshot's AppImage carries
+            // every tool itself, so its download is nearly all of the bar)
+            const double builderShare = 0.9;
             progress?.Invoke(new ToolchainProgress(0, 1, 1, $"Downloading the builder ({file.Size >> 20} MB)"));
-            await DownloadFrom(fetcher, file.Url, file.Sha256, file.Size, image, have => progress?.Invoke(new ToolchainProgress(
+            await Download(new Part(file.Sha256, file.Size, ".", null, null, file.Url), image, have => progress?.Invoke(new ToolchainProgress(
                 Math.Min(have, file.Size) / (double)Math.Max(1, file.Size) * builderShare, 1, 1,
                 $"Downloading the builder ({have >> 20} of {file.Size >> 20} MB)")), cancel);
             if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(image, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
@@ -589,7 +601,7 @@ public sealed class Toolchains
         public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancel) =>
             WriteAsync(buffer.AsMemory(offset, count), cancel).AsTask();
 
-        // (seekable only back to its start, with what it had counted dropped: a download started again, CdnFetcher's fallback)
+        // (seekable only back to its start, with what it had counted dropped: a download started again)
         public override bool CanRead => false;
         public override bool CanSeek => inner.CanSeek;
         public override bool CanWrite => true;

@@ -159,8 +159,11 @@ public sealed class HomeViewModel : ViewModelBase
     public bool DefaultIsCandidate => DefaultChannel == Versions.Candidate;
     public bool DefaultIsNightly => DefaultChannel == Versions.Nightly;
     public bool KnowsNewest => NewestDefault != null;
-    public bool CheckFailed => NewestDefault == null && Service.Checked;
+    public bool CheckFailed => NewestDefault == null && Service.Checked && !Service.Answered;
     public bool Checking => NewestDefault == null && !Service.Checked;
+    /// GitHub answered, and the channel new builds start on has no release yet (a fork's stable before its first release)
+    public bool NoneYet => NewestDefault == null && Service.Checked && Service.Answered;
+    public string NoneYetText => Tr.T("There is no release on this channel yet.");
 
     // ---- the default version, on the left ----
 
@@ -389,7 +392,7 @@ public sealed class HomeViewModel : ViewModelBase
         RaiseAll(nameof(HasBuilds), nameof(NoBuilds), nameof(Default), nameof(ShowLeftPanel), nameof(HeroVersion), nameof(HeroChannel),
                  nameof(HeroIsRelease), nameof(HeroIsCandidate), nameof(HeroIsNightly), nameof(HeroNote), nameof(HeroSaves), nameof(HeroHasUpdate),
                  nameof(HeroUpdate), nameof(Footer), nameof(NewestDefault), nameof(NewestDefaultText), nameof(DefaultChannel), nameof(DefaultIsRelease), nameof(DefaultIsCandidate),
-                 nameof(DefaultIsNightly), nameof(KnowsNewest), nameof(CheckFailed), nameof(Checking), nameof(ShowCheckLine), nameof(HasLauncherUpdate),
+                 nameof(DefaultIsNightly), nameof(KnowsNewest), nameof(CheckFailed), nameof(Checking), nameof(NoneYet), nameof(NoneYetText), nameof(ShowCheckLine), nameof(HasLauncherUpdate),
                  nameof(LauncherUpdateText), nameof(LauncherUpdateHeading), nameof(LauncherUpdateButton));
         BuildCommand.Changed();
         PlayDefaultCommand.Changed();
@@ -427,7 +430,7 @@ public sealed class HomeViewModel : ViewModelBase
             any = await Service.CheckReleasesAsync();
             Status = any ? "" : Service.Releases.Problem is { } problem
                 ? Tr.F("Updates were not checked: {0}", problem)
-                : Tr.T("Could not reach git.magicbean.dev: updates were not checked.");
+                : Tr.T("Could not reach GitHub: updates were not checked.");
         }
         catch (Exception e)
         {
@@ -503,7 +506,7 @@ public sealed class ChannelPickerViewModel : ViewModelBase
         public string Id => id;
         public string Name => Tr.T(name);
         public string About => about;
-        public string Version => version == null ? Tr.T("Not found") : Versions.Shown(version);
+        public string Version => version == null ? Tr.T(owner.Main.Service.Answered ? "None released yet" : "Not found") : Versions.Shown(version);
         public bool Known => version != null;
         public bool Have => have;
         public bool IsRelease => id == Versions.Stable;
@@ -543,7 +546,8 @@ public sealed class ChannelPickerViewModel : ViewModelBase
     {
         Main = main;
         Rows = All.Select(c => new Row(this, c.Id, c.Name, AboutOf(main.Service, c.Id, c.About), main.Service.NewestOf(c.Id), Has(main.Service.NewestOf(c.Id)))).ToList();
-        pick = start;
+        // (a channel with no release yet, a fork's stable most often, is not where the picker starts: the first one that has one)
+        pick = main.Service.NewestOf(start) != null ? start : All.Select(c => c.Id).FirstOrDefault(c => main.Service.NewestOf(c) != null) ?? start;
         GoCommand = new Command(Go, () => Version != null);
         CancelCommand = new Command(() => Main.Modal = null);
     }

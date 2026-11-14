@@ -88,7 +88,7 @@
   "The list of builds could not be read (kept as builds.json.broken): {0}": "無法讀取建置清單（已保留為 builds.json.broken）：{0}",
   "Checking for updates…": "正在檢查更新…",
   "Updates were not checked: {0}": "未檢查更新：{0}",
-  "Could not reach git.magicbean.dev: updates were not checked.": "無法連線至 git.magicbean.dev，未檢查更新。",
+  "Could not reach GitHub: updates were not checked.": "無法連線至 GitHub，未檢查更新。",
   "Could not check for updates: {0}": "無法檢查更新：{0}",
   "Everything is up to date, the launcher too. Checked at {0}.": "一切都是最新版本，包括啟動器。檢查時間：{0}。",
   "Not found": "找不到",
@@ -389,8 +389,8 @@
   "Hookshot turns your own copy of Ocarina of Time into a PC game. It takes about 15 to 30 minutes, once per version.": "Hookshot 會把你自己的 Ocarina of Time 變成電腦遊戲。每個版本只需建置一次，約需 15 到 30 分鐘。",
   "Builds": "建置通道",
   "Change": "變更",
-  "Asking git.magicbean.dev for the newest version…": "正在向 git.magicbean.dev 查詢最新版本…",
-  "git.magicbean.dev did not answer, so the version to build is not known.": "git.magicbean.dev 沒有回應，因此無法確定要建置的版本。",
+  "Asking GitHub for the newest version…": "正在向 GitHub 查詢最新版本…",
+  "GitHub did not answer, so the version to build is not known.": "GitHub 沒有回應，因此無法確定要建置的版本。",
   "You need your dump of the game: a .nup file, or its romfs and exefs folders.": "你需要自己傾印的遊戲：一個 .nup 檔案，或其 romfs 和 exefs 資料夾。",
   "Your saves, which every version shares: import them, export them": "所有版本共用的存檔：匯入或匯出",
   "Manage saves": "管理存檔",
@@ -552,5 +552,8 @@
   "TO HOOKSHOT": "到 Hookshot",
   "Build a Hookshot version first, then import its graphics and controls. You can import saves before building.": "請先建置一個 Hookshot 版本，再匯入它的畫面和操作設定。存檔可以在建置前匯入。",
   "Choose the Hookshot version whose settings will be replaced.": "選擇要取代其設定的 Hookshot 版本。",
-  "Longshot's graphics and controls replace the same settings in this version's hookshot_options.ini; its other settings stay as they are. The game language replaces this version's. Longshot keeps its originals. Saves are imported separately.": "Longshot 的畫面和操作設定會取代此版本 hookshot_options.ini 中的相同設定；其他設定保持不變。遊戲語言會取代此版本的語言。Longshot 中的原始設定會保留。存檔需另行匯入。"
+  "Longshot's graphics and controls replace the same settings in this version's hookshot_options.ini; its other settings stay as they are. The game language replaces this version's. Longshot keeps its originals. Saves are imported separately.": "Longshot 的畫面和操作設定會取代此版本 hookshot_options.ini 中的相同設定；其他設定保持不變。遊戲語言會取代此版本的語言。Longshot 中的原始設定會保留。存檔需另行匯入。",
+  "There is no release on this channel yet.": "此通道還沒有推出任何版本。",
+  "None released yet": "尚未推出",
+  "Choose another channel": "選擇其他通道"
 }

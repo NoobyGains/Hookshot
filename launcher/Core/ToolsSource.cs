@@ -3,9 +3,9 @@ namespace HookshotLauncher.Core;
 /// How far the step 1 download is: Fraction 0..1 of Total bytes (all of the version's parts)
 public sealed record ToolsDownloadProgress(double Fraction, long Total);
 
-/// A version's builder and build tools for the wizard's first step: the installed ones, else its release's (Windows: the builder's
-/// zip and the tools of its tools.lock; Linux: its AppImage and the tools of the tools.lock inside it), checked against the release's signed SHA256SUMS, installed with
-/// Toolchains
+/// A version's builder and build tools for the wizard's first step: the installed ones, else its release's (Windows: the parts its
+/// hookshot-setup.txt names, as the builder's own setup installs them; Linux: its AppImage, which carries its tools), checked against
+/// the release's SHA256SUMS and the list's own SHA-256s, installed with Toolchains
 public static class ToolsSource
 {
     /// extract: how a Linux AppImage is unpacked (by default its own --appimage-extract; the tests pass theirs)

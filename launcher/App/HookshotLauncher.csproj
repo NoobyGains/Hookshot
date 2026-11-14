@@ -27,6 +27,9 @@
     <!-- (the release's version, which the launcher compares with its channel's newest: -p:HookshotTag=v3.0.0 or nightly-<count>-<commit>,
          set by the release workflow. Unset, a build from a checkout is "dev" and never updates itself. Core/SelfUpdate.cs) -->
     <AssemblyMetadata Include="HookshotTag" Value="$(HookshotTag)" Condition="'$(HookshotTag)' != ''"/>
+    <!-- (the GitHub repository the release was built in, owner/name: -p:HookshotRepository=$GITHUB_REPOSITORY, set by the launcher's
+         workflow, so a fork's launcher follows that fork's releases. Unset, Core/Repository.cs's Default, the builder's) -->
+    <AssemblyMetadata Include="HookshotRepository" Value="$(HookshotRepository)" Condition="'$(HookshotRepository)' != ''"/>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Core/HookshotLauncher.Core.csproj"/>

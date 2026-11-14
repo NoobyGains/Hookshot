@@ -88,7 +88,7 @@
   "The list of builds could not be read (kept as builds.json.broken): {0}": "빌드 목록을 읽지 못했습니다(builds.json.broken으로 보관함): {0}",
   "Checking for updates…": "업데이트 확인 중…",
   "Updates were not checked: {0}": "업데이트를 확인하지 않았습니다: {0}",
-  "Could not reach git.magicbean.dev: updates were not checked.": "git.magicbean.dev에 연결할 수 없어 업데이트를 확인하지 못했습니다.",
+  "Could not reach GitHub: updates were not checked.": "GitHub에 연결할 수 없어 업데이트를 확인하지 못했습니다.",
   "Could not check for updates: {0}": "업데이트를 확인할 수 없습니다: {0}",
   "Everything is up to date, the launcher too. Checked at {0}.": "런처를 포함해 모두 최신 상태입니다. {0}에 확인함.",
   "Not found": "찾을 수 없음",
@@ -389,8 +389,8 @@
   "Hookshot turns your own copy of Ocarina of Time into a PC game. It takes about 15 to 30 minutes, once per version.": "Hookshot은 내가 가진 Ocarina of Time을 PC 게임으로 만들어 줍니다. 버전마다 한 번, 약 15~30분 걸립니다.",
   "Builds": "빌드",
   "Change": "변경",
-  "Asking git.magicbean.dev for the newest version…": "git.magicbean.dev에 최신 버전을 묻는 중…",
-  "git.magicbean.dev did not answer, so the version to build is not known.": "git.magicbean.dev가 응답하지 않아 빌드할 버전을 알 수 없습니다.",
+  "Asking GitHub for the newest version…": "GitHub에 최신 버전을 묻는 중…",
+  "GitHub did not answer, so the version to build is not known.": "GitHub가 응답하지 않아 빌드할 버전을 알 수 없습니다.",
   "You need your dump of the game: a .nup file, or its romfs and exefs folders.": "게임 덤프가 필요합니다: .nup 파일 또는 romfs와 exefs 폴더.",
   "Your saves, which every version shares: import them, export them": "모든 버전이 함께 쓰는 세이브: 가져오기와 내보내기",
   "Manage saves": "세이브 관리",
@@ -552,5 +552,8 @@
   "TO HOOKSHOT": "Hookshot으로",
   "Build a Hookshot version first, then import its graphics and controls. You can import saves before building.": "먼저 Hookshot 버전을 빌드한 다음 그래픽 및 조작 설정을 가져오세요. 세이브는 빌드 전에도 가져올 수 있습니다.",
   "Choose the Hookshot version whose settings will be replaced.": "설정을 바꿀 Hookshot 버전을 고르세요.",
-  "Longshot's graphics and controls replace the same settings in this version's hookshot_options.ini; its other settings stay as they are. The game language replaces this version's. Longshot keeps its originals. Saves are imported separately.": "Longshot의 그래픽 및 조작 설정이 이 버전의 hookshot_options.ini에 있는 같은 설정을 대체합니다. 다른 설정은 그대로 남습니다. 게임 언어도 이 버전의 언어를 대체합니다. Longshot의 원본은 그대로 유지됩니다. 세이브는 따로 가져옵니다."
+  "Longshot's graphics and controls replace the same settings in this version's hookshot_options.ini; its other settings stay as they are. The game language replaces this version's. Longshot keeps its originals. Saves are imported separately.": "Longshot의 그래픽 및 조작 설정이 이 버전의 hookshot_options.ini에 있는 같은 설정을 대체합니다. 다른 설정은 그대로 남습니다. 게임 언어도 이 버전의 언어를 대체합니다. Longshot의 원본은 그대로 유지됩니다. 세이브는 따로 가져옵니다.",
+  "There is no release on this channel yet.": "이 채널에는 아직 릴리스가 없습니다.",
+  "None released yet": "아직 릴리스 없음",
+  "Choose another channel": "다른 채널 선택"
 }

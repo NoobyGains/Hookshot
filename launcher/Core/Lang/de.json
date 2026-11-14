@@ -90,7 +90,7 @@
   "The list of builds could not be read (kept as builds.json.broken): {0}": "Die Build-Liste konnte nicht gelesen werden (aufbewahrt als builds.json.broken): {0}",
   "Checking for updates…": "Suche nach Updates…",
   "Updates were not checked: {0}": "Updates wurden nicht geprüft: {0}",
-  "Could not reach git.magicbean.dev: updates were not checked.": "git.magicbean.dev ist nicht erreichbar: Updates wurden nicht geprüft.",
+  "Could not reach GitHub: updates were not checked.": "GitHub ist nicht erreichbar: Updates wurden nicht geprüft.",
   "Could not check for updates: {0}": "Updates konnten nicht geprüft werden: {0}",
   "Everything is up to date, the launcher too. Checked at {0}.": "Alles ist aktuell, auch der Launcher. Geprüft um {0}.",
   "Not found": "Nicht gefunden",
@@ -403,8 +403,8 @@
   "Hookshot turns your own copy of Ocarina of Time into a PC game. It takes about 15 to 30 minutes, once per version.": "Hookshot macht aus deiner eigenen Kopie von Ocarina of Time ein PC-Spiel. Das dauert etwa 15 bis 30 Minuten, einmal pro Version.",
   "Builds": "Builds",
   "Change": "Ändern",
-  "Asking git.magicbean.dev for the newest version…": "Frage git.magicbean.dev nach der neuesten Version…",
-  "git.magicbean.dev did not answer, so the version to build is not known.": "git.magicbean.dev hat nicht geantwortet, daher ist die zu bauende Version unbekannt.",
+  "Asking GitHub for the newest version…": "Frage GitHub nach der neuesten Version…",
+  "GitHub did not answer, so the version to build is not known.": "GitHub hat nicht geantwortet, daher ist die zu bauende Version unbekannt.",
   "You need your dump of the game: a .nup file, or its romfs and exefs folders.": "Du brauchst deinen Dump des Spiels: eine .nup-Datei oder seine romfs- und exefs-Ordner.",
   "Your saves, which every version shares: import them, export them": "Deine Spielstände, die alle Versionen teilen: importieren, exportieren",
   "Manage saves": "Spielstände verwalten",
@@ -568,5 +568,8 @@
   "TO HOOKSHOT": "NACH HOOKSHOT",
   "Build a Hookshot version first, then import its graphics and controls. You can import saves before building.": "Bau zuerst eine Hookshot-Version und importiere dann ihre Grafik und Steuerung. Spielstände kannst du schon vor dem Bauen importieren.",
   "Choose the Hookshot version whose settings will be replaced.": "Wähle die Hookshot-Version, deren Einstellungen ersetzt werden.",
-  "Longshot's graphics and controls replace the same settings in this version's hookshot_options.ini; its other settings stay as they are. The game language replaces this version's. Longshot keeps its originals. Saves are imported separately.": "Grafik und Steuerung aus Longshot ersetzen dieselben Einstellungen in der hookshot_options.ini dieser Version; ihre übrigen Einstellungen bleiben, wie sie sind. Die Spielsprache ersetzt die dieser Version. Longshot behält seine Originale. Spielstände werden getrennt importiert."
+  "Longshot's graphics and controls replace the same settings in this version's hookshot_options.ini; its other settings stay as they are. The game language replaces this version's. Longshot keeps its originals. Saves are imported separately.": "Grafik und Steuerung aus Longshot ersetzen dieselben Einstellungen in der hookshot_options.ini dieser Version; ihre übrigen Einstellungen bleiben, wie sie sind. Die Spielsprache ersetzt die dieser Version. Longshot behält seine Originale. Spielstände werden getrennt importiert.",
+  "There is no release on this channel yet.": "Auf diesem Kanal gibt es noch keine Version.",
+  "None released yet": "Noch keine erschienen",
+  "Choose another channel": "Anderen Kanal wählen"
 }

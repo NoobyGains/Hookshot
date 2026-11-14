@@ -52,7 +52,7 @@ public sealed class HttpFetcher : IFetcher, IDisposable
         HttpResponseMessage response;
         try { response = await http.SendAsync(request, option, cancel).ConfigureAwait(false); }
         catch (HttpRequestException e) { throw new FetchException(e.Message, (int?)e.StatusCode, e); }
-        catch (TaskCanceledException e) when (!cancel.IsCancellationRequested) { throw new FetchException("git.magicbean.dev did not answer in time.", null, e); }
+        catch (TaskCanceledException e) when (!cancel.IsCancellationRequested) { throw new FetchException(Host(url) + " did not answer in time.", null, e); }
         if (response.RequestMessage?.RequestUri is { } final && final.Scheme != Uri.UriSchemeHttps)
         {
             response.Dispose();
@@ -61,11 +61,20 @@ public sealed class HttpFetcher : IFetcher, IDisposable
         if (!response.IsSuccessStatusCode)
         {
             var status = (int)response.StatusCode;
+            var limited = RateLimited(status, response.Headers.TryGetValues("X-RateLimit-Remaining", out var left) ? left.FirstOrDefault() : null);
             response.Dispose();
-            throw new FetchException($"git.magicbean.dev returned HTTP {status} ({(HttpStatusCode)status}).", status);
+            if (limited)
+                throw new FetchException("GitHub's limit on update checks from this network was reached (60 an hour without an account). " +
+                                         "Try again in a while.", 429);
+            throw new FetchException($"{Host(url)} returned HTTP {status} ({(HttpStatusCode)status}).", status);
         }
         return response;
     }
+
+    static string Host(string url) => Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.Host : "The server";
+
+    /// GitHub's answer when an address has used up its API calls: 403 (or 429) with X-RateLimit-Remaining: 0
+    public static bool RateLimited(int status, string? remaining) => status is 403 or 429 && remaining?.Trim() == "0";
 
     public async Task<string> GetTextAsync(string url, string? accept, CancellationToken cancel)
     {

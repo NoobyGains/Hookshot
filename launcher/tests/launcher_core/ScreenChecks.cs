@@ -246,16 +246,12 @@ static partial class Program
     static async Task ToolsSourceChecks()
     {
         var root = Folder("tools-source");
-        var gh = new FakeFetcher();
-        var tools = Zip(("nx2/make_game.py", "print('authored')\n", null, 0x1ED));
-        var python = Zip(("bin/python3", "#!/bin/sh\n", null, 0x1ED));
-        var (key, trusted) = NewKey();
-        var keys = new[] { trusted };
+        var none = Array.Empty<ReleaseKey>();
 
         // (Linux: the release's AppImage, checked, then unpacked by its own --appimage-extract: here an authored one)
-        var forge = new FakeForgejo(Product.Hookshot);
+        var gh = new FakeGitHub();
         var image = Encoding.UTF8.GetBytes("\x7fELF an authored AppImage");
-        forge.Add("v3.0.0", key, files: new() { [ReleaseManifest.BuilderFile("v3.0.0", "linux-x64")] = image });
+        gh.Add("v3.0.0", files: Builder("v3.0.0", image));
         var extracted = new List<string>();
         Task Extract(string appImage, string folder, CancellationToken cancel)
         {
@@ -266,28 +262,39 @@ static partial class Program
             File.WriteAllText(Path.Combine(tree, "usr", "share", "hookshot", "nx2", "make_game.py"), "print('authored')\n");
             return Task.CompletedTask;
         }
-        var releases = new Releases(forge.Server, Platform.Linux, keys, NoWait);
-        var chains = new Toolchains(Path.Combine(root, "toolchains"), forge.Server);
+        var releases = new Releases(gh.Server, Platform.Linux, none, NoWait, gh.Hookshot);
+        var chains = new Toolchains(Path.Combine(root, "toolchains"), gh.Server, NoWait);
         var seen = new List<ToolsDownloadProgress>();
         var t = await ToolsSource.EnsureAsync(chains, releases, "v3.0.0", seen.Add, default, Extract);
         Require(File.Exists(t.MakeGame) && extracted.Single() == "\x7fELF an authored AppImage" && seen[0].Fraction == 0
                 && Math.Abs(seen[^1].Fraction - 1) < 1e-9 && !Directory.Exists(Path.Combine(root, "toolchains", "v3.0.0.part")),
-                "Linux: the version's AppImage, checked against the signed SHA256SUMS and unpacked.");
-        forge.Server.Asked.Clear();
+                "Linux: the version's AppImage, checked against its release's SHA256SUMS and unpacked.");
+        gh.Server.Asked.Clear();
         seen.Clear();
         await ToolsSource.EnsureAsync(chains, releases, "v3.0.0", seen.Add, default, Extract);
-        Require(forge.Server.Asked.Count == 0 && seen.Single().Fraction == 1, "Installed tools are not asked for again.");
-        forge.Add("v3.0.1", key, files: new() { [ReleaseManifest.BuilderFile("v3.0.1", "linux-x64")] = image },
-                  sums: s => s.Replace(ShaOf(image), new string('0', 64)));
-        await ThrowsAsync<InvalidDataException>(() => ToolsSource.EnsureAsync(chains, new Releases(forge.Server, Platform.Linux, keys, NoWait),
+        Require(gh.Server.Asked.Count == 0 && seen.Single().Fraction == 1, "Installed tools are not asked for again.");
+        gh.Add("v3.0.1", files: Builder("v3.0.1", image), sums: s => s.Replace(ShaOf(image), new string('0', 64)));
+        await ThrowsAsync<InvalidDataException>(() => ToolsSource.EnsureAsync(chains, new Releases(gh.Server, Platform.Linux, none, NoWait, gh.Hookshot),
                                                                                "v3.0.1", null, default, Extract),
-                                                "An AppImage that is not the one its signed SHA256SUMS names was installed.");
+                                                "An AppImage that is not the one its SHA256SUMS names was installed.");
+        // (the nightly's AppImage: a server error is tried again, then the download goes on)
+        var flaky = 0;
+        var nightlyImage = Encoding.UTF8.GetBytes("\x7fELF a nightly");
+        gh.Add("nightly", files: Builder("v3.0.1-4-gabcdef12", nightlyImage));
+        var nightlyUrl = $"https://github.com/{gh.Repo}/releases/download/nightly/Hookshot-v3.0.1-4-gabcdef12-x86_64.AppImage";
+        var real = gh.Server.Files[nightlyUrl];
+        gh.Server.Files.Remove(nightlyUrl);
+        var retrying = new FailingFetcher(gh.Server, url => url == nightlyUrl && ++flaky <= 2 ? new FetchException("authored", 503) : null, nightlyUrl, real);
+        var tn = await ToolsSource.EnsureAsync(new Toolchains(Path.Combine(root, "toolchains"), retrying, NoWait),
+                                               new Releases(retrying, Platform.Linux, none, NoWait, gh.Hookshot), "v3.0.1-4-gabcdef12", null, default, Extract);
+        Require(flaky == 3 && File.Exists(tn.MakeGame) && tn.Tag == "v3.0.1-4-gabcdef12", "A download GitHub failed twice is tried again.");
 
         // (Linux, a builder without its tools: the tools.lock inside the AppImage names them, linux-x64 lines, unpacked beside it
-        // at their dests as on Windows; the Windows lines are not taken. The next version keeps the ones it shares)
+        // at their dests as on Windows; the Windows lines are not taken. The next version keeps the ones it shares. Hookshot's
+        // AppImages carry their tools; a later one may not)
         var clang = Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n", null, 0x1ED), ("emsdk/upstream/bin/clang", null, "clang-23", 0x1FF));
         var sdl = Zip(("sdl2/libSDL2-2.0.so.0", "\x7fELF sdl", null, 0x1A4));
-        var lnx = new FakeForgejo(Product.Hookshot);
+        var lnx = new FakeGitHub();
         lnx.Server.Files["https://tools/clang.zip"] = clang;
         lnx.Server.Files["https://tools/sdl2.zip"] = sdl;
         string LinuxLock(byte[] c) =>
@@ -304,9 +311,9 @@ static partial class Program
             File.WriteAllText(Path.Combine(tree, "usr", "share", "hookshot", "tools.lock"), lockInside);
             return Task.CompletedTask;
         }
-        lnx.Add("v3.4.0", key, files: new() { [ReleaseManifest.BuilderFile("v3.4.0", "linux-x64")] = image });
-        var lnxChains = new Toolchains(Path.Combine(root, "toolchains-linux-tools"), lnx.Server);
-        var lnxReleases = new Releases(lnx.Server, Platform.Linux, keys, NoWait);
+        lnx.Add("v3.4.0", files: Builder("v3.4.0", image));
+        var lnxChains = new Toolchains(Path.Combine(root, "toolchains-linux-tools"), lnx.Server, NoWait);
+        var lnxReleases = new Releases(lnx.Server, Platform.Linux, none, NoWait, lnx.Hookshot);
         seen.Clear();
         var lt4 = await ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.0", seen.Add, default, ExtractWithLock);
         var lib = lt4.LibRoot;
@@ -320,14 +327,14 @@ static partial class Program
             Require((File.GetUnixFileMode(Path.Combine(lib, "emsdk", "upstream", "bin", "clang-23")) & UnixFileMode.UserExecute) != 0,
                     "A tool's executable keeps its mode.");
         var l4 = MakeGameCommand.For(lt4, new BuildRequest(new BuildSource.Nup("/g.nup"), "/o"), Platform.Linux,
-                                     new LauncherHome(Path.Combine(root, "home-linux")), "/L/Hookshot.AppImage");
+                                     new LauncherHome(Path.Combine(root, "home-linux")), "/L/HookshotLauncher.AppImage");
         Require(l4.Environment["HOOKSHOT_SDL2"] == Path.Combine(lib, "sdl2", "libSDL2-2.0.so.0") && l4.Environment["EMSDK"] == Path.Combine(lib, "emsdk"),
                 "Linux: make_game.py is given tools.lock's tools.");
         // (the next version: SDL2 the same archive, kept; a new clang downloaded)
         var clang2 = Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n# 2\n", null, 0x1ED));
         lnx.Server.Files["https://tools/clang.zip"] = clang2;
         lockInside = LinuxLock(clang2);
-        lnx.Add("v3.4.1", key, files: new() { [ReleaseManifest.BuilderFile("v3.4.1", "linux-x64")] = image });
+        lnx.Add("v3.4.1", files: Builder("v3.4.1", image));
         lnx.Server.Asked.Clear();
         var lt5 = await ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.1", null, default, ExtractWithLock);
         Require(!lnx.Server.Asked.Contains("https://tools/sdl2.zip") && lnx.Server.Asked.Contains("https://tools/clang.zip")
@@ -336,48 +343,88 @@ static partial class Program
                 "Linux: a tool another version has is kept, a changed one downloaded.");
         // (a tool whose bytes differ from its line: nothing is installed)
         lockInside = LinuxLock(Zip(("emsdk/upstream/bin/clang-23", "#!/bin/sh\n# 3\n", null, 0x1ED)));
-        lnx.Add("v3.4.2", key, files: new() { [ReleaseManifest.BuilderFile("v3.4.2", "linux-x64")] = image });
+        lnx.Add("v3.4.2", files: Builder("v3.4.2", image));
         await ThrowsAsync<InvalidDataException>(() => ToolsSource.EnsureAsync(lnxChains, lnxReleases, "v3.4.2", null, default, ExtractWithLock),
                                                 "A build tool that is not the one the AppImage's tools.lock names was installed.");
         Require(lnxChains.Find("v3.4.2") == null && !Directory.Exists(Path.Combine(root, "toolchains-linux-tools", "v3.4.2.part")),
                 "A failed install leaves nothing that looks installed.");
 
-        // (Windows: the builder's zip as it is, then tools.lock's tools: a prefix becomes the dest, a mirror stands in for upstream)
-        // (the zip has HookshotBuilder/tools/third_party, the repository's sources: the third-party tool's prebuilt files go among them)
-        var zip = Zip(("HookshotBuilder.exe", "MZ setup", null, 0x1A4), ("HookshotBuilder/HookshotBuilder.exe", "MZ builder", null, 0x1A4),
+        // (Windows: the parts hookshot-setup.txt names, as builder/setup/setup.c unpacks them: the builder's zip into the version's
+        // folder, a tool's zip into its folder, a zip's top folder renamed; the third-party part's prebuilt files among the zip's
+        // sources)
+        var app = Zip(("HookshotBuilder/HookshotBuilder.exe", "MZ builder", null, 0x1A4), ("HookshotBuilder/HookshotBuilder-Setup.exe", "MZ setup", null, 0x1A4),
                       ("HookshotBuilder/tools/nx2/make_game.py", "print('authored')\n", null, 0x1A4),
                       ("HookshotBuilder/tools/third_party/a64-kit/lift/a64emit.cpp", "// source\n", null, 0x1A4));
-        var py = Zip(("LongshotBuilder/tools/python/python.exe", "MZ python", null, 0x1A4), ("LongshotBuilder/LongshotBuilder.exe", "not taken", null, 0x1A4));
-        var tp = Zip(("third_party/a64-kit/lift/a64emit.dll", "MZ a64emit", null, 0x1A4), ("third_party/sdl2/SDL3.dll", "MZ SDL3", null, 0x1A4));
-        var win = new FakeForgejo(Product.Hookshot);
-        win.Server.Files["https://mirror/p.zip"] = py;
-        win.Server.Files["https://packages/tp.zip"] = tp;
-        var lockText = $"tool python 3.14 windows-x64 {ShaOf(py)} {py.Length} HookshotBuilder/tools/python LongshotBuilder/tools/python " +
-                       "https://upstream-gone/p.zip https://mirror/p.zip\n" +
-                       $"tool third-party longshot-v2.1.0 windows-x64 {ShaOf(tp)} {tp.Length} HookshotBuilder/tools/third_party third_party " +
-                       "https://packages/tp.zip\n";
-        win.Add("v3.2.0", key, files: new() { [ReleaseManifest.BuilderFile("v3.2.0", "windows-x64")] = zip, ["tools.lock"] = Encoding.UTF8.GetBytes(lockText) });
-        var winChains = new Toolchains(Path.Combine(root, "toolchains-win"), win.Server);
-        var wt = await ToolsSource.EnsureAsync(winChains, new Releases(win.Server, Platform.Windows, keys, NoWait), "v3.2.0");
-        Require(wt.Kind == ListKind.Setup && File.ReadAllText(wt.MakeGame) == "print('authored')\n"
-                && File.ReadAllText(Path.Combine(wt.ToolsRoot, "python", "python.exe")) == "MZ python"
-                && !File.Exists(Path.Combine(wt.Folder, "HookshotBuilder", "tools", "LongshotBuilder", "LongshotBuilder.exe")),
-                "Windows: the builder's zip and its tools.lock's tools, from the mirror when upstream is gone.");
+        var py = Zip(("HookshotBuilder/tools/python/python.exe", "MZ python", null, 0x1A4));
+        var tp = Zip(("HookshotBuilder/tools/third_party/a64-kit/lift/a64emit.dll", "MZ a64emit", null, 0x1A4),
+                     ("HookshotBuilder/tools/third_party/sdl2/SDL3.dll", "MZ SDL3", null, 0x1A4));
+        var mingw = Zip(("llvm-mingw-1-ucrt-x86_64/bin/clang.exe", "MZ clang", null, 0x1A4));
+        var win = new FakeGitHub();
+        win.Server.Files["https://parts/app.zip"] = app;
+        win.Server.Files["https://parts/python.zip"] = py;
+        win.Server.Files["https://parts/tp.zip"] = tp;
+        win.Server.Files["https://mingw/llvm-mingw.zip"] = mingw;
+        string SetupText(string version) =>
+            $"tag {version}\n" +
+            $"part {ShaOf(app)} {app.Length} . - - https://parts/app.zip\n" +
+            $"part {ShaOf(py)} {py.Length} . - - https://parts/python.zip\n" +
+            $"part {ShaOf(tp)} {tp.Length} . - - https://parts/tp.zip\n" +
+            $"part {ShaOf(mingw)} {mingw.Length} HookshotBuilder/tools llvm-mingw-1-ucrt-x86_64 llvm-mingw https://mingw/llvm-mingw.zip\n" +
+            "run HookshotBuilder/HookshotBuilder.exe\n";
+        win.Add("v3.2.0", files: Builder("v3.2.0", setup: SetupText("v3.2.0")));
+        var winChains = new Toolchains(Path.Combine(root, "toolchains-win"), win.Server, NoWait);
+        seen.Clear();
+        var wt = await ToolsSource.EnsureAsync(winChains, new Releases(win.Server, Platform.Windows, none, NoWait, win.Hookshot), "v3.2.0", seen.Add);
+        Require(wt.Kind == ListKind.Setup && wt.Run == "HookshotBuilder/HookshotBuilder.exe" && File.ReadAllText(wt.MakeGame) == "print('authored')\n"
+                && wt.ToolsRoot == Path.Combine(wt.Folder, "HookshotBuilder", "tools") && File.ReadAllText(wt.Python) == "MZ python"
+                && File.ReadAllText(Path.Combine(wt.ToolsRoot, "llvm-mingw", "bin", "clang.exe")) == "MZ clang"
+                && File.Exists(Path.Combine(wt.Folder, "HookshotBuilder", "HookshotBuilder-Setup.exe"))
+                && seen[0].Total == app.Length + py.Length + tp.Length + mingw.Length && Math.Abs(seen[^1].Fraction - 1) < 1e-9,
+                "Windows: the setup list's parts, each checked, unpacked as the setup unpacks them.");
         var thirdParty = Path.Combine(wt.ToolsRoot, "third_party");
         Require(File.ReadAllText(Path.Combine(thirdParty, "a64-kit", "lift", "a64emit.cpp")) == "// source\n"
                 && File.ReadAllText(Path.Combine(thirdParty, "a64-kit", "lift", "a64emit.dll")) == "MZ a64emit"
                 && File.ReadAllText(Path.Combine(thirdParty, "sdl2", "SDL3.dll")) == "MZ SDL3",
-                "Windows: the third-party tool's files merged into the zip's third_party, its sources kept.");
-        // (the next version with the same tool: kept from the installed one, not downloaded again)
-        win.Add("v3.2.1", key, files: new() { [ReleaseManifest.BuilderFile("v3.2.1", "windows-x64")] = zip, ["tools.lock"] = Encoding.UTF8.GetBytes(lockText) });
+                "Windows: the third-party part's files merged into the builder's third_party, its sources kept.");
+        // (the next version with the same parts: kept from the installed one, not downloaded again)
+        win.Add("v3.2.1", files: Builder("v3.2.1", setup: SetupText("v3.2.1")));
         win.Server.Asked.Clear();
-        await ToolsSource.EnsureAsync(winChains, new Releases(win.Server, Platform.Windows, keys, NoWait), "v3.2.1");
-        Require(!win.Server.Asked.Contains("https://mirror/p.zip") && !win.Server.Asked.Contains("https://packages/tp.zip"),
-                "A tool another version has was downloaded again.");
+        await ToolsSource.EnsureAsync(winChains, new Releases(win.Server, Platform.Windows, none, NoWait, win.Hookshot), "v3.2.1");
+        Require(!win.Server.Asked.Contains("https://parts/python.zip") && !win.Server.Asked.Contains("https://parts/tp.zip")
+                && !win.Server.Asked.Contains("https://mingw/llvm-mingw.zip"), "A part another version has was downloaded again.");
         var tp2 = Path.Combine(winChains.Find("v3.2.1")!.ToolsRoot, "third_party");
         Require(File.ReadAllText(Path.Combine(tp2, "a64-kit", "lift", "a64emit.cpp")) == "// source\n"
                 && File.ReadAllText(Path.Combine(tp2, "sdl2", "SDL3.dll")) == "MZ SDL3",
                 "Windows: the kept third-party files merged into the next version's third_party, its sources kept.");
+        // (a part whose bytes are not the ones the list names: nothing installed)
+        win.Server.Files["https://parts/python.zip"] = Zip(("HookshotBuilder/tools/python/python.exe", "MZ not python", null, 0x1A4));
+        win.Add("v3.2.2", files: Builder("v3.2.2", setup: SetupText("v3.2.2").Replace(ShaOf(py), ShaOf(new byte[] { 1 }))));
+        await ThrowsAsync<InvalidDataException>(() => ToolsSource.EnsureAsync(winChains, new Releases(win.Server, Platform.Windows, none, NoWait, win.Hookshot), "v3.2.2"),
+                                                "A part that is not the one its setup list names was installed.");
+        Require(winChains.Find("v3.2.2") == null && !Directory.Exists(Path.Combine(root, "toolchains-win", "v3.2.2.part")),
+                "A failed Windows install leaves nothing that looks installed.");
+    }
+
+    /// A fetcher that fails some downloads first (fail: the failure for a link, or null to let it through), then gives once's bytes
+    sealed class FailingFetcher(FakeFetcher inner, Func<string, FetchException?> fail, string once, byte[] bytes) : IFetcher
+    {
+        public Task<string> GetTextAsync(string url, string? accept, CancellationToken cancel) => inner.GetTextAsync(url, accept, cancel);
+
+        public async Task DownloadAsync(string url, Stream to, Action<long>? progress, CancellationToken cancel)
+        {
+            if (fail(url) is { } e)
+            {
+                await to.WriteAsync(new byte[] { 0x42 }, cancel);   // (a few bytes, then the failure: the next try starts again)
+                throw e;
+            }
+            if (url == once)
+            {
+                await to.WriteAsync(bytes, cancel);
+                progress?.Invoke(bytes.Length);
+                return;
+            }
+            await inner.DownloadAsync(url, to, progress, cancel);
+        }
     }
 
     static void BuildsFolderChecks()

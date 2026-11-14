@@ -39,7 +39,7 @@ public sealed class LauncherSettings
     public bool Nx2naviSavesAsked { get; set; }
     /// Where new builds go, each version in its own folder; null: DefaultBuildsFolder
     public string? BuildsFolder { get; set; }
-    /// Ask git.magicbean.dev for each channel's newest version when the launcher starts
+    /// Ask GitHub for each channel's newest version when the launcher starts
     public bool CheckUpdates { get; set; } = true;
     /// Each build folder's log already shown on the problem page, by its write time: a crash is shown once
     public Dictionary<string, long> SeenCrashLogs { get; set; } = new();

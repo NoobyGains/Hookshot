@@ -104,7 +104,7 @@ static partial class Program
                 "Install: the program copied whole into place (the download stays), the leftovers of earlier updates gone.");
         var entry = registry.Read(Installer.UninstallKey)!;
         Require(Installer.UninstallKey == @"Software\Microsoft\Windows\CurrentVersion\Uninstall\HookshotLauncher"
-                && (string)entry["DisplayName"] == "Hookshot Launcher" && (string)entry["DisplayVersion"] == "1.0.0" && (string)entry["Publisher"] == "Magic Bean"
+                && (string)entry["DisplayName"] == "Hookshot Launcher" && (string)entry["DisplayVersion"] == "1.0.0" && (string)entry["Publisher"] == "The Hookshot contributors" && (string)entry["URLInfoAbout"] == Repository.Page(Repository.Current)
                 && (string)entry["DisplayIcon"] == installed + ",0" && (string)entry["UninstallString"] == $"\"{installed}\" --uninstall"
                 && entry["NoModify"] is 1 && entry["EstimatedSize"] is int, "The Apps & features entry.");
         Require(links.Links.TryGetValue(at.StartMenuLink, out var target) && target == installed, "The Start menu shortcut starts the installed program.");
