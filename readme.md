@@ -878,7 +878,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   the last 10 seconds). From this level on, the number and the frame time are green at the Game frame rate cap's rate,
   amber under it and red under two thirds of it. (The cap's rate is the display's refresh instead with V-Sync On when
   that is slower; with Uncapped and V-Sync not On there is no line, and the colours are against 60.) **Graph** adds
-  the frame times of the last 4 seconds (each point the slowest frame of its span, so no stutter is missed), with a
+  the slowest frame of the last 10 seconds beside the 1% low (`max 48.3 ms`) and the frame times of the last 4 seconds (each point the slowest frame of its span, so no stutter is missed), with a
   dashed line at the Game frame rate cap's frame time and a red mark over frames that took more than twice it; its
   scale follows the usual frame, so a spike is drawn at the top rather than flattening the rest. **Breakdown** adds
   where the frame's time went on the game's presenting thread, as a bar and in numbers: the game's own code (Game),
