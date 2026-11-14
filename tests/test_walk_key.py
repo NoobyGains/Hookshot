@@ -62,6 +62,7 @@ _Static_assert(HOS_OPT_WALK_SPEED == 86, "Walk speed option ID");
 typedef long LONG;
 typedef unsigned long DWORD;
 typedef int SRWLOCK;
+static volatile LONG pad_count_now;   /* (the controllers connected: none here, so the keyboard counts in Auto) */
 #define SRWLOCK_INIT 0
 static void AcquireSRWLockExclusive(SRWLOCK *p) { (void)p; }
 static void ReleaseSRWLockExclusive(SRWLOCK *p) { (void)p; }
@@ -308,7 +309,7 @@ class WalkKeyTests(unittest.TestCase):
         if not compiler:
             self.skipTest("no C compiler")
         hid = read("host", "nn_hid.c")
-        code = [block(hid, "enum { B_A"), block(hid, "static int key("), block(hid, "static int kmap_down("),
+        code = [block(hid, "enum { B_A"), block(hid, "static int keyboard_counts("), block(hid, "static int key("), block(hid, "static int kmap_down("),
                 between(hid, "static const char *const bind_names[HOS_KEY_N]", "void hos_bind("),
                 between(hid, "static int mouse_vk_slot(", "static int bound_down("), block(hid, "static void stick_max("),
                 block(hid, "static void oc_notes("),

@@ -64,6 +64,8 @@ def main():
     constants += block(api, "enum { HOS_KEY_MOVE_UP") + ";\n"   # (the keys-only controls)
     constants += block(api, "enum { HOS_OPT_CHEAT_HEARTS") + ";\n"
     constants += block(api, "enum { HOS_OPT_HOLD_TOGGLE") + ";\n"
+    constants += block(api, "enum { HOS_OPT_KEYBOARD") + ";\n"
+    constants += "static volatile long pad_count_now;\n"
     constants += block(api, "enum { HOS_BIND_PAD") + ";\n"   # (the live input's !bind)
     constants += block(api, "enum { HOS_OPT_AUTO_RUN") + ";\n"   # (Auto run: off here, rx_option answers 0)
     constants += (ROOT / "host/auto_run.h").read_text(encoding="utf-8") + "\n"
@@ -91,7 +93,7 @@ static void host_stick_read(int32_t stick[4]) { (void)stick; }
 static void host_drag_read(int32_t stick[4]) { (void)stick; }
 static void player_used(void) {}
 """
-    actual = "\n".join(("static HoldToggle toggles;", cheat_state, cheat_spies, host_spies, block(hid, "static int key("), block(hid, "static int kmap_down("),
+    actual = "\n".join(("static HoldToggle toggles;", cheat_state, cheat_spies, host_spies, block(hid, "static int keyboard_counts("), block(hid, "static int key("), block(hid, "static int kmap_down("),
         block(hid, "static int game_in_front("), hid[start:end], block(hid, "static void stick_max("),
         block(hid, "static int pads_in_background("), block(hid, "static int pads_merge("),
         block(hid, "static int pads_behind("),

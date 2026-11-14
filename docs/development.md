@@ -504,6 +504,9 @@ record it again, and make a new tour list. The folder's layout stays the same.
 
 ## The options file
 
+The Controls **Keyboard** row is saved as `keyboard=0` (Auto), `1` (On), or `2` (Off). Auto suppresses keyboard bindings and menu navigation while a controller is connected, including an idle controller, to avoid Steam Input Desktop-layout key duplication. Mouse buttons are independent. F1 and the enabled Insert shortcut remain available. Select On to use a physical keyboard alongside a controller. This adds no environment switch.
+
+
 A new row on the Graphics, Audio, Gameplay or Controls tab needs a line in the README's option table too, in the
 menu's order, with its choices and default: `tests/test_readme_menu_rows.py` fails without it.
 

@@ -95,7 +95,7 @@ static bool take_key_press(int key) {
     queued_key = 0;
     return true;
 }
-static struct { bool (*take_key_press)(int); float (*aspect_ratio)(); } queue_host{take_key_press, nullptr}, *host;
+static struct { bool (*take_key_press)(int); float (*aspect_ratio)(); int (*keyboard_counts)(int); } queue_host{take_key_press, nullptr, nullptr}, *host;
 
 static bool keyboard_toggle(int mode, int key, bool queued, bool has_focus = true) {
     opts.menu_shortcut = mode;

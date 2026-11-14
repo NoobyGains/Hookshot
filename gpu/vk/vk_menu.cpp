@@ -135,6 +135,10 @@ const char* tx_framegen(int v) {
     return t[v];
 }
 const char* tx_onoff(int v) { return v ? "On" : "Off"; }
+const char* tx_keyboard(int v) {
+    static const char* const t[] = {"Auto", "On", "Off"};
+    return t[v < 0 ? 0 : v > 2 ? 2 : v];
+}
 const char* tx_fps_level(int v) { return fps_stats::level_name(v); }
 const char* tx_fps_corner(int v) { return fps_stats::corner_name(v); }   // (the FPS counter row: Off, FPS, Frame time, Graph, Breakdown)
 const char* tx_profile(int v) { return v ? "Handheld" : "Docked"; }   // (opts.handheld: the Profile row)
@@ -1540,9 +1544,14 @@ Row rows[] = {
      "Skips the new-game opening (the story movie and Navi waking Link) and leaves later cutscenes, the Deku Tree "
      "meeting, and the title screen alone.", nullptr, false, true},
 
-    // Controls (15 rows; Motion opens the 6 TAB_MOTION rows, Controls its page with the 2 TAB_PAGE rows)
+    // Controls (16 rows; Motion opens the 6 TAB_MOTION rows, Controls its page with the 2 TAB_PAGE rows)
     {TAB_CONTROLS, "Controller in background", &opts.pad_background, 0, 1, 1, tx_onoff,
      "Whether the controller plays the game while another window has the focus.", hn_background, false, true},
+    {TAB_CONTROLS, "Keyboard", &opts.keyboard, 0, 2, 1, tx_keyboard,
+     "Whether the keyboard's controls count. Auto: only while no controller is connected, so a controller that sends key "
+     "presses cannot reach the game's controls (Steam Input's Desktop layout on a Steam Deck sends the stick and the face "
+     "buttons as the arrow keys, Enter, Esc and Tab). This also applies to menu navigation; F1 and the enabled Insert "
+     "shortcut still open and close the menu.", nullptr, false, true},
     {TAB_CONTROLS, "Mouse camera", &opts.mouse_native, 0, 2, 1, tx_mousecam, "How the captured mouse turns the camera.",
      hn_mousecam, false, true},
     {TAB_CONTROLS, "Disable camera centering", &opts.disable_camera_centering, 0, 1, 1, tx_onoff,
@@ -5207,13 +5216,18 @@ void menu_tick() {
     if (fg) GetWindowThreadProcessId(fg, &pid);
     const bool mine = pid == GetCurrentProcessId();
     bool press[K_N] = {};
+    bool keyboard_enabled[K_N] = {};
     for (int i = 0; i < K_N; i++) {
         const bool down = mine && (GetAsyncKeyState(keys[i]) & 0x8000) != 0;
         const bool queued = host && host->take_key_press && host->take_key_press(keys[i]);
         // Read both keys even if one is disabled, so old presses cannot toggle the menu after a change.
         // (F1 always opens the menu; Menu shortcut's F1 only leaves Insert to an overlay)
-        const bool enabled = keys[i] != VK_INSERT || opts.menu_shortcut != 1;   // (Insert: all but F1 only)
-        press[i] = enabled && (host && host->take_key_press ? mine && queued : down && !held[i]);
+        // Drain queued events and track key edges even when the keyboard policy suppresses them.
+        const bool emergency = keys[i] == VK_INSERT || keys[i] == VK_F1;
+        const bool enabled = (keys[i] != VK_INSERT || opts.menu_shortcut != 1) &&
+                             (emergency || !host || !host->keyboard_counts || host->keyboard_counts(keys[i]));
+        keyboard_enabled[i] = enabled;
+        press[i] = keyboard_enabled[i] && (host && host->take_key_press ? mine && queued : down && !held[i]);
         held[i] = down;
         if (press[i]) pad_last = false;   // (the keys: their names in the prompts)
     }
@@ -5267,7 +5281,7 @@ void menu_tick() {
         const int pads[5] = {0, HOS_PAD_UP, HOS_PAD_DOWN, HOS_PAD_LEFT, HOS_PAD_RIGHT};
         const int64_t t = prof_now();
         for (int i = 1; i <= 4; i++) {
-            const bool down = held[i] || (open_now.load() && listening != 1 && (raw >> pads[i] & 1));
+            const bool down = (keyboard_enabled[i] && held[i]) || (open_now.load() && listening != 1 && (raw >> pads[i] & 1));
             if (!down) { held_since[i] = 0; continue; }
             if (!held_since[i]) { held_since[i] = t, next_repeat[i] = t + 350000000LL; continue; }
             if (t >= next_repeat[i] && open_now.load() && listening == 0) {

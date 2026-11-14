@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define MKWVK_API_VERSION 22
+#define MKWVK_API_VERSION 23
 enum { HOS_OPT_CHEAT_HEARTS = 32, HOS_OPT_CHEAT_FLIGHT, HOS_OPT_CHEAT_ACTION, HOS_OPT_CHEAT_CAMERA, HOS_OPT_CHEAT_SPEED };
 /* (hookshot) the Gameplay tab's Text size (host/oot_text_size.c): 0 the game's, 1 110%, 2 125%, 3 150%, 4 175% */
 enum { HOS_OPT_TEXT_SIZE = 10 };
@@ -51,6 +51,9 @@ enum { HOS_OPT_HDR_TONEMAP = 47 };
 /* Gameplay's vertical field of view, percent of the game's current angle; 100 is unchanged. */
 /* 49 and 50 are reserved for Walk mode and Walk speed (#2345). */
 enum { HOS_OPT_FOV = 51 };
+/* (HOS_OPT_KEYBOARD, 87: the Controls tab's Keyboard row, host/nn_hid.c keyboard_counts: 0 Auto (the keys count only while no
+   controller is connected), 1 On, 2 Off. Longshot has it at 54, which is hold-to-toggle's here) */
+enum { HOS_OPT_KEYBOARD = 87 };
 /* (HOS_OPT_SKIP_OPENING, 52: Gameplay's Skip opening, host/hos_main.c hos_oot_opening. Off. The new-game story movie
    and Navi waking Link. 44 stays reserved for Skip title, 49 and 50 for Walk, 60 for the item wheel. A new option id
    answered by the existing option callback does not change MkwVkHost or MkwVkRenderer.) */
@@ -221,6 +224,8 @@ typedef struct MkwVkHost {
        while the game draws it in the middle 16:9 with the menus (wide_menus's keep_mask) and so leaves the sides open
        (host/hos_main.c hos_wide_cover); 0 when it covers the whole picture itself. Asked at each present */
     float (*wide_cover)(void);
+    /* (version 23, hookshot) shared keyboard acceptance policy; mouse buttons remain independent. */
+    int (*keyboard_counts)(int key);
 } MkwVkHost;
 
 /* One completed temporal-upscale sample; all zero while inactive. */

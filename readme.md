@@ -589,6 +589,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Skip opening | Off, On (skips the new-game opening: the story movie and Navi waking Link; later cutscenes and the title screen stay) | Off |
 | | Bug report | Saves a report into a new folder in `bug-reports` (below) | |
 | Controls | Controller in background | Off, On | Off |
+| | Keyboard | Auto (only without a connected controller), On, Off; applies to gameplay and menu navigation; F1 and the enabled Insert shortcut remain available | Auto |
 | | Mouse camera | As the stick, Native, Off | As the stick |
 | | Disable camera centering | Off, On | Off |
 | | Mouse sensitivity | 0.10 to 5.00 | 1.00 |
