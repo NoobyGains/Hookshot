@@ -5,18 +5,21 @@ Exits 1 when anything failed.
 
     python -I -B tests/run_all.py [--jobs N] [--timeout SECONDS] [--strict] [--no-skip] [--shard K/N] [name ...]
     python -I -B tests/run_all.py --changed [BASE]   (only the checks that read files changed since BASE, origin/main)
+    python -I -B tests/run_all.py --sanitize         (the sanitizer lane: the checks that declare RUN_ALL_SANITIZE, with
+                                                      --sanitize: address and undefined-behaviour sanitizers on)
 
 A name picks the checks whose path contains it. --strict: a check that needs a tool this PC lacks (a compiler, the
 SPIR-V or Vulkan headers, spirv-val) fails instead of being skipped (CI installs them all). --no-skip runs the checks a
 test skips on this OS too. Standard library only: no package is installed for the runner itself.
 
-A test says what it needs in its own file, with up to three top-level assignments of plain literals (after its
+A test says what it needs in its own file, with up to four top-level assignments of plain literals (after its
 docstring and imports). The runner reads them with ast and never imports the test; a test that declares none runs with
 no arguments and its own defaults.
 
     RUN_ALL_ARGS = ["--cxx", "{cxx}", "--headers", "{vulkan_headers}"]   # its command-line arguments
     RUN_ALL_MODULES = ["zstandard"]                                       # Python packages it imports
     RUN_ALL_SKIP = {"windows": "needs spirv-val: checked on Linux"}       # OS ("linux", "windows") -> why it is skipped
+    RUN_ALL_SANITIZE = ["--sanitize"]                                     # what turns its sanitizers on (run_all.py --sanitize)
 
 {name} in an argument is a tool or folder find_tools looks for (cxx, vulkan_headers, spirv_headers, spirv_val, glslang,
 dotnet, dav1d); a check whose tool, compiler (the word after --cc or --cxx) or module is missing here is skipped, or fails
@@ -50,7 +53,7 @@ OS = "windows" if WINDOWS else "linux"
 
 # What a check needs is declared in the test file itself, as top-level literals the runner reads with ast (the test is
 # never imported): see the docstring above and read_declarations below.
-DECLARATIONS = ("RUN_ALL_ARGS", "RUN_ALL_MODULES", "RUN_ALL_SKIP")
+DECLARATIONS = ("RUN_ALL_ARGS", "RUN_ALL_MODULES", "RUN_ALL_SKIP", "RUN_ALL_SANITIZE")
 # (a list's or a dict's methods that change it in place: a declaration changed that way is not what the runner reads)
 MUTATORS = {"append", "extend", "insert", "remove", "pop", "clear", "update", "setdefault", "popitem", "sort",
             "reverse", "__setitem__", "__delitem__", "__iadd__", "__ior__"}
@@ -131,7 +134,7 @@ def read_declarations(path, rel, tools):
     why}}, empty where the test declares nothing. A file that does not parse declares nothing and says why in
     "unparsed" (its check fails with that, on every OS, without running); a bad declaration raises DeclarationError naming
     the file and line."""
-    found = {"args": [], "modules": [], "skip": {}, "unparsed": None}
+    found = {"args": [], "modules": [], "skip": {}, "sanitize": [], "unparsed": None}
     with open(path, "rb") as f:
         source = f.read()
     try:
@@ -210,6 +213,10 @@ def read_declarations(path, rel, tools):
                 raise bad(node, "RUN_ALL_ARGS names an unknown placeholder %s (known: %s)"
                           % (", ".join("{%s}" % u for u in unknown), ", ".join(sorted(tools))))
             found["args"] = list(v)
+        elif name == "RUN_ALL_SANITIZE":
+            if not v:
+                raise bad(node, 'RUN_ALL_SANITIZE must name what turns the sanitizers on, e.g. ["--sanitize"]')
+            found["sanitize"] = list(v)
         else:
             found["modules"] = list(v)
     return found
@@ -226,7 +233,7 @@ def stale_tables():
     return out
 
 
-def python_check(rel, decl, tools, timeout):
+def python_check(rel, decl, tools, timeout, sanitize=False):
     args, missing = [], []
     for a in decl["args"]:
         if a.startswith("{"):
@@ -241,6 +248,8 @@ def python_check(rel, decl, tools, timeout):
         if a in ("--cc", "--cxx") and not which(args[i + 1]):
             missing.append(args[i + 1])
     missing += [m for m in decl["modules"] if importlib.util.find_spec(m) is None]
+    if sanitize:
+        args += decl["sanitize"]
 
     def run():
         return subprocess.run([sys.executable, "-I", "-B", os.path.join(ROOT, rel)] + args, cwd=ROOT, timeout=timeout,
@@ -419,8 +428,10 @@ def main():
                    help="write this run's times to tests/run_all_times.json for this OS (a full run only)")
     p.add_argument("--changed", nargs="?", const="origin/main", metavar="BASE",
                    help="only the checks that read a file changed since BASE's merge base (default origin/main), or an untracked one")
+    p.add_argument("--sanitize", action="store_true",
+                   help="only the checks that declare RUN_ALL_SANITIZE, each with those arguments too (ASan and UBSan)")
     a = p.parse_args()
-    if a.write_times and (a.names or a.shard):
+    if a.write_times and (a.names or a.shard or a.sanitize):
         p.error("--write-times needs a full run: no names, no --shard")
     if a.changed is not None and (a.names or a.write_times):
         p.error("--changed picks the checks itself: no names, no --write-times")
@@ -458,9 +469,14 @@ def main():
         for e in errors:
             print("  " + e, file=sys.stderr)
         return 2
+    if a.sanitize:   # (the sanitizer lane: the checks that offer --sanitize, with it, and nothing else)
+        tests = [rel for rel in tests if decls[rel]["sanitize"]]
+        if WINDOWS and not a.no_skip:   # (llvm-mingw's ASan is a DLL runtime, and the checks' Linux flags (-no-pie) stop clang)
+            for rel in tests:
+                decls[rel]["skip"][OS] = "the sanitizer lane runs on Linux"
     for rel in tests:
         reason = decls[rel]["skip"].get(OS)
-        run, missing = python_check(rel, decls[rel], tools, a.timeout)
+        run, missing = python_check(rel, decls[rel], tools, a.timeout, a.sanitize)
         c = Check(rel, run)
         if decls[rel]["unparsed"]:   # (no skip to read: the same failure on every OS, not run)
             c.run = lambda why=decls[rel]["unparsed"]: Result(1, (why + "\n").encode())
@@ -474,6 +490,8 @@ def main():
     cpp, missing = cpp_checks(tools, a.timeout)
     if not everything and not any(c.startswith("gpu/") for c in changed):
         cpp = []   # (--changed: the C++ unit tests build gpu/vk's headers alone)
+    if a.sanitize:
+        cpp = []
     for name, run in cpp:
         c = Check(name, run)
         if missing:
@@ -482,7 +500,8 @@ def main():
                 c.why_skip = None
                 c.run = lambda m=missing: Result(1, ("not found: %s (--strict)\n" % ", ".join(m)).encode())
         checks.append(c)
-    checks.append(Check("(byte-compile every tracked .py)", compile_all))
+    if not a.sanitize:
+        checks.append(Check("(byte-compile every tracked .py)", compile_all))
     if a.names:
         checks = [c for c in checks if any(n in c.name for n in a.names)]
     part = ""

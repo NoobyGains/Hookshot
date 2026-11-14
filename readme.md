@@ -1007,7 +1007,8 @@ measured and what is not.
 Put mods in a `mods` folder in the game folder, beside `hookshot.exe` (or point `HOS_MODS` at another folder), in the
 layout emulators use: `mods/<name>/romfs/...` holds files that replace or add to the game's own. Deeper layouts such as
 `mods/contents/<title id>/<name>/romfs` work too. A folder whose name starts with `-` or `_` is off. When two mods
-have the same file, the one whose folder name sorts last wins, so name them `01-...`, `02-...` to set the order.
+have the same file, the one whose whole path relative to `mods` sorts last (ignoring case) wins. Use `01-...`, `02-...`
+at the same level to set the order. Stop the game before changing mods, then restart.
 
 Only RomFS mods are loaded. `exefs` patches (`.pchtxt`, `.ips`) are left out: Hookshot compiles the game's code ahead
 of time, so patching its instructions would need a rebuild. The log (`hookshot_log.txt`) names each mod and the files
@@ -1024,6 +1025,9 @@ entries into that table (each file gets the larger of the two), so your controll
 format, or a zstd frame that does not give its size) is used as it is, with the Switch's icons.
 If a mod includes tables for several game versions, the prompts use the table name from the game's own RomFS,
 not the first table found in the mod. Other versions' tables do not change the prompts' font or its size entries.
+
+For authors: the [existing file contract and game-free example](docs/mods.md) cover discovery, conflicting files,
+disabling and what this loader does not provide. The example contains only invented text, not a seed or game data.
 
 </details>
 

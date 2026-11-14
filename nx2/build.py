@@ -584,6 +584,7 @@ def tree_ws(pid):
     return total
 
 
+# doc: docs/compiler-memory-accounting.md
 def rss_mb(proc):
     """A running compiler's resident memory in MB (0: exited, not known, or not started yet)"""
     if proc is None:
