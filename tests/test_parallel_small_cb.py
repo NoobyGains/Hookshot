@@ -63,11 +63,11 @@ def main():
     if 'env_on("RX_VK_NO_DRY_SHORT")' not in replay:
         raise SystemExit("vk_replay.cpp: the switch RX_VK_NO_DRY_SHORT is gone")
     # (a segment is not split by the chunking the serial path does)
-    # (maybe_split ends a part by its count through split_part, which RX_VK_READBACK_EARLY also calls to end one after a writer)
-    if "void maybe_split(VkCommandBuffer& cmd) { split_part(cmd, false); }" not in replay:
-        raise SystemExit("vk_replay.cpp: maybe_split no longer goes through split_part")
-    split = body(replay, "void split_part(VkCommandBuffer& cmd, bool now) {", "end_pass(cmd);")
+    split = body(replay, "void maybe_split(VkCommandBuffer& cmd) {", "part_end_wanted = true;")
     if "if (split_off ||" not in split:
+        raise SystemExit("vk_replay.cpp: maybe_split no longer leaves a short command buffer's recording whole")
+    cut = body(replay, "void split_part(VkCommandBuffer& cmd, bool now) {", "end_pass(cmd);")   # (an end asked for in a buffer before it)
+    if "if (split_off ||" not in cut:
         raise SystemExit("vk_replay.cpp: split_part no longer leaves a short command buffer's recording whole")
 
     count = block(replay, "int64_t stream_work(const uint8_t* p, int64_t most)")

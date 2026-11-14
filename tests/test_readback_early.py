@@ -299,7 +299,9 @@ def main():
         raise SystemExit("FAIL: invalidate: the early wait comes after the usual choice")
     rep = block(replay, "void replay(VkCommandBuffer& cmd, NvnState& s, const uint8_t* p, const uint8_t* end = nullptr) {")
     if "if (split_after || memory_split_wanted()) early_split_pending = true;" not in rep or \
-            "if (early_split_pending && part_work >= early_gap) split_part(cmd, true);\n        }\n        p += h.size;" not in rep:
+            "if (early_split_pending && part_work >= early_gap) {" not in rep or \
+            "else split_part(cmd, true);\n            }\n        }\n        p += h.size;" not in rep or \
+            "if (part_ends_before_draw()) part_end_wanted = true;" not in rep:
         raise SystemExit("FAIL: replay: a part does not end after an op that asked for it, at least the gap into it")
     mem_note = block(memory, "void note_direct_write(")
     if "early_in_place_write(p.lo + off, p.lo + std::min(off + size, p.hi - p.lo), mem_rec_value);" not in mem_note.split("if (size <=")[0]:
@@ -315,10 +317,12 @@ def main():
             raise SystemExit("FAIL: %s finishes a recording without closing its RX_VK_LOG_RB_WRITERS span" % where)
     if replay.count("finish_recording(") != replay.count("rb_span_close(), finish_recording(") + 2:   # (+ its declaration, definition)
         raise SystemExit("FAIL: a recording is finished without closing its RX_VK_LOG_RB_WRITERS span")
-    if "void maybe_split(VkCommandBuffer& cmd) { split_part(cmd, false); }" not in replay:
+    # (maybe_split keeps the count and ends a part by it, at the next plain draw where parts end there (part_ends_before_draw);
+    # split_part is the end itself, which RX_VK_READBACK_EARLY also asks for after a writer, now)
+    if "++part_work < every" not in block(replay, "void maybe_split(VkCommandBuffer& cmd) {"):
         raise SystemExit("FAIL: maybe_split no longer ends a part by its count")
     split = block(replay, "void split_part(VkCommandBuffer& cmd, bool now) {")
-    if "if (!now && (every <= 0 || ++part_work < every)) return;" not in split or "part_work = 0;" not in split:
+    if "if (now) st_early_splits++;" not in split or "part_work = 0;" not in split:
         raise SystemExit("FAIL: split_part: a part's count of draws is no longer kept")
     if "early_split_pending = false;" not in split or "(void)memory_split_wanted();" not in split or \
             "(void)memory_split_wanted(), early_split_pending = false;" not in block(replay, "bool run_submit("):
