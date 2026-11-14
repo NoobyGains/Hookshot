@@ -105,10 +105,24 @@ Everything below is on `main` in this repository, tested in the game on a GeForc
   </tr>
 </table>
 
-**The Hookshot Launcher**: one program that installs the builder, builds the game, keeps versions side by side, updates
-them and itself, and carries your saves (from Longshot too), in the header's look with the same 3D Hookshot turning while
-it builds. It is the Magic Bean team's Longshot Launcher, brought back and pointed at Hookshot's own releases
-([Quick start](#hookshot-launcher), [docs/launcher.md](docs/launcher.md)).
+**The Hookshot Launcher** (preview): one program that installs the builder, builds the game, keeps versions side by
+side, updates them and itself, and carries your saves (from Longshot and the emulators too), in the header's look with the
+same 3D Hookshot turning while it builds ([Quick start](#hookshot-launcher)). Its checks pass and it installs the builder;
+a full build through it is the next test.
+
+**Just landed, being tested in the game now** (on `main`; the game builds and runs with all of them at 60 FPS):
+
+- **Mod manager:** Gameplay > Mods lists your mods, turns them on and off, sets their load order and names the files two
+  mods both replace, saved in `mods/hookshot-mods.ini` (no more renaming folders)
+- **Hero mode and quiet Navi:** double damage and no recovery hearts; Navi's "Hey! Listen!" area hints off
+- **Toggle buttons and Mono:** a Toggle column on the Controls page (tap to hold the shield or aim), Mono on Audio output
+- **Walk, sprint and mouse look:** a walk key and speed, a sprint button, the mouse aiming, locking on and riding
+- **Switch 2 Pro Controller over USB, and NFC tags** from your own files
+- **Less memory:** video memory only where the game uses it, and the game's own memory levels off instead of growing
+- **A steadier picture and faster start:** HUD labels, the Gossip Stones with frame generation, sharper scaling when the
+  picture is larger than the window; the button prompts ready in about 20 s instead of 160; a new install starts at the
+  game's 2560x1440
+- **Intel and AMD fixes:** Intel Arc and Iris, the Radeon RX 6600 family; the mouse cursor hidden in play
 
 <img src="docs/images/features/field-of-view.jpg" alt="Kakariko Village at field of view 60 percent, the game's 100 percent and 140 percent">
 
@@ -198,7 +212,7 @@ reaches.
 - Also: the one-click Windows HDR launcher, the water's per-light shadow maps, several users, each game in its own
   folders, the RX 6600 / 6650 XT / 6500 XT fallback
 
-**🟡 In progress**: being built and tested now
+**🟡 In progress**: most are on `main` now and being tested in the game; the rest are being built
 
 - **Mod manager:** your own mods listed in the menu, on and off, their load order and conflicts
 - **Hero mode and quiet Navi:** double damage and no recovery hearts; Navi's callouts off
@@ -259,9 +273,9 @@ version (every file checked by its SHA-256), builds the game in a three-step wiz
 build with one progress bar), keeps several versions side by side (Play starts your default), offers each its channel's
 updates (stable, release candidate or nightly) and updates itself. It keeps one save folder for every version and imports
 saves from Longshot, NX2navi and the emulators, backing up first. Windows (installer or portable) and Linux / Steam Deck
-(AppImage). Once published, it is on the [`launcher-nightly`](https://github.com/notquiteog/Hookshot/releases/tag/launcher-nightly)
-pre-release; [launcher/README.md](launcher/README.md) has the rest, and [docs/launcher.md](docs/launcher.md) where it comes
-from: the Magic Bean team's Longshot Launcher.
+(AppImage). It is a preview: download it from the [`launcher-nightly`](https://github.com/NoobyGains/Hookshot/releases/tag/launcher-nightly)
+pre-release (each push to `main` publishes it); [launcher/README.md](launcher/README.md) has the rest and
+[docs/launcher.md](docs/launcher.md) its history.
 
 <p align="center">
   <img src="docs/images/launcher/home.png" alt="The Hookshot Launcher's home: the 3D Hookshot turning beside the name and the shield, the default version with Play, and the versions built" width="640">

@@ -33,7 +33,7 @@ STAGES = [
         ("eyes.jpg", "Brightness, colour vision", "A brightness slider and colour-blind modes."),
         ("f12.jpg", "Screenshot key", "F12 saves the picture as you see it, as a PNG beside the game."),
     ]),
-    ("doing", "IN PROGRESS", "being built and tested now", AMBER, [
+    ("doing", "IN PROGRESS", "most on main now, being tested in the game", AMBER, [
         ("panel:name:Mods", "Mod manager", "Your own mods listed in the menu: on and off, load order, conflicts."),
         ("panel:name:Hero", "Hero mode, quiet Navi", "Double damage and no recovery hearts; Navi's callouts off."),
         ("launcher.jpg", "Hookshot Launcher", "Builds side by side, update channels, saves import and export."),
