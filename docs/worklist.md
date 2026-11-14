@@ -79,6 +79,24 @@ Agents may add and re-score rows; a person reviews the change like any other PR.
 | Offline bake fails clean source checks (Windows zstd, Clang 18 discovery) | [#1954](https://github.com/NotRexed/Hookshot/pull/1954) | Closes #1931 (Arkex-ai) |
 | Windows Builder has no relocatable portable home | [#2367](https://github.com/NotRexed/Hookshot/pull/2367) (opt-in `--portable`) | Fixes #2258 (Arkex-ai) |
 
+## Feature requests
+
+What players of the remake ask for most in its first week (2026-11-14), from GameBanana's likes and requests for the
+Switch 2 game (https://gamebanana.com/games/26242) and coverage of the PC ports. Evidence is thin (under 50 likes, under
+4,000 views each): re-check before scoring. Only what Hookshot can build as a toggle over the player's own game files;
+asset mods (models, textures, music, voices) stay the player's, loaded from `mods/`.
+
+| Request | Evidence | Note |
+|---|---|---|
+| Mod manager: the player's own mods on and off in the menu | Playable Zelda 47 likes (https://gamebanana.com/mods/739361), Classic Link Voice 31 (https://gamebanana.com/mods/738175) | `host/mods.c` already loads `mods/<name>/romfs` |
+| Hero mode (double damage, fewer hearts) | Simple Hero Mode Options 16 likes (https://gamebanana.com/mods/739038) | the Debug tab's Damage taken is half of it |
+| Quiet Navi, voice acting off | Remove voice acting request 8 likes (https://gamebanana.com/requests/99170) | |
+| Photo mode | request (https://gamebanana.com/requests/99247) | |
+| First-person aim with the mouse | request (https://gamebanana.com/requests/99311) | |
+| Small toggles: auto jump, Young Link on Epona, gear on and off, N64 controls | Auto Jump 15 likes (https://gamebanana.com/mods/739034), Young Link rides Epona 15 (https://gamebanana.com/mods/739032), requests 99210, 99374 | |
+| Randomizer | Ship of Harkinian's best-known feature (https://github.com/HarbourMasters/Shipwright) | large |
+| Online co-op | shown on another port, not released (https://www.xda-developers.com/someone-got-multiplayer-working-switch2-ocarina-of-time-remake-pc-runs-well/) | large |
+
 ## Parked
 
 | Problem | Why parked | Links |

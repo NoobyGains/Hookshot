@@ -136,7 +136,7 @@ when the game closes.
 ## Roadmap
 
 <p align="center">
-  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 5 done, 2 in progress, 4 coming next, each as a card with a picture. The same items are listed as text below." width="820">
+  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 5 done, 2 in progress, 4 coming next, 8 feature requests, each as a card with a picture. The same items are listed as text below." width="820">
 </p>
 
 **Done** is on `main` now. **In progress** is being worked on at the moment. **Coming next** is planned but not
@@ -173,6 +173,21 @@ reaches.
 - **AMD on Windows:** crashes on some Radeon cards (needs an AMD tester)
 - **amiibo**, from Ocarina Reborn
 - Later: a signed Builder, Intel cards, cards without mesh shaders
+
+**➕ Feature requests**: what players of the remake ask for most (GameBanana's most-liked mods and requests, and the
+ports' coverage, in its first week), limited to what Hookshot can build as a toggle over your own game files
+
+- **Mod manager:** turn your own mods on and off in the menu (the most liked: Playable Zelda, Classic Link Voice)
+- **Hero mode:** double damage and fewer hearts, as the Simple Hero Mode mod does
+- **Quiet Navi, no voices:** Navi's callouts and the voice acting off (the top audio request)
+- **Photo mode:** a free camera with the HUD hidden
+- **First-person aim:** bow, slingshot and Hookshot from Link's eyes, with the mouse
+- **Small toggles:** auto jump, Young Link on Epona, gear on and off, N64-style controls
+- **Randomizer:** items shuffled each run, Ship of Harkinian's best-known feature
+- **Online co-op:** shown working on another port, not released yet
+
+Mods that swap in Nintendo's own models, textures, music or voices are for players to add from their own files
+(Hookshot loads them from the `mods` folder, see [Mods](#mods)); the project ships none of them.
 
 </details>
 

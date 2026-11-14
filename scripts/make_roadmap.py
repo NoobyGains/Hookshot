@@ -17,7 +17,7 @@ BRAND = Path(__file__).resolve().parent.parent / "assets" / "brand"
 FONTS, PICS = BRAND / "fonts", BRAND / "roadmap"
 BG, CARD, EDGE = (7, 9, 14), (15, 19, 29), (34, 41, 58)
 TEXT, MUTED = (232, 236, 243), (146, 156, 176)
-GREEN, AMBER, BLUE = (52, 211, 153), (251, 191, 36), (96, 165, 250)
+GREEN, AMBER, BLUE, PURPLE = (52, 211, 153), (251, 191, 36), (96, 165, 250), (167, 139, 250)
 GRADIENT = [(248, 250, 252), (59, 130, 246), (34, 211, 238), (251, 191, 36)]
 UPDATED = "14 November 2026"
 
@@ -42,7 +42,20 @@ STAGES = [
         ("panel:amd", "AMD on Windows", "Crashes on some Radeon cards: needs a tester."),
         ("panel:amiibo", "amiibo", "From Ocarina Reborn: scan your own amiibo files."),
     ]),
+    # (what players of the remake ask for most, from GameBanana's likes and requests and the ports' coverage in its first
+    # week; only what Hookshot can build as a toggle over the player's own game files: no Nintendo assets)
+    ("request", "FEATURE REQUESTS", "what players ask for most", PURPLE, [
+        ("panel:name:Mods", "Mod manager", "Turn your own mods on and off in the menu. Most liked: Playable Zelda, Classic Link Voice."),
+        ("panel:name:Hero", "Hero mode", "Double damage and fewer hearts, as the Simple Hero Mode mod does."),
+        ("panel:name:Navi", "Quiet Navi, no voices", "Navi's callouts and the voice acting off: the top audio request."),
+        ("panel:name:Photo", "Photo mode", "A free camera with the HUD hidden."),
+        ("panel:name:Aim", "First-person aim", "Bow, slingshot and Hookshot from Link's eyes, with the mouse."),
+        ("panel:name:QoL", "Small toggles", "Auto jump, Young Link on Epona, gear on and off, N64 controls."),
+        ("panel:name:Random", "Randomizer", "Items shuffled each run: Ship of Harkinian's best-known feature."),
+        ("panel:name:Online", "Online co-op", "Play together: shown working on another port, not released yet."),
+    ]),
 ]
+PER_ROW = 4   # (the feature requests' cards to a row; they wrap to a second row. Other stages keep one row)
 
 W, M, GAP = 1600, 48, 20
 
@@ -77,6 +90,11 @@ def mark(d, kind, cx, cy, r, colour):
     elif kind == "doing":
         d.ellipse((cx - r, cy - r, cx + r, cy + r), outline=colour, width=max(2, int(r * 0.25)))
         d.pieslice((cx - r * 0.62, cy - r * 0.62, cx + r * 0.62, cy + r * 0.62), -90, 90, fill=colour)
+    elif kind == "request":   # (a ring with a plus: asked for)
+        d.ellipse((cx - r, cy - r, cx + r, cy + r), outline=colour, width=max(2, int(r * 0.22)))
+        k = max(2, int(r * 0.24))
+        d.line((cx - r * 0.5, cy, cx + r * 0.5, cy), fill=colour, width=k)
+        d.line((cx, cy - r * 0.5, cx, cy + r * 0.5), fill=colour, width=k)
     else:
         d.ellipse((cx - r, cy - r, cx + r, cy + r), outline=colour, width=max(2, int(r * 0.22)))
 
@@ -122,11 +140,17 @@ def panel(kind, w, h, colour):
         d.polygon(pts + [(right, bottom), (left, bottom)], fill=(54, 44, 18))
         d.line(pts, fill=colour, width=4, joint="curve")
         d.text((left, h - 30), "44 area changes, 8 minutes", font=f, fill=MUTED)
-    else:
-        name = {"amd": "Radeon", "amiibo": "amiibo"}[kind]
-        f = font("Unbounded-ExtraBold.ttf", 44)
-        tw = d.textlength(name, font=f)
-        d.text(((w - tw) / 2, h / 2 - 34), name, font=f, fill=(70, 84, 112))
+    else:   # (a name on a tile: "amd", "amiibo", or "name:<word>")
+        name = kind.split(":", 1)[1] if kind.startswith("name:") else {"amd": "Radeon", "amiibo": "amiibo"}[kind]
+        top_free = 44   # (below the card's badge)
+        size = min(44, int((h - top_free) * 0.62))
+        while d.textlength(name, font=font("Unbounded-ExtraBold.ttf", size)) > w - 40 and size > 16:
+            size -= 2
+        f = font("Unbounded-ExtraBold.ttf", size)
+        box = d.textbbox((0, 0), name, font=f)
+        tint = (82, 70, 128) if kind.startswith("name:") else (70, 84, 112)
+        mid = (top_free + h) / 2 if h < 160 else h / 2
+        d.text(((w - (box[2] - box[0])) / 2 - box[0], mid - (box[3] - box[1]) / 2 - box[1]), name, font=f, fill=tint)
     return im
 
 
@@ -172,7 +196,8 @@ def main():
     y = 196
     for kind, title, note, colour, items in STAGES:
         wide = len(items) <= 2
-        n = len(items)
+        n = min(len(items), PER_ROW) if kind == "request" else len(items)
+        rows = (len(items) + n - 1) // n
         cw = (W - 2 * M - (n - 1) * GAP) // n
         if wide:
             pw, ph = 380, 214
@@ -181,8 +206,11 @@ def main():
             pw, ph = cw, round(cw * 9 / 16)
             lines = max(len(wrap(probe, t, card_b, cw - 36)) for _, _, t in items)
             ch = ph + 58 + lines * 22 + 16
+        if kind == "request":   # (requests have no picture of their own: a shorter tile)
+            ph = round(cw * 9 / 32)
+            ch = ph + 58 + max(len(wrap(probe, t, card_b, cw - 36)) for _, _, t in items) * 22 + 16
         bands.append((kind, title, note, colour, items, wide, cw, pw, ph, ch, y))
-        y += 64 + ch + 40
+        y += 64 + rows * ch + (rows - 1) * GAP + 40
     H = y + 34
 
     im = Image.new("RGB", (W, H), BG)
@@ -214,9 +242,10 @@ def main():
         mark(d, kind, M + 40, top + 24, 14, colour)
         d.text((M + 66, top + 7), title, font=title_f, fill=colour)
         d.text((M + 76 + d.textlength(title, font=title_f), top + 15), note, font=sub_f, fill=MUTED)
-        cy = top + 64
+        per_row = min(len(items), PER_ROW) if kind == "request" else len(items)
         for i, (source, ctitle, ctext) in enumerate(items):
-            cx = M + i * (cw + GAP)
+            cx = M + (i % per_row) * (cw + GAP)
+            cy = top + 64 + (i // per_row) * (ch + GAP)
             d.rounded_rectangle((cx, cy, cx + cw, cy + ch), radius=16, fill=CARD, outline=EDGE)
             pic = picture(source, pw, ph, kind, colour)
             if wide:
@@ -226,7 +255,7 @@ def main():
                 im.paste(pic, (cx, cy), rounded(pic, 16))
                 tx, ty, tw_ = cx + 18, cy + ph + 16, cw - 36
             d = ImageDraw.Draw(im)
-            badge(d, cx + 12, cy + 12, kind, {"done": "DONE", "doing": "IN PROGRESS", "next": "PLANNED"}[kind], colour)
+            badge(d, cx + 12, cy + 12, kind, {"done": "DONE", "doing": "IN PROGRESS", "next": "PLANNED", "request": "REQUESTED"}[kind], colour)
             tf, ts = card_t, 19
             while d.textlength(ctitle, font=tf) > tw_ - 6 and ts > 13:   # (a long title is set smaller to fit its card)
                 ts -= 1
