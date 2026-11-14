@@ -63,6 +63,15 @@ def main():
     replay = (ROOT / "gpu" / "vk" / "vk_replay.cpp").read_text(encoding="utf-8")
     if "if (id == HOS_OPT_TELEPORT_PICTURES) return menu_teleport_captures_on();" not in replay:
         failed.append("the renderer's option() must answer HOS_OPT_TELEPORT_PICTURES with menu_teleport_captures_on()")
+    # The capture's readback is as the F12 screenshot's (tests/test_capture_readback_visibility.py): the present that wrote the
+    # pixels has finished (wait_value), the CPU's cache of the mapped buffer is dropped (invalidate_mapped) before they are
+    # read, and the copy is made visible to the host right after it is recorded (capture_host_read_barrier)
+    capture = block(replay, "void teleport_capture(VkCommandBuffer cmd")
+    read = capture[:capture.index("menu_store_capture(")]
+    if not (0 <= read.find("wait_value(tp_shot.value)") < read.find("invalidate_mapped(tp_shot.buf_alloc")):
+        failed.append("teleport_capture reads its pixels before waiting for their present and invalidating the mapped buffer")
+    if not 0 <= capture.find("vkCmdCopyImageToBuffer(") < capture.find("capture_host_read_barrier(cmd, tp_shot.buf"):
+        failed.append("teleport_capture must make its copy visible to the host (capture_host_read_barrier) right after the copy")
     if failed:
         print("FAIL: " + "; ".join(failed))
         return 1
