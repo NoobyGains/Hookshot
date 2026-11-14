@@ -106,8 +106,15 @@ and the cliffs around it fit on screen.
 **Retro look** (Graphics tab, off by default) brings back the 1998 picture: **N64** draws the game at the console's 240
 lines, with colours cut to 16 bits through the N64's own 4x4 "magic square" dither (the same matrix angrylion's
 cycle-accurate N64 renderer uses), scaled up soft. It costs nothing measurable (60 FPS either way on an RTX 5090), and
-the Insert menu stays sharp over it. An **N64 + CRT** look with adjustable scanlines, phosphor mask, glow and curvature
-is being reworked after the first version's plain stripes.
+the Insert menu stays sharp over it.
+
+<img src="docs/images/features/crt-look.jpg" alt="Gerudo Valley with N64 + CRT at 1:1 pixels: the default look, then a shadow mask with strong curvature, strong scanlines with a slot mask and high glow, and light scanlines with no mask">
+
+**N64 + CRT** puts that picture on a CRT, after Timothy Lottes' public-domain CRT shader: each line is a beam that
+widens where the picture is bright, so dark parts show the lines and bright parts fill out without the picture getting
+darker, with a phosphor mask on your screen's own pixels, a soft glow and a curved screen. Five rows set it to taste:
+**CRT scanlines** (Off to Strong), **CRT mask** (aperture grille, slot or shadow mask), **CRT mask strength**, **CRT glow**
+and **CRT curvature**. The pictures above are 1:1: a shrunk screenshot of a mask shows stripes the screen does not.
 
 ### DLSS 5 neural rendering, tested
 
@@ -127,6 +134,8 @@ model's settings for when NVIDIA does ([DLSS 5 neural rendering](#dlss-5-neural-
 
 **Colour grade** (Graphics tab: Rich, Vivid, Warm, Cool, Cinematic), with **Bloom** (a glow around bright light) and **FXAA**, plus **View distance, Grass and Shadow distance** rows that change
 how far the game draws models, grass and shadows. Each has an Original setting that looks exactly like the game.
+Fixed since the first version: Bloom, Colour grade, FXAA and the Retro look did nothing unless the Window scaling filter
+or Sharpness was also on. They now work at the default settings.
 
 Behind the scenes: the Builder's **"Preparing shaders" step no longer hangs at 99%** on a driver that never finishes a
 shader, and closing the game while shaders build no longer counts against you. On Windows,
@@ -136,7 +145,7 @@ when the game closes.
 ## Roadmap
 
 <p align="center">
-  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 5 done, 5 in progress, 6 coming next, 5 feature requests, each as a card. The same items are listed as text below." width="820">
+  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 6 done, 6 in progress, 6 coming next, 5 feature requests, each as a card. The same items are listed as text below." width="820">
 </p>
 
 **Done** is on `main` now. **In progress** is being worked on at the moment. **Coming next** is planned but not
@@ -156,17 +165,20 @@ reaches.
 - **No more stuck at 99%:** the Builder's shader preparation carries on past a graphics driver that never finishes a
   shader, and closing the game while shaders build no longer counts against you
 - **Retro N64 look:** the picture at the console's 240 lines with its own dither; the loading screen's 3D Hookshot
+- **A better CRT look:** scanline beams, a phosphor mask, glow and curvature for the Retro look, each set in the menu
+  (after Timothy Lottes' public-domain CRT shader)
 - Also: the one-click Windows HDR launcher, fixes from the Longshot fork and Ocarina Reborn, the water's per-light
   shadow maps (YakuzaFanA), several users, each game in its own folders, the RX 6600 / 6650 XT / 6500 XT fallback
 
 **🟡 In progress**: being worked on now
 
-- **A better CRT look:** soft scanlines, a phosphor mask, glow and curvature for the Retro look, each adjustable in
-  the menu (after Timothy Lottes' public-domain CRT shader)
 - **Mod manager:** your own mods listed in the menu, on and off, their load order and conflicts
 - **Hero mode and quiet Navi:** double damage and no recovery hearts; Navi's callouts off
 - **Screenshot key:** F12 saves the picture as you see it (with the Retro look or Colour grade), as a PNG beside the game
-- **Brightness and colour vision:** a brightness slider for non-HDR displays and colour-blind modes (next after the CRT look)
+- **Brightness and colour vision:** a brightness slider for non-HDR displays and colour-blind modes
+- **Hookshot Launcher:** after the Longshot Launcher: several builds side by side, stable, release-candidate and nightly
+  channels, saves imported from emulators and exported, an installer and updates of its own, in Hookshot's 3D look
+- **Everything from Longshot:** its newest fixes, and its open pull requests and issues sorted and brought over
 
 **⚪ Coming next**: planned, not started
 

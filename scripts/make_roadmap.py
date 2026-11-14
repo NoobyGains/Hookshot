@@ -29,13 +29,15 @@ STAGES = [
         ("counters.jpg", "Timer and counters", "Speedrun timer, death counter and the N64's rupee counter."),
         ("panel:shaders", "No more stuck at 99%", "Shader preparation carries on past a stuck graphics driver."),
         ("retro.jpg", "Retro N64 look", "240 lines and the N64's own dither, at no cost."),
+        ("crt.jpg", "A better CRT look", "Scanlines, mask, glow and curvature, each set in the menu."),
     ]),
     ("doing", "IN PROGRESS", "being worked on now", AMBER, [
-        ("panel:name:CRT", "A better CRT look", "Soft scanlines, phosphor mask, glow and curvature, each adjustable in the menu."),
         ("panel:name:Mods", "Mod manager", "Your own mods listed in the menu: on and off, load order, conflicts."),
         ("panel:name:Hero", "Hero mode, quiet Navi", "Double damage and no recovery hearts; Navi's callouts off."),
         ("panel:name:F12", "Screenshot key", "F12 saves the picture as you see it, as a PNG beside the game."),
-        ("panel:name:Eyes", "Brightness, colour vision", "A brightness slider and colour-blind modes, after the CRT look."),
+        ("panel:name:Eyes", "Brightness, colour vision", "A brightness slider and colour-blind modes."),
+        ("panel:name:Launcher", "Hookshot Launcher", "Builds side by side, update channels, saves import and export."),
+        ("panel:name:Longshot", "Everything from Longshot", "Its newest fixes, open pull requests and issues, brought over."),
     ]),
     ("next", "COMING NEXT", "planned, not started", BLUE, [
         ("chart:memory", "Memory in long sessions", "Levels off at about 33 GB on a 96 GB PC; next, held to 16 GB."),
