@@ -1436,6 +1436,9 @@ Row rows[] = {
      "Frames per second in the top right corner, and as much more as you choose.", hn_fps, false, true},
     {TAB_GAMEPLAY, "FPS counter position", &opts.fps_corner, 0, 3, 1, tx_fps_corner,
      "The corner the FPS counter shows in. While this menu is open it shows at the top right.", nullptr, false, true},
+    {TAB_GAMEPLAY, "Classic counters", &opts.classic_counters, 0, 1, 1, tx_onoff,
+     "As on the N64: no count over Link when he picks something up, and the rupees always shown in the bottom left corner "
+     "once a save is loaded. Changes at once.", nullptr, false, true},
     {TAB_GAMEPLAY, "Menu size", &opts.menu_size, 1, 3, 1, tx_menu_size,
      "How large this menu, the FPS counter and the start-up screen are drawn.", hn_menu_size, false, true},
     {TAB_GAMEPLAY, "Game speed", &opts.realtime, 0, 1, 1, tx_speed, "How the game keeps time when it runs below 60 fps.",
@@ -1651,6 +1654,7 @@ std::atomic<int> protect_hearts{-1};
 std::atomic<int> player_flight{-1};
 std::atomic<int> free_camera{0};
 std::atomic<int> cheat_action{0};
+std::atomic<int> hud_rupees{-1};   // (the game side's wallet for Classic counters, OOT_HUD_RUPEES_ID: -1 none)
 std::atomic<int> link_age{-1};
 // (Movement speed: the choice, an index of link_speeds; the game side reads it in percent, HOS_OPT_CHEAT_SPEED)
 constexpr int link_speeds[] = {100, 125, 150, 200, 300};
@@ -4220,6 +4224,27 @@ void draw_fps(ui::Ctx& c, bool under_banner) {
     }
 }
 
+/// (hookshot, from Ocarina Reborn) Classic counters' rupees, as on the N64: a green rupee and the wallet in white, outlined, in
+/// the bottom left corner (the bottom right while the FPS counter is there)
+void draw_rupees(ui::Ctx& c, int v) {
+    const float ih = 34 * c.s, iw = ih * 0.56f, px = 32 * c.s, tw = ui::size_of(c.f.strong, px, std::to_string(v).c_str()).x;
+    const bool right = opts.show_fps && opts.fps_corner == 3;
+    const float x = right ? c.w - c.safe - 8 * c.s - iw - 10 * c.s - tw : c.safe + 8 * c.s;
+    const float bottom = c.h - c.safe - 6 * c.s, cy = bottom - ih / 2, cx = x + iw / 2;
+    auto gem = [&](float k, ImVec2* out) {   // (the rupee: a long hexagon, k of its size around the middle)
+        const float hw = iw / 2 * k, hh = ih / 2 * k, side = ih * 0.22f * k;
+        out[0] = {cx, cy - hh}, out[1] = {cx + hw, cy - side}, out[2] = {cx + hw, cy + side};
+        out[3] = {cx, cy + hh}, out[4] = {cx - hw, cy + side}, out[5] = {cx - hw, cy - side};
+    };
+    ImVec2 outer[6], inner[6];
+    gem(1.0f, outer), gem(0.5f, inner);
+    c.d->AddConvexPolyFilled(outer, 6, ui::rgba(30, 170, 60));
+    c.d->AddConvexPolyFilled(inner, 6, ui::rgba(130, 245, 140));
+    for (int i = 0; i < 6; i++) c.d->AddLine(outer[i], inner[i], ui::rgba(20, 110, 40), std::max(1.0f, c.s));
+    c.d->AddPolyline(outer, 6, ui::rgba(0, 0, 0, 230), ImDrawFlags_Closed, std::max(1.5f, 2 * c.s));
+    outlined_right(c, c.f.strong, px, x + iw + 10 * c.s + tw, cy - px * 0.62f, ui::rgba(255, 255, 255), std::to_string(v).c_str());
+}
+
 /// The start-up screen: the logo, the wordmark, what the start is doing, a bar, on a warm dark. A little below the middle; what
 /// is under the logo at 0.86 of the logo's scale. startup_fade, 0 to 1, darkens it all to black as it ends
 void draw_startup(ui::Ctx& c) {
@@ -4637,6 +4662,10 @@ bool fps_take(int64_t now, int64_t shown, int64_t game, int64_t* next, int64_t* 
 // inside menu_tick's frame on the same thread does not lock itself out
 std::recursive_mutex menu_mu;
 void menu_option_set(int id, int value) {
+    if (id == OOT_HUD_RUPEES_ID) {   // (Classic counters: draw_rupees reads it)
+        hud_rupees.store(value, std::memory_order_relaxed);
+        return;
+    }
     if (id == OOT_CHEAT_AGE_ID) {   // (Link's age: the Switch age row shows it)
         if (link_age.exchange(value, std::memory_order_relaxed) != value && page == 0 && cur_tab == TAB_DEBUG) menu_refresh = true;
         return;
@@ -5451,7 +5480,8 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     const bool start = startup_on.load(std::memory_order_acquire);
     const bool fps = opts.show_fps && !start;   // (no game frames yet: not "0 FPS" over the start-up screen)
     const bool open = open_now.load(std::memory_order_relaxed);
-    if (!start && !fps && !open) {   // (nothing shows: no ImGui frame, no render pass)
+    const int rupees = opts.classic_counters && !start && !open ? hud_rupees.load(std::memory_order_relaxed) : -1;
+    if (!start && !fps && !open && rupees < 0) {   // (nothing shows: no ImGui frame, no render pass)
         // (but a new window size or Menu size since the last bake: one frame with nothing drawn that bakes the menu's glyphs
         // and measures its page for the new size, so the next open has no hitch whatever was resized while nothing showed)
         if (prebake_needed(w, h) && ui::begin(w, h)) {
@@ -5476,6 +5506,7 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     if (start) draw_startup(c);   // (under the menu)
     if (open) draw_menu(c);
     if (fps) draw_fps(c, open);
+    if (rupees >= 0) draw_rupees(c, rupees);   // (Classic counters)
     ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
     ui::record(cmd, index, w, h);
 }
@@ -5483,7 +5514,9 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
 void menu_record_image(VkCommandBuffer cmd, VkImage image, VkImageView view, uint32_t w, uint32_t h) {
     const bool open = open_now.load(std::memory_order_relaxed);
     const bool fps = opts.show_fps && !startup_on.load(std::memory_order_acquire);
-    if (!open && !fps) return;
+    const int rupees = opts.classic_counters && !open && !startup_on.load(std::memory_order_acquire)
+                           ? hud_rupees.load(std::memory_order_relaxed) : -1;
+    if (!open && !fps && rupees < 0) return;
     if (!ui::begin(w, h)) return;
     // (a still picture, drawn once in many presents: the lists where their selections are, not a step of the way there.
     // Without it the step stayed 0 here and a picture never showed a row past the first page)
@@ -5491,6 +5524,7 @@ void menu_record_image(VkCommandBuffer cmd, VkImage image, VkImageView view, uin
     ui::Ctx c = ui_ctx(w, h);
     if (open) draw_menu(c);
     if (fps) draw_fps(c, open);
+    if (rupees >= 0) draw_rupees(c, rupees);   // (Classic counters)
     ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
     ui::record_to(cmd, image, view, w, h);
 }

@@ -5558,6 +5558,7 @@ void fill_replay_table(MkwVkRenderer& t) {
         if (id == HOS_OPT_VIEW_DISTANCE) return opts.view_distance;   // (host/oot_view.c, once a frame)
         if (id == HOS_OPT_GRASS) return opts.grass;
         if (id == HOS_OPT_SHADOW_DISTANCE) return opts.shadow_distance;
+        if (id == HOS_OPT_CLASSIC_COUNTERS) return opts.classic_counters;   // (host/oot_counters.c)
         if (id == HOS_OPT_DAMAGE_TAKEN) return menu_damage_taken();
         if (id == HOS_OPT_SKIP_OPENING) return opts.skip_opening;
         if (id == HOS_OPT_FPS_CAP) return opts.fps_cap;

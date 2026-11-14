@@ -111,7 +111,7 @@ OOT = Profile(
     build_id="e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348",
     main_base=0x80020000,           # after rtld's 0x20000 bytes in Eden's layout (nx2/image.py)
     # (the order lift.py has always installed them in: two modules may add C at one site, in this order)
-    patch_modules=("oot_wide", "oot_fov", "oot_jitter", "oot_occlusion", "oot_view"),
+    patch_modules=("oot_wide", "oot_fov", "oot_jitter", "oot_occlusion", "oot_view", "oot_counters"),
     code_patch_module="oot_patches",
     gfx=Gfx(
         frame_limiter=0xfc,         # int: the rate f_8042cd20 sleeps to

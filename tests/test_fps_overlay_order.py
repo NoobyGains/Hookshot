@@ -30,7 +30,8 @@ def main():
 #include <string>
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "FAIL:%d %s\n", __LINE__, #x); std::exit(1); } } while (0)
 using VkCommandBuffer = int;
-struct { bool show_fps = false; } opts;
+struct { bool show_fps = false; int classic_counters = 0; } opts;
+std::atomic<int> hud_rupees{-1};   // (Classic counters' wallet, drawn as "$")
 std::atomic<bool> open_now{false}, startup_on{false};
 std::string calls;
 bool can_draw = true;
@@ -53,16 +54,20 @@ bool prebake_needed(uint32_t, uint32_t) { return resized; }
 void draw_startup(ui::Ctx&) { calls += "s"; }
 void draw_menu(ui::Ctx&) { calls += "m"; }
 void draw_fps(ui::Ctx&, bool under_banner) { calls += under_banner ? "F" : "f"; }
+void draw_rupees(ui::Ctx&, int v) { CHECK(v == 42); calls += "$"; }
 ''' + fn + r'''
 int main() {
-    for (bool startup : {false, true}) for (bool fps : {false, true}) for (bool menu : {false, true}) for (bool can : {true, false}) {
+    for (bool startup : {false, true}) for (bool fps : {false, true}) for (bool menu : {false, true}) for (bool can : {true, false})
+    for (bool wallet : {false, true}) {
         opts.show_fps = fps;
+        opts.classic_counters = wallet, hud_rupees = wallet ? 42 : -1;
+        const bool rupees = wallet && !menu && !startup;   // (Classic counters: not over the menu or the start-up screen)
         open_now = menu;
         startup_on = startup;
         can_draw = can;
         calls.clear();
         menu_record(1, 2, 640, 360);
-        if (!startup && !fps && !menu) {   // (nothing shows: no ImGui frame at all, only the reaping; after a resize, one bake)
+        if (!startup && !fps && !menu && !rupees) {   // (nothing shows: no ImGui frame at all, only the reaping; after a resize, one bake)
             CHECK(calls == "i");
             calls.clear(), resized = true;
             menu_record(1, 2, 640, 360);
@@ -75,6 +80,7 @@ int main() {
         if (startup) want += "s";
         if (menu) want += "m";
         if (fps && !startup) want += menu ? "F" : "f";
+        if (rupees) want += "$";
         want += "dr";   // (the recorder boundary right before the recording)
         CHECK(calls == want);
     }
