@@ -29,6 +29,10 @@ NAMES = {
     "preselected": "HLE(_ZN2nn7account22TryOpenPreselectedUserEPNS0_10UserHandleE) {",
 }
 UID = "static const uint64_t user_uid[2] ="
+# (what TryOpenPreselectedUser calls since the account's users became several: a handle is put by account_put_handle)
+HELPERS = ("static void account_uid(int user, uint64_t uid[2]) {",
+           "static void account_put_handle(uint64_t at, int user, uint64_t third) {")
+OPEN = "static volatile LONG account_open[ACCOUNT_USERS_MAX];"
 
 
 def check(cond, what):
@@ -50,6 +54,8 @@ FIXTURE = r'''#include <stdint.h>
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL:%d %s\n", __LINE__, #x); exit(1); } } while (0)
 typedef long LONG;
 static LONG InterlockedExchange(volatile LONG *p, LONG v) { LONG o = *p; *p = v; return o; }
+static LONG InterlockedIncrement(volatile LONG *p) { return ++*p; }
+#define ACCOUNT_USERS_MAX 8
 typedef struct { uint64_t x[32]; } Ctx;
 static uint8_t mem[0x10000];   /* guest memory: addresses are offsets into it */
 #define GP(a) ((void *)(mem + (a)))
@@ -60,6 +66,7 @@ static uint8_t mem[0x10000];   /* guest memory: addresses are offsets into it */
 static int said;
 static void hos_log(const char *fmt, ...) { (void)fmt; said++; }
 @UID@
+@HELPERS@
 @FUNCTIONS@
 
 int main(void) {
@@ -104,7 +111,9 @@ def main():
     check(UID in source, "host/nn_applet.c has no '%s'" % UID)
     uid = source[source.index(UID):source.index(";", source.index(UID)) + 1]
     funcs = "\n".join(function(source, m) for m in NAMES.values())
-    fixture = FIXTURE.replace("@UID@", uid).replace("@FUNCTIONS@", funcs)
+    check(OPEN in source, "host/nn_applet.c has no '%s'" % OPEN)
+    helpers = "\n".join([OPEN] + [function(source, m) for m in HELPERS])
+    fixture = FIXTURE.replace("@UID@", uid).replace("@HELPERS@", helpers).replace("@FUNCTIONS@", funcs)
     with tempfile.TemporaryDirectory(prefix="offline-answers-") as tmp:
         src, exe = Path(tmp, "offline.c"), Path(tmp, "offline")
         src.write_text(fixture, encoding="utf-8")
