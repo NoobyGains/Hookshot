@@ -757,17 +757,40 @@ static void oot_inventory_refresh(Ctx *c, int64_t now) {
         }
     }
     if (!probed && oot_pouch_count(c, "Item_DekuSeed") >= 0) {
-        probed = 1;   /* (one line naming every count, both spellings: which names the pouch knows) */
+        probed = 1;   /* (each editor value, plus the alternative pouch spellings) */
         static const char *const probes[] = {OOT_CHEAT_ITEM_PROBES};
         const unsigned total = (unsigned)(OOT_ITEM_COUNT + sizeof probes / sizeof probes[0]);
         char line[512];
         size_t used = 0;
         for (unsigned i = 0; i < total; i++) {   /* (several short lines: the log cuts long ones) */
             const char *name = i < OOT_ITEM_COUNT ? oot_item_names[i] : probes[i - OOT_ITEM_COUNT];
-            used += (size_t)snprintf(line + used, sizeof line - used, " %s=%d", name, oot_pouch_count(c, name));
+            const int count = i < OOT_ITEM_COUNT ? oot_item_count(c, name) : oot_pouch_count(c, name);
+            used += (size_t)snprintf(line + used, sizeof line - used, " %s=%d", name, count);
             if (used > 300 || i + 1 == total) hos_log("cheats: inventory probe:%s", line), used = 0;
         }
     }
+}
+
+/* Learned songs use saved IsGet.<actor> Bool flags rather than pouch quantities.
+   These are their MurmurHash3 x86-32 hashes with seed 0. */
+static uint32_t oot_song_flag(const char *name) {
+    static const struct { const char *name; uint32_t hash; } songs[] = {
+        {"Item_Melody_ZeldaLullaby", 0x01c20002u},
+        {"Item_Melody_EponaSong", 0xb492ac33u},
+        {"Item_Melody_SariaSong", 0xd3f8bfccu},
+        {"Item_Melody_SunSong", 0x165dd1adu},
+        {"Item_Melody_TimeSong", 0x03b3450eu},
+        {"Item_Melody_StormSong", 0x2b39dd4fu},
+        {"Item_Melody_ForestMinuet", 0xdc0a0b54u},
+        {"Item_Melody_FireBolero", 0x49041ab9u},
+        {"Item_Melody_WaterSerenade", 0x3fa63986u},
+        {"Item_Melody_ShadowNocturne", 0xc2fb95f4u},
+        {"Item_Melody_SpiritRequiem", 0x802a36a8u},
+        {"Item_Melody_LightPrelude", 0xd6320ba4u},
+    };
+    for (unsigned i = 0; i < sizeof songs / sizeof songs[0]; i++)
+        if (!strcmp(name, songs[i].name)) return songs[i].hash;
+    return 0;
 }
 
 /* Masks share one slot (the Happy Mask Shop lends one at a time). The game takes "Item_Mask_X" when adding one and
@@ -778,6 +801,11 @@ static int oot_mask_alias(const char *name, char *alias, size_t size) {
 }
 
 static int oot_item_count(Ctx *c, const char *name) {
+    const uint32_t song = oot_song_flag(name);
+    if (song) {
+        int learned = 0;
+        return oot_gamedata_bool(c, song, &learned) ? learned : -1;
+    }
     char alias[64];
     const int n = oot_pouch_count(c, name);
     if (!oot_mask_alias(name, alias, sizeof alias)) return n;
@@ -789,9 +817,19 @@ static void oot_inventory_edit(Ctx *c, int action) {
     const unsigned item = (unsigned)(action - OOT_CHEAT_ITEM_ACTION) / 256, op = (unsigned)(action - OOT_CHEAT_ITEM_ACTION) % 256;
     if (item >= OOT_ITEM_COUNT) return;
     const char *name = oot_item_names[item];
+    const int have = oot_item_count(c, name);
+    const uint32_t song = oot_song_flag(name);
+    if (song) {
+        if (op != 200 || have < 0) return;   /* songs have no editable quantity */
+        if (!oot_gamedata_set_bool(c, song, !have)) {
+            hos_log("cheats: song %s: learned flag unavailable", name);
+            return;
+        }
+        hos_log("cheats: song %s %s (had %d, now %d)", name, have ? "relocked" : "unlocked", have, oot_item_count(c, name));
+        return;
+    }
     char alias[64];
     const int is_mask = oot_mask_alias(name, alias, sizeof alias);
-    const int have = oot_item_count(c, name);
     int delta = 0;
     if (op == 200) delta = have > 0 ? -have : 1;   /* unlock / relock */
     else if (op < 128) delta = (int)op - 64;
