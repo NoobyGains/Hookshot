@@ -36,7 +36,7 @@ STAGES = [
     ("doing", "IN PROGRESS", "being built and tested now", AMBER, [
         ("panel:name:Mods", "Mod manager", "Your own mods listed in the menu: on and off, load order, conflicts."),
         ("panel:name:Hero", "Hero mode, quiet Navi", "Double damage and no recovery hearts; Navi's callouts off."),
-        ("panel:name:Launcher", "Hookshot Launcher", "Builds side by side, update channels, saves import and export."),
+        ("launcher.jpg", "Hookshot Launcher", "Builds side by side, update channels, saves import and export."),
         ("panel:name:Toggle", "Toggle buttons, Mono", "Tap a button to hold it (shield, aim); a Mono sound output."),
         ("panel:name:Memory", "Less memory, faster start", "Video memory only where the game uses it; prompts in 20 s, not 160."),
         ("panel:name:Steady", "A steadier picture", "HUD labels, Gossip Stones with frame generation, HDR flicker, sharper scaling."),
