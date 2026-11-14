@@ -8,7 +8,8 @@ mods/hookshot-mods.ini by the host (host/mods.c; its own checks: tests/test_mods
   Left, Right and Enter on and off, the tab keys moving the mod, Esc and a right click going back, the mouse choosing a row,
   setting Off or On by its halves and moving by the arrows; a change saved (mods_commit) only when something changed;
 - the menu's wiring, read from the source: the Gameplay row before Bug report, opened ahead of the Controls page's catch-all,
-  drawn as page 6, its one slot in the restart question, its value cell, its save through MkwVkHost.mods_save;
+  drawn as page 6, its one slot in the restart question, its value cell, its save through MkwVkHost.mods_save, the pipeline
+  report listing the mods this run loaded;
 - the interface (AGENTS.md): MKWVK_API_VERSION bumped to 23 for MkwVkHost's mod, mod_shared and mods_save, MkwVkMod's fields,
   and host/rx_backend.c's table giving one function per member in order.
 
@@ -283,6 +284,8 @@ def source_checks():
          "restart_state.note(now);" in commit, "mods_commit does not hand the choice to the host, or the restart question")
     need("is_mods_row(r)" in function(menu, "void row_value_cell(ui::Ctx& c, const Row& r, ImVec2 va, ImVec2 vb, bool selected, float* t0, float* t1) {"),
          "the Mods row's value cell")
+    share = function(menu, "std::vector<std::string> share_values(long long pipelines, bool v2, long long computes) {")
+    need("if (m.on_start) mods.push_back(m.name);" in share, "the pipeline report does not list the mods this run loaded (host/mods.c's)")
     need(re.search(r"\w+ scroll_at\[TAB_MOTION \+ 3\];", menu) and "kModsSlot = TAB_MOTION + 2" in menu,
          "the Mods page has no scroll slot of its own")
     return function(menu, "void mods_tick(")

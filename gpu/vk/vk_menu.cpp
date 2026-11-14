@@ -2548,8 +2548,14 @@ std::vector<std::string> share_values(long long pipelines, bool v2, long long co
     v[3] = std::string(tx_upscaler(opts.dlss)) + ", " + tx_resolution(opts.resolution);
     v[4] = std::string(tx_framegen(std::clamp(opts.framegen, 0, 8))) + " / " + tx_hdr(opts.hdr);
     std::vector<std::string> mods;
-    const char* env = getenv("HOS_MODS");
-    share_find_mods(env && *env ? std::string(env) : game_folder() + "mods", "", 0, mods);
+    mods_load();
+    if (host && host->mod) {   // (hookshot: those this run loaded, as host/mods.c has them: hookshot-mods.ini's off ones out)
+        for (const mp::Mod& m : mods_list.mods)
+            if (m.on_start) mods.push_back(m.name);
+    } else {
+        const char* env = getenv("HOS_MODS");
+        share_find_mods(env && *env ? std::string(env) : game_folder() + "mods", "", 0, mods);
+    }
     std::sort(mods.begin(), mods.end(), [](const std::string& a, const std::string& b) {   // (case-insensitive, as the builders sort)
         return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(),
                                             [](char x, char y) { return tolower((unsigned char)x) < tolower((unsigned char)y); });

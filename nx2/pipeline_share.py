@@ -156,15 +156,59 @@ def framegen_hdr_text(values):
     return "%s / %s" % (FRAMEGEN[fg] if 0 <= fg < len(FRAMEGEN) else "Off", HDR[hdr] if 0 <= hdr < len(HDR) else "Off")
 
 
+def _ascii_lower(s):
+    """s with A to Z lower case and nothing else, as host/mods.c's _stricmp compares names"""
+    return s.translate(_ASCII_LOWER)
+
+
+_ASCII_LOWER = {c: c + 32 for c in range(ord("A"), ord("Z") + 1)}
+
+
+def mods_off(root):
+    """The mods mods/hookshot-mods.ini turns off (the Insert menu's Mods page writes it), their names lower case, as host/mods.c
+    reads the file: a line a mod, its name then "= on" or "= off" (1, yes, true; 0, no, false), split at the last '='; a name
+    alone, or with a value that is none of those, is on; ';' starts a comment; "./" before a name is dropped, '\\' is '/'"""
+    try:
+        with open(os.path.join(root, "hookshot-mods.ini"), "rb") as f:
+            text = f.read(1 << 20).decode("utf-8", "replace")
+    except OSError:
+        return set()
+    if text.startswith("\ufeff"):
+        text = text[1:]
+    off, seen = set(), set()
+    for line in text.split("\n"):
+        line = line.strip(" \t\r")
+        if not line or line.startswith(";"):
+            continue
+        on, name = True, line
+        if "=" in line:
+            head, _, value = line.rpartition("=")
+            value = value.strip(" \t").lower()
+            if value in ("on", "1", "yes", "true", "off", "0", "no", "false"):
+                on, name = value in ("on", "1", "yes", "true"), head.strip(" \t")
+        name = name.replace("\\", "/")
+        if name.startswith("./"):
+            name = name[2:]
+        name = _ascii_lower(name.rstrip("/"))
+        if name and name not in seen:   # (a name given twice: the first counts)
+            seen.add(name)
+            if not on:
+                off.add(name)
+    return off
+
+
 def find_mods(folder):
     """The mods the game loads from the game folder's mods folder, by the rule host/mods.c follows: a folder holding romfs or
-    exefs, up to four folders deep, those whose names start with '-' or '_' left out (off)"""
+    exefs, up to four folders deep, those whose names start with '-' or '_' left out (off), and those mods/hookshot-mods.ini
+    turns off"""
     root = os.path.join(folder, "mods")
+    off = mods_off(root)
     found = []
 
     def walk(d, name, depth):
         if depth > 0 and (os.path.isdir(os.path.join(d, "romfs")) or os.path.isdir(os.path.join(d, "exefs"))):
-            found.append(name)
+            if _ascii_lower(name) not in off:
+                found.append(name)
             return
         if depth >= 4:
             return
