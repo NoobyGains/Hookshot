@@ -1314,7 +1314,8 @@ Hookshot exists thanks to the work of many people:
 - Everyone who sent fixes: SkippySteve (Linux and the AppImage, and many more), monsterlag, klimovich008, hckrman101 (NVIDIA
   DLSS, DLAA and Reflex, the exposure flicker and fog fixes, build speed, CI), madebyjordan (AMD FSR 4.1), N3oTraX (FSR 4 on
   Linux), shayderrr, gab9281, Wpaif, nicholasgower, ZurielAtr, Joey-Magnus, Zorkats,
-  d3zessete, chrispository, vzeol, leonidasmark, Segmentree, ShyVortex, hiKareeem and i900gaming, among others.
+  d3zessete, chrispository, vzeol, leonidasmark, Segmentree, ShyVortex, hiKareeem, i900gaming and YakuzaFanA (each
+  light's own shadow map in the water's light loop), among others.
 
 </details>
 
