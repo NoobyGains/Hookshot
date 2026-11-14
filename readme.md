@@ -494,6 +494,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Bloom | Off, Low, Medium, High (a glow around bright light; not with HDR set to Native; changes at once) | Off |
 | | Colour grade | Off, Rich, Vivid, Warm, Cool, Cinematic (not with HDR set to Native; changes at once) | Off |
 | | Brightness | 70% to 150% (a gamma curve: the mid-tones lighter or darker, black and white kept; for SDR, with HDR on set HDR paper white instead; changes at once) | 100% |
+| | Colour vision | Off, Protanopia, Deuteranopia, Tritanopia (daltonization for colour blindness: the colours it confuses moved to ones that can be told apart, by Machado et al.'s 2009 model and the daltonize error shift after Fidaner et al.; not a simulation; greys unchanged; not with HDR set to Native; changes at once) | Off |
 | | Retro look | Off, N64 (the picture at the Nintendo 64's 240 lines, soft, its colours cut to 16 bits with the console's dither), N64 + CRT (that picture on a CRT, after Timothy Lottes' CRT shader, set by the five CRT rows below); in the Window scaling filter's, FXAA's and Sharpness's place, the menu left sharp; not with HDR set to Native; changes at once | Off |
 | | CRT scanlines | Off, Light, Medium, Strong (the dark between the lines of light; bright parts fill out; with Retro look N64 + CRT) | Medium |
 | | CRT mask | Off, Aperture grille, Slot mask, Shadow mask (the screen's red, green and blue on your screen's pixels; with N64 + CRT) | Aperture grille |
@@ -1366,6 +1367,9 @@ Hookshot exists thanks to the work of many people:
 - **hotoni** (the Graphics-Menu mod): where the game keeps its view, grass and shadow distances.
 - **[angrylion-rdp-plus](https://github.com/ata4/angrylion-rdp-plus)**: the Nintendo 64's colour dither (its magic square),
   which the Retro look uses.
+- **Machado, Oliveira and Fernandes** ([A Physiologically-based Model for Simulation of Color Vision
+  Deficiency](https://www.inf.ufrgs.br/~oliveira/pubs_files/CVD_Simulation/CVD_Simulation.html), IEEE TVCG 2009) and
+  **Fidaner, Lin and Ozguven** (Analysis of Color Blindness, Stanford 2005): the Colour vision row's model and its daltonization.
 - **Timothy Lottes**: his public-domain CRT shader
   ([crt-lottes](https://github.com/libretro/glsl-shaders/blob/master/crt/shaders/crt-lottes.glsl)), the model of the Retro
   look's N64 + CRT: its scanline beams, horizontal softness, glow, masks and curvature.

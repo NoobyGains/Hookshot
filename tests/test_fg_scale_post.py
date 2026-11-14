@@ -179,7 +179,7 @@ class PostTests(unittest.TestCase):
         # (the Retro look: its sharp 0, the push constants' last field; the small picture its 240 lines, no more than the picture)
         push = re.search(r"ScalePush pc\{(.*?)\};", body, re.S).group(1)
         self.assertIn("retro ? 0.0f : opts.sharpness / 100.0f", push)
-        self.assertTrue(" ".join(push.split()).endswith("fxaa, retro, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, gamma"), push)
+        self.assertTrue(" ".join(push.split()).endswith("fxaa, retro, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, gamma, cvd"), push)
         self.assertIn("const uint32_t rh = std::min(source.h, kRetroLines);", body)
         self.assertIn("const uint32_t rw = std::clamp((uint32_t)std::lround((double)rh * dw / dh), 1u, source.w);", body)
         self.assertIn("const uint32_t smw = retro ? rw : std::max(1u, source.w / 8), smh = retro ? rh : std::max(1u, source.h / 8);",
@@ -188,7 +188,29 @@ class PostTests(unittest.TestCase):
     # (framegen_scale's early-out terms that are rows of the pass's own, and the option each reads: scale_post_wanted must
     # ask each, or do_present makes no view and the pass never runs on the plain window copy)
     EARLY_OUT_ROWS = {"!look": "opts.grade", "bloom <= 0.0f": "opts.bloom", "!fxaa": "opts.fxaa", "!retro": "opts.retro",
-                      "gamma == 1.0f": "opts.brightness"}
+                      "gamma == 1.0f": "opts.brightness", "!cvd": "opts.colour_vision"}
+
+    def test_colour_vision(self):
+        # (the row after Brightness: Off and the three, saved as colour_vision; not on pq; last in finish(), after Brightness)
+        self.assertIn('{TAB_GRAPHICS, "Colour vision", &opts.colour_vision, 0, kCvds - 1, 1, tx_colour_vision,', self.menu)
+        self.assertLess(self.menu.index('{TAB_GRAPHICS, "Brightness"'), self.menu.index('{TAB_GRAPHICS, "Colour vision"'))
+        self.assertEqual(re.findall(r'"([^"]*)"', re.search(r"const char\* tx_colour_vision\(int v\) \{[^}]*\}", self.menu).group(0)),
+                         ["Off", "Protanopia", "Deuteranopia", "Tritanopia"])
+        self.assertEqual(int(re.search(r"inline constexpr int kCvds = (\d+);", self.post).group(1)), 4)
+        row = " ".join(re.sub(r'"\s*"', "", block(self.menu, '{TAB_GRAPHICS, "Colour vision"')).split())
+        for words in ("daltonization", "Machado", "Fidaner", "Not a simulation", "greys and white stay as they are",
+                      "Not with HDR set to Native"):
+            self.assertIn(words, row)
+        self.assertTrue(row.endswith("nullptr, false, true}"))
+        self.assertIn("int colour_vision = 0;", self.options)
+        self.assertNotIn("&opts.colour_vision", block(self.menu, "const char* ini_key(const Row& r)"))
+        body = block(self.fg, "VkImage framegen_scale(")
+        self.assertIn("const int cvd = pq ? 0 : std::clamp(opts.colour_vision, 0, kCvds - 1);", body)
+        self.assertIn("opts.colour_vision > 0", block(self.fg, "bool scale_post_wanted()"))
+        finish = block(self.comp, "vec3 finish(vec3 c)")
+        self.assertIn("if (pc.cvd != 0)", finish)
+        self.assertIn("daltonize(vec3(to_light(c.r), to_light(c.g), to_light(c.b)), pc.cvd)", finish)
+        self.assertLess(finish.index("brighten("), finish.index("daltonize("), "colour vision last, on the picture as it is seen")
 
     def test_brightness(self):
         # (the row next to the Colour grade, 70% to 150% in 5s, 100% the game's picture, saved as brightness; for an SDR window

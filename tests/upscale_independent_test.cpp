@@ -14,7 +14,7 @@
 #include "fg_scale_post.h"   // (framegen_scale's push constants and the FXAA, Bloom, Colour grade and Retro look rows' tables)
 using mkwvk::ScalePush, mkwvk::kGrades, mkwvk::kBloomSteps, mkwvk::kGradeLooks, mkwvk::kBloomLevels, mkwvk::kRetroLooks,
     mkwvk::kRetroLines, mkwvk::kCrtScans, mkwvk::kCrtMasks, mkwvk::kCrtGlows, mkwvk::kCrtCurves, mkwvk::kCrtScan, mkwvk::kCrtGlow,
-    mkwvk::kCrtCurve;
+    mkwvk::kCrtCurve, mkwvk::kCvds;
 #include <utility>
 #include "vk_present_rect.h"
 using mkwvk::PresentSourceRect;
@@ -48,7 +48,7 @@ struct VkImageBlit { Layers srcSubresource, dstSubresource; Offset srcOffsets[2]
 struct Extent { uint32_t width = 0, height = 0, depth = 0; };
 struct VkImageCopy { Layers srcSubresource; Offset srcOffset; Layers dstSubresource; Offset dstOffset; Extent extent; };
 struct {
-    int upscale = 0, sharpness = 0, framegen = 0, fxaa = 0, bloom = 0, grade = 0, retro = 0, brightness = 100;
+    int upscale = 0, sharpness = 0, framegen = 0, fxaa = 0, bloom = 0, grade = 0, retro = 0, brightness = 100, colour_vision = 0;
     int crt_scanlines = 2, crt_mask = 1, crt_mask_strength = 30, crt_glow = 2, crt_curvature = 1;   // (vk_menu.h's defaults)
 } opts;
 // (hookshot) The Upscaling row carries two things: 0-2 filter the finished picture and 3-4 name a
@@ -215,7 +215,15 @@ int main() {
     reset(); opts.brightness = 150; dev.hdr = true; CHECK(!draw()); CHECK(dispatches == 0);
     opts.grade = 2; CHECK(draw()); CHECK(dispatched_pc.gamma == 1.0f); dev.hdr = false;
     reset(); opts.brightness = 150; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
-    reset(); opts.grade = 1; CHECK(draw()); CHECK(dispatched_pc.gamma == 1.0f);
+    reset(); opts.grade = 1; CHECK(draw()); CHECK(dispatched_pc.gamma == 1.0f && dispatched_pc.cvd == 0);
+    // (Colour vision: each of the three alone runs the pass with its type, a value past the last the last; not on pq; with HDR
+    // expanded it still runs, on the SDR picture before the expansion)
+    for (int type = 1; type <= 3; type++) {
+        reset(); opts.colour_vision = type; CHECK(draw()); CHECK(dispatches == 1 && dispatched_pc.cvd == type);
+    }
+    reset(); opts.colour_vision = 9; CHECK(draw()); CHECK(dispatched_pc.cvd == 3);
+    reset(); opts.colour_vision = 2; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
+    reset(); opts.colour_vision = 1; dev.hdr = true; CHECK(draw()); CHECK(dispatched_pc.cvd == 1 && dispatched_pc.gamma == 1.0f);
     reset(); opts.retro = -3; CHECK(!draw()); CHECK(dispatches == 0);
     reset(); opts.retro = 2; CHECK(!draw(nullptr, 2560, 1440, true)); CHECK(dispatches == 0);
     // (a picture under 240 lines: its own size, never more pixels than it has, however wide the window)
