@@ -3249,7 +3249,6 @@ const char* retake_conflict(int code) {
     switch (code) {
     case VK_INSERT: case VK_F1: case VK_ESCAPE: return "opening this menu";
     case VK_F11: return "Fullscreen";
-    case VK_F12: if (opts.screenshot_key) return "the Screenshot key"; break;   // (hookshot: Controls > Screenshot key)
     case VK_OEM_MINUS: case VK_OEM_PLUS: case VK_SUBTRACT: case VK_ADD: return "the mouse's sensitivity";
     case VK_PRIOR: case VK_NEXT: case VK_CONTROL: return "the free camera";
     case VK_DELETE: return "clearing this button";
