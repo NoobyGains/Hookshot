@@ -70,9 +70,16 @@ enum { HOS_OPT_VIEW_DISTANCE = 57, HOS_OPT_GRASS, HOS_OPT_SHADOW_DISTANCE };
 /* (HOS_OPT_CLASSIC_COUNTERS, 61: the Gameplay tab's Classic counters, host/oot_counters.c: 0 Off, 1 On; live. 60 is kept
    for the Item wheel: tests/test_option_ids.py) */
 enum { HOS_OPT_CLASSIC_COUNTERS = 61 };
+/* (HOS_OPT_HERO_MODE, 62: the Gameplay tab's Hero mode, 0 Off, 1 On; live: host/oot_damage.c doubles the damage Link takes and
+   host/oot_hero.c takes the recovery hearts out of the drop lotteries' results, nx2/oot_patches.py patch_drops) */
+enum { HOS_OPT_HERO_MODE = 62 };
 /* (HOS_OPT_AUDIO_OUTPUT, 63: the Audio output row, 0 Auto, 1 Stereo, 2 5.1, 3 Mono; host/nn_audio.c averages the final stereo
    output live on Mono only. Longshot has it at 57, which View distance has here) */
 enum { HOS_OPT_AUDIO_OUTPUT = 63 };
+/* (HOS_OPT_NAVI_CALLOUTS, 64: the Gameplay tab's Navi callouts, 1 On (the game's), 0 Off; host/oot_navi.c, nx2/oot_patches.py
+   patch_navi_hints: Off, no area hint is registered with Navi, from the next one the game would register. 63 is the Longshot
+   port's Audio output, 54 its Hold toggle) */
+enum { HOS_OPT_NAVI_CALLOUTS = 64 };
 
 /* (hookshot) the controls' names (host/nn_hid.c, host/pad_sdl.c, the pad_ and key_ lines of hookshot_options.ini):
    the Switch's buttons in nn::hid's bit order, and a gamepad's inputs by position (the bottom face button first:

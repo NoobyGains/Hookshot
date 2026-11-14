@@ -856,6 +856,62 @@ HEAP_ALLOC_NEW = ("{ const uint64_t _hh = c->x[0], _hn = c->x[1], _ha = c->x[2];
 HEAP_ALLOC_DECL = "int hos_oot_heap_refuse(void);\nvoid hos_oot_heap_retry(Ctx *c, uint64_t heap, uint64_t size, uint64_t align, uint64_t lr);\n"
 
 
+# Hero mode (host/oot_hero.c): the drop lotteries' calls, each followed by hos_oot_drops with the list the lottery filled (its x1,
+# kept from before the call), which takes the recovery hearts out of it while the row is on. f_82f145e0 draws an actor's drops
+# from its drop tables (and makes the master data's replacements: a heart at full health a green rupee); f_82f162f0 is the
+# simple draw f_807a4460 takes when its x4's bit 0 asks. These five are every call of the two in the supported build, none
+# through a pointer: f_807a4460's two, f_812178c0's, and f_82e0b560's and f_82e0b6a0's, which the AI queries
+# QueryDropGetLotteryActorName (f_82a069b0) and QueryDropSelectActorFromDropTable (f_82a06f00) call for the name of the actor
+# drawn ("" when none). (the calls' return addresses, and the function each calls)
+DROP_SITES = ((0x807a4560, "f_82f162f0"), (0x807a4568, "f_82f145e0"), (0x81217a64, "f_82f145e0"), (0x82e0b5c4, "f_82f145e0"),
+              (0x82e0b6f8, "f_82f145e0"))
+DROP_OLD = "c->x[30] = %#xULL; %s(c);"
+DROP_NEW = ("{ const uint64_t _hd = c->x[1]; c->x[30] = %#xULL; %s(c); hos_oot_drops(c, _hd); }"
+            "   /* (nx2/oot_patches.py: Hero mode, host/oot_hero.c) */")
+DROP_DECL = "extern void hos_oot_drops(Ctx *c, uint64_t list);\n"   # (extern: tests/test_patch_hooks_defined.py finds it)
+
+
+def patch_drops(s):
+    """The lotteries' calls of DROP_SITES in one file's text, each followed by the Hero mode filter: (text, the sites made now or
+    found made). report() wants len(DROP_SITES) over the whole lift and warns otherwise"""
+    found = 0
+    made = False
+    for lr, fn in DROP_SITES:
+        old, new = DROP_OLD % (lr, fn), DROP_NEW % (lr, fn)
+        if new in s:   # (made before: a lift patched again)
+            found += 1
+        elif s.count(old) == 1 and s.count('#include "a64.h"\n') == 1:
+            s = s.replace(old, new, 1)
+            found += 1
+            made = True
+    if made and DROP_DECL not in s:
+        s = s.replace('#include "a64.h"\n', '#include "a64.h"\n' + DROP_DECL, 1)
+    return s, found
+
+
+# Navi callouts (host/oot_navi.c): f_80ccf0f0 registers an area hint with Navi's hint manager (x0 the registry, the manager's
+# +0x141c0; x1 the NaviAreaHintEventActor; x2 its AreaHintEventName; x3 its AreaHintPriority; 1 back when registered). Its one
+# caller is the AI node ExecuteNaviAreaHintRegist (f_80cceec0), which each NaviAreaHintEventActor the maps and logic graphs
+# place runs. With the row Off it returns 0 at once, as the game's own does with its registry full: no area hint, so no
+# "Hey! Listen!" for one and none to give when asked. Taking one off (f_80ccf290) finds none, as the game's own allows.
+NAVI_HINT_HEAD = "void f_80ccf0f0(Ctx *__restrict A64_NOESC c) {\n"
+NAVI_HINT_CALL = ("    if (hos_oot_navi_hints_off()) { c->x[0] = 0; return; }   /* (nx2/oot_patches.py: Navi callouts, "
+                  "host/oot_navi.c) */\n")
+NAVI_HINT_DECL = "extern int hos_oot_navi_hints_off(void);\n"
+
+
+def patch_navi_hints(source):
+    """f_80ccf0f0 starts with the Navi callouts row's check. None without the function; a file patched before as it is"""
+    start = source.find(NAVI_HINT_HEAD)
+    if start < 0:
+        return None
+    if NAVI_HINT_CALL in source:
+        return source
+    at = start + len(NAVI_HINT_HEAD)
+    source = source[:at] + NAVI_HINT_CALL + source[at:]
+    return source.replace('#include "a64.h"\n', '#include "a64.h"\n' + NAVI_HINT_DECL, 1)
+
+
 def patch_heap_retry(s):
     """The four places above in one file's text: (text, [GPU sites, CPU sites] made now or found made). apply() wants
     [2, 2] over the whole lift and warns otherwise"""
@@ -1086,6 +1142,17 @@ def patch_file(s, name, protect_hearts=False):
     if heap != out:
         lines.append("oot_patches: heap-full retries of the OptimizeChangeBank allocations in " + name)
     out = heap
+    drops, found = patch_drops(out) if protect_hearts else (out, 0)
+    counts["drop sites"] += found
+    if drops != out:
+        lines.append("oot_patches: Hero mode's heart filter after the drop lotteries in " + name)
+    out = drops
+    navi = patch_navi_hints(out) if protect_hearts else None
+    if navi is not None:
+        if navi != out:
+            lines.append("oot_patches: the Navi callouts row at the area hints' registration in " + name)
+        out = navi
+        counts["Navi callouts hook"] += 1
     out, whole = patch_whole_frames(out)
     counts["whole sites"] += out.count(WHOLE_MARK)   # (made now, or by an earlier run over this file)
     if whole:
@@ -1137,6 +1204,7 @@ def report(paths, counts, protect_hearts=False):
         done["disable camera centering"] = 0
         done["scene format"] = 0
         done["zstd stream hook"] = 0
+        done["Navi callouts hook"] = 0
     total = collections.Counter()
     for c in counts:
         total.update(c)
@@ -1148,6 +1216,9 @@ def report(paths, counts, protect_hearts=False):
     if protect_hearts and heap_sites != [len(GPU_ALLOC_SITES), len(HEAP_ALLOC_SITES)]:   # (the supported build's functions)
         print("oot_patches: WARNING: the OptimizeChangeBank allocations were found %s times, not once each: a full heap is "
               "not tried again" % heap_sites)
+    if protect_hearts and total["drop sites"] != len(DROP_SITES):   # (without one, Hero mode leaves that caller's hearts)
+        print("oot_patches: WARNING: the drop lotteries' calls were found at %d of %d places: with Hero mode on, the drops of "
+              "those not found keep their hearts" % (total["drop sites"], len(DROP_SITES)))
     step_sites = total["step sites"]   # (the divides with the hook)
     step_files = [p for p, c in zip(paths, counts) if c["step sites"]]   # (the files that have it)
     whole_sites = total["whole sites"]   # (the counters of WHOLE_SITES with the whole frames: patch_whole_frames)

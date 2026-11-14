@@ -70,6 +70,8 @@ struct Options {
                                 // always in the bottom left corner (host/oot_counters.c, draw_rupees)
     int speedrun_timer = 0;     // (hookshot, from Ocarina Reborn) real time in the top left corner, paused while the menu is open
     int death_counter = 0;      // and how often Link's hearts reached zero since the start, under it (host/oot_deaths.c)
+    int hero_mode = 0;          // (hookshot) Hero mode: double damage (host/oot_damage.c) and no recovery heart drops (host/oot_hero.c)
+    int navi_callouts = 1;      // (hookshot) 0: Navi's area hints are not registered, no "Hey! Listen!" for them (host/oot_navi.c)
     int menu_shortcut = 2;   // 0 Insert or F1, 1 F1 only, 2 Insert, F1 or Esc (F1 always opens the menu). 2 by default, as a PC
                              // game's pause menu; an older file's 0, the default it then was, moves to 2 (options_version 5)
     int compact_menu_key = 0; // 0 Right Shift, 1 Right Ctrl (key to switch to or open the compact menu)
