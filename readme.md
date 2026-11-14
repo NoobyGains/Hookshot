@@ -104,17 +104,29 @@ and the cliffs around it fit on screen.
 <img src="docs/images/features/retro-look.jpg" alt="Gerudo Valley with adult Link: Retro look off, and N64 with the picture at 240 lines and the console's dither, full frame and 1:1 pixels">
 
 **Retro look** (Graphics tab, off by default) brings back the 1998 picture: **N64** draws the game at the console's 240
-lines, with colours cut to 16 bits through the N64's own 4x4 "magic square" dither (the same matrix angrylion's
-cycle-accurate N64 renderer uses), scaled up soft. It costs nothing measurable (60 FPS either way on an RTX 5090), and
+lines, with colours cut to 16 bits through the N64's own 4x4 "magic square" dither, scaled up soft. It costs nothing measurable (60 FPS either way on an RTX 5090), and
 the Insert menu stays sharp over it.
 
 <img src="docs/images/features/crt-look.jpg" alt="Gerudo Valley with N64 + CRT at 1:1 pixels: the default look, then a shadow mask with strong curvature, strong scanlines with a slot mask and high glow, and light scanlines with no mask">
 
-**N64 + CRT** puts that picture on a CRT, after Timothy Lottes' public-domain CRT shader: each line is a beam that
+**N64 + CRT** puts that picture on a CRT: each line is a beam that
 widens where the picture is bright, so dark parts show the lines and bright parts fill out without the picture getting
 darker, with a phosphor mask on your screen's own pixels, a soft glow and a curved screen. Five rows set it to taste:
 **CRT scanlines** (Off to Strong), **CRT mask** (aperture grille, slot or shadow mask), **CRT mask strength**, **CRT glow**
 and **CRT curvature**. The pictures above are 1:1: a shrunk screenshot of a mask shows stripes the screen does not.
+
+### Brightness, colour vision and a screenshot key
+
+<img src="docs/images/features/brightness-colour-vision.jpg" alt="Top: a shaded corner of Kokiri Forest at brightness 80, 100, 130 and 150 percent. Bottom: Kakariko Village with colour vision off, then protanopia, deuteranopia and tritanopia">
+
+**Brightness** (Graphics tab, 70% to 150%) lifts or darkens the shadows and mid-tones while black stays black and white
+stays white, for screens without HDR. **Colour vision** (Off, Protanopia, Deuteranopia, Tritanopia) moves the colours
+each kind of colour blindness confuses to ones that can be told apart; greys and the HUD's text stay as they are. It is
+meant to look different to other eyes.
+
+**F12 saves a screenshot** as a PNG in a `screenshots` folder beside the game, as the window shows it (with the Retro
+look, Colour grade, Brightness and the rest) but without the Insert menu or the FPS counter. Saving runs beside the game:
+the frame rate held at 59 to 60 FPS through ten presses on an RTX 5090. The Screenshot key row (Controls tab) turns it off.
 
 ### DLSS 5 neural rendering, tested
 
@@ -145,7 +157,7 @@ when the game closes.
 ## Roadmap
 
 <p align="center">
-  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 6 done, 6 in progress, 6 coming next, 5 feature requests, each as a card. The same items are listed as text below." width="820">
+  <img src="assets/brand/roadmap.png" alt="Hookshot roadmap: 8 done, 4 in progress, 6 coming next, 5 feature requests, each as a card. The same items are listed as text below." width="820">
 </p>
 
 **Done** is on `main` now. **In progress** is being worked on at the moment. **Coming next** is planned but not
@@ -159,26 +171,25 @@ reaches.
 
 - **Smooth above 60 FPS:** Gohma steers instead of sticking to the walls, slow motions keep their length, water, ice
   and sand keep moving
-- **New graphics options:** View distance, Grass and Shadow distance (memory locations by hotoni, via Ocarina Reborn),
-  Bloom, Colour grade and FXAA
+- **New graphics options:** View distance, Grass and Shadow distance, Bloom, Colour grade and FXAA
 - **Timer and counters:** Speedrun timer, Death counter and the N64's rupee counter
 - **No more stuck at 99%:** the Builder's shader preparation carries on past a graphics driver that never finishes a
   shader, and closing the game while shaders build no longer counts against you
 - **Retro N64 look:** the picture at the console's 240 lines with its own dither; the loading screen's 3D Hookshot
 - **A better CRT look:** scanline beams, a phosphor mask, glow and curvature for the Retro look, each set in the menu
-  (after Timothy Lottes' public-domain CRT shader)
-- Also: the one-click Windows HDR launcher, fixes from the Longshot fork and Ocarina Reborn, the water's per-light
-  shadow maps (YakuzaFanA), several users, each game in its own folders, the RX 6600 / 6650 XT / 6500 XT fallback
+- **Brightness and colour vision:** a brightness slider for screens without HDR, and colour-blind modes
+- **Screenshot key:** F12 saves the picture as you see it, as a PNG beside the game
+- Also: the one-click Windows HDR launcher, the water's per-light shadow maps, several users, each game in its own
+  folders, the RX 6600 / 6650 XT / 6500 XT fallback
 
 **🟡 In progress**: being worked on now
 
 - **Mod manager:** your own mods listed in the menu, on and off, their load order and conflicts
 - **Hero mode and quiet Navi:** double damage and no recovery hearts; Navi's callouts off
-- **Screenshot key:** F12 saves the picture as you see it (with the Retro look or Colour grade), as a PNG beside the game
-- **Brightness and colour vision:** a brightness slider for non-HDR displays and colour-blind modes
-- **Hookshot Launcher:** after the Longshot Launcher: several builds side by side, stable, release-candidate and nightly
+- **Hookshot Launcher:** several builds side by side, stable, release-candidate and nightly
   channels, saves imported from emulators and exported, an installer and updates of its own, in Hookshot's 3D look
-- **Everything from Longshot:** its newest fixes, and its open pull requests and issues sorted and brought over
+- **More fixes and features:** faster button prompts, less memory, Mono audio, hold-to-toggle buttons, a hidden
+  cursor in play, fixes for Intel and AMD cards, and more
 
 **⚪ Coming next**: planned, not started
 
@@ -188,17 +199,17 @@ reaches.
 - **Jump loop after Gohma:** Link repeating a jump in dialogue above 60 FPS
 - **Invisible doors and walls** in a few places of the game
 - **AMD on Windows:** crashes on some Radeon cards (needs an AMD tester)
-- **amiibo**, from Ocarina Reborn
+- **amiibo:** scan your own amiibo files
 - Later: a signed Builder, Intel cards, cards without mesh shaders
 
-**➕ Feature requests**: what players of the remake ask for most (GameBanana's most-liked mods and requests, and the
-ports' coverage, in its first week), limited to what Hookshot can build as a toggle over your own game files
+**➕ Feature requests**: what players of the remake ask for most, limited to what Hookshot can build as a toggle over
+your own game files
 
 - **Photo mode:** a free camera with the HUD hidden
 - **First-person aim:** bow, slingshot and Hookshot from Link's eyes, with the mouse
 - **Small toggles:** auto jump, Young Link on Epona, gear on and off, N64-style controls
-- **Randomizer:** items shuffled each run, Ship of Harkinian's best-known feature
-- **Online co-op:** shown working on another port, not released yet
+- **Randomizer:** items shuffled each run, a new game every time
+- **Online co-op:** play the adventure together with a friend
 
 Mods that swap in Nintendo's own models, textures, music or voices are for players to add from their own files
 (Hookshot loads them from the `mods` folder, see [Mods](#mods)); the project ships none of them.
@@ -548,13 +559,13 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Bloom | Off, Low, Medium, High (a glow around bright light; not with HDR set to Native; changes at once) | Off |
 | | Colour grade | Off, Rich, Vivid, Warm, Cool, Cinematic (not with HDR set to Native; changes at once) | Off |
 | | Brightness | 70% to 150% (a gamma curve: the mid-tones lighter or darker, black and white kept; for SDR, with HDR on set HDR paper white instead; changes at once) | 100% |
-| | Colour vision | Off, Protanopia, Deuteranopia, Tritanopia (daltonization for colour blindness: the colours it confuses moved to ones that can be told apart, by Machado et al.'s 2009 model and the daltonize error shift after Fidaner et al.; not a simulation; greys unchanged; not with HDR set to Native; changes at once) | Off |
-| | Retro look | Off, N64 (the picture at the Nintendo 64's 240 lines, soft, its colours cut to 16 bits with the console's dither), N64 + CRT (that picture on a CRT, after Timothy Lottes' CRT shader, set by the five CRT rows below); in the Window scaling filter's, FXAA's and Sharpness's place, the menu left sharp; not with HDR set to Native; changes at once | Off |
+| | Colour vision | Off, Protanopia, Deuteranopia, Tritanopia (daltonization for colour blindness: the colours it confuses moved to ones that can be told apart; not a simulation; greys unchanged; not with HDR set to Native; changes at once) | Off |
+| | Retro look | Off, N64 (the picture at the Nintendo 64's 240 lines, soft, its colours cut to 16 bits with the console's dither), N64 + CRT (that picture on a CRT, set by the five CRT rows below); in the Window scaling filter's, FXAA's and Sharpness's place, the menu left sharp; not with HDR set to Native; changes at once | Off |
 | | CRT scanlines | Off, Light, Medium, Strong (the dark between the lines of light; bright parts fill out; with Retro look N64 + CRT) | Medium |
 | | CRT mask | Off, Aperture grille, Slot mask, Shadow mask (the screen's red, green and blue on your screen's pixels; with N64 + CRT) | Aperture grille |
 | | CRT mask strength | 10% to 100% (the picture keeps its brightness; with N64 + CRT) | 30% |
 | | CRT glow | Off, Low, Medium, High (light spreading in the glass around bright parts; with N64 + CRT) | Medium |
-| | CRT curvature | Off, Subtle, Strong (a curved screen with darker corners; Strong as Lottes' shader; with N64 + CRT) | Subtle |
+| | CRT curvature | Off, Subtle, Strong (a curved screen with darker corners; with N64 + CRT) | Subtle |
 | | Texture detail | Auto, Full, Medium, Low | Auto |
 | | Anisotropic filtering | Game's, 2x, 4x, 8x, 16x | 16x |
 | | View distance | Short, Original, Far, Very far, Max (how far trees, bushes and detailed models reach; changes at once) | Original |

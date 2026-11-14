@@ -30,14 +30,14 @@ STAGES = [
         ("panel:shaders", "No more stuck at 99%", "Shader preparation carries on past a stuck graphics driver."),
         ("retro.jpg", "Retro N64 look", "240 lines and the N64's own dither, at no cost."),
         ("crt.jpg", "A better CRT look", "Scanlines, mask, glow and curvature, each set in the menu."),
+        ("eyes.jpg", "Brightness, colour vision", "A brightness slider and colour-blind modes."),
+        ("f12.jpg", "Screenshot key", "F12 saves the picture as you see it, as a PNG beside the game."),
     ]),
     ("doing", "IN PROGRESS", "being worked on now", AMBER, [
         ("panel:name:Mods", "Mod manager", "Your own mods listed in the menu: on and off, load order, conflicts."),
         ("panel:name:Hero", "Hero mode, quiet Navi", "Double damage and no recovery hearts; Navi's callouts off."),
-        ("panel:name:F12", "Screenshot key", "F12 saves the picture as you see it, as a PNG beside the game."),
-        ("panel:name:Eyes", "Brightness, colour vision", "A brightness slider and colour-blind modes."),
         ("panel:name:Launcher", "Hookshot Launcher", "Builds side by side, update channels, saves import and export."),
-        ("panel:name:Longshot", "Everything from Longshot", "Its newest fixes, open pull requests and issues, brought over."),
+        ("panel:name:More", "More fixes and features", "Faster prompts, less memory, Mono audio, hold-to-toggle, Intel and AMD fixes."),
     ]),
     ("next", "COMING NEXT", "planned, not started", BLUE, [
         ("chart:memory", "Memory in long sessions", "Levels off at about 33 GB on a 96 GB PC; next, held to 16 GB."),
@@ -45,7 +45,7 @@ STAGES = [
         ("gohma.jpg", "Jump loop after Gohma", "Link repeats a jump in dialogue above 60 FPS."),
         ("invisible.jpg", "Invisible doors and walls", "Objects that vanish in a few places of the game."),
         ("panel:amd", "AMD on Windows", "Crashes on some Radeon cards: needs a tester."),
-        ("panel:amiibo", "amiibo", "From Ocarina Reborn: scan your own amiibo files."),
+        ("panel:amiibo", "amiibo", "Scan your own amiibo files."),
     ]),
     # (what players of the remake ask for most, from GameBanana's likes and requests and the ports' coverage in its first
     # week; only what Hookshot can build as a toggle over the player's own game files: no Nintendo assets)
@@ -53,8 +53,8 @@ STAGES = [
         ("panel:name:Photo", "Photo mode", "A free camera with the HUD hidden."),
         ("panel:name:Aim", "First-person aim", "Bow, slingshot and Hookshot from Link's eyes, with the mouse."),
         ("panel:name:QoL", "Small toggles", "Auto jump, Young Link on Epona, gear on and off, N64 controls."),
-        ("panel:name:Random", "Randomizer", "Items shuffled each run: Ship of Harkinian's best-known feature."),
-        ("panel:name:Online", "Online co-op", "Play together: shown working on another port, not released yet."),
+        ("panel:name:Random", "Randomizer", "Items shuffled each run, a new game every time."),
+        ("panel:name:Online", "Online co-op", "Play the adventure together with a friend."),
     ]),
 ]
 PER_ROW = 4   # (a stage of more than five cards wraps, four to a row)
