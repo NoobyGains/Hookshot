@@ -111,7 +111,8 @@ def main():
         p, _ = launch("timeout", timeout=2)
         pid = game_pid(game)
         code, err = finish(p)
-        if code != 3 or "did not answer" not in err:
+        # (exit 3 with the durable session's readiness timeout, scripts/hookshot_ctl.py wait_ready: "ready=bridge timed out")
+        if code != 3 or "ready=bridge timed out" not in err:
             print("FAIL: launch at its timeout: exit %s: %s" % (code, err.strip())); fails += 1
         if not gone(pid):
             print("FAIL: launch at its timeout left the game running"); fails += 1
