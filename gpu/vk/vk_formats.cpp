@@ -102,7 +102,7 @@ VkFormatInfo vk_format(int nvn_format) {
     case NVN_FORMAT_RGBA8I: return {VK_FORMAT_R8G8B8A8_SINT, false, 1, 1};
     case NVN_FORMAT_RGBX8_SRGB: return {VK_FORMAT_R8G8B8A8_SRGB, false, 1, 1};
     case NVN_FORMAT_RGBA8_SRGB: return {VK_FORMAT_R8G8B8A8_SRGB, false, 1, 1};
-    case NVN_FORMAT_RGB5: return {VK_FORMAT_B5G5R5A1_UNORM_PACK16, false, 1, 1};
+    case NVN_FORMAT_RGB5: return {VK_FORMAT_A1R5G5B5_UNORM_PACK16, false, 1, 1};   // (RGB5A1's: see there)
     case NVN_FORMAT_RGBA16: return {VK_FORMAT_R16G16B16A16_UNORM, false, 1, 1};
     case NVN_FORMAT_RGBA16SN: return {VK_FORMAT_R16G16B16A16_SNORM, false, 1, 1};
     case NVN_FORMAT_RGBA16UI: return {VK_FORMAT_R16G16B16A16_UINT, false, 1, 1};
@@ -117,6 +117,9 @@ VkFormatInfo vk_format(int nvn_format) {
     case NVN_FORMAT_DEPTH24_STENCIL8: return {VK_FORMAT_D24_UNORM_S8_UINT, false, 1, 1};
     case NVN_FORMAT_DEPTH32F_STENCIL8: return {VK_FORMAT_D32_SFLOAT_S8_UINT, false, 1, 1};
     case NVN_FORMAT_RGBA4: return {VK_FORMAT_A4B4G4R4_UNORM_PACK16, false, 1, 1};
+    // (NVN's RGB5A1 holds red in bits 0-4, green 5-9, blue 10-14 and alpha in bit 15: Vulkan's A1B5G5R5, which needs
+    // VK_KHR_maintenance5. It is kept as A1R5G5B5, and a sampled view swaps red and blue back (vk_texture.cpp
+    // texture_view). RGB5 is RGB5A1 whose top bit is unused: alpha reads one)
     case NVN_FORMAT_RGB5A1: return {VK_FORMAT_A1R5G5B5_UNORM_PACK16, false, 1, 1};
     case NVN_FORMAT_RGB565: return {VK_FORMAT_B5G6R5_UNORM_PACK16, false, 1, 1};
     case NVN_FORMAT_BGR565: return {VK_FORMAT_R5G6B5_UNORM_PACK16, false, 1, 1};
