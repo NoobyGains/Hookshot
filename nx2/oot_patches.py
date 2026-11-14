@@ -575,6 +575,24 @@ FLOOR_NEW = ("    c->x[8] = 0x42c80000ULL;\n"
              "    { a64_vset64(c->vreg[1],0); const uint32_t _cut = hos_oot_floor_cut((uint32_t)c->vreg[0][0]); "
              "memcpy(&c->vreg[1][0],&_cut,4); }   /* (nx2/oot_patches.py: a moving floor carries Link above 100 fps) */\n")
 FLOOR_DECL = "extern uint32_t hos_oot_floor_cut(uint32_t inverse_step_bits);\n"
+# A turn speed kept per 60 fps frame (host/oot_high_fps.h oot_turn_factor has why): the AI turn action ExecuteASApproachStickX,
+# f_8263e8e0 (Gohma steers with it), ends by clamping its turn speed (+0x24) to plus or minus the applied turn (s0) times minus
+# the step (s1, from [sp+0xc]) and times the step (s8): the two multiplies at 0x8263eb18 and 0x8263eb1c. Each factor goes through
+# hos_oot_turn_factor, one over the step while that is under one frame. After zortos293/Lichii PR #1645 by atk3001. (The
+# multiply's helper is a64_fpx_hot_mul32_fma32 in a lift where the function is among A64_HOT_FUNCS.)
+TURN_HEAD = "void f_8263e8e0(Ctx *__restrict A64_NOESC c) {\n"
+TURN_OLD = ("    {uint64_t _a=0,_b=0,_z,_v;memcpy(&_a,c->vreg[0],4);memcpy(&_b,c->vreg[1],4);_z=(_a^_b)&0x80000000ULL;\n"
+            "    _v=@(c,_a,_b,_z);\n"
+            "    a64_vset64(c->vreg[1],_v);}\n"
+            "    {uint64_t _a=0,_b=0,_z,_v;memcpy(&_a,c->vreg[0],4);memcpy(&_b,c->vreg[8],4);_z=(_a^_b)&0x80000000ULL;\n"
+            "    _v=@(c,_a,_b,_z);\n"
+            "    a64_vset64(c->vreg[0],_v);}\n")
+TURN_MARK = "_b=hos_oot_turn_factor((uint32_t)_b);"
+TURN_NEW = TURN_OLD.replace("memcpy(&_b,c->vreg[1],4);", "memcpy(&_b,c->vreg[1],4);" + TURN_MARK).replace(
+    "memcpy(&_b,c->vreg[8],4);", "memcpy(&_b,c->vreg[8],4);" + TURN_MARK)
+TURN_HELPERS = ("a64_fpx_mul32_fma32", "a64_fpx_hot_mul32_fma32")
+TURN_CALL = "c->x[30] = 0x8263eaf8ULL; f_8084fd40(c);"   # (the call before the clamp: a fast float region there would hold it)
+TURN_DECL = "extern uint32_t hos_oot_turn_factor(uint32_t factor_bits);\n"
 
 
 def _function(s, head_text):
@@ -649,6 +667,32 @@ def patch_floor_carry(s):
     if done and FLOOR_DECL not in s:
         s = s.replace('#include "a64.h"\n', '#include "a64.h"\n' + FLOOR_DECL, 1)
     return s, done
+
+
+def patch_turn_speed(s):
+    """The turn action's speed clamp (TURN_OLD): (s, 1) when f_8263e8e0 is in s with the hook (made now or before), (s, 0) when it
+    is not here, or its code differs (another game version), or the two multiplies sit in a fast float region (whose fast copy
+    the hook would miss): left as it is."""
+    at = _function(s, TURN_HEAD)
+    if at is None:
+        return s, 0
+    head, end = at
+    body = s[head:end]
+    for helper in TURN_HELPERS:
+        old, new = TURN_OLD.replace("@", helper), TURN_NEW.replace("@", helper)
+        if body.count(new) == 1:
+            return s, 1
+        if body.count(old) != 1:
+            continue
+        i = body.index(old)
+        call = body.rfind(TURN_CALL, 0, i)
+        if call < 0 or "A64_FF_ON" in body[call:i]:
+            return s, 0
+        s = s[:head] + body.replace(old, new, 1) + s[end:]
+        if TURN_DECL not in s:
+            s = s.replace('#include "a64.h"\n', '#include "a64.h"\n' + TURN_DECL, 1)
+        return s, 1
+    return s, 0
 
 
 def patch_text_speed(s):
@@ -1005,6 +1049,11 @@ def patch_file(s, name, protect_hearts=False):
     if floor != out:
         lines.append("oot_patches: %d floor-carry gate(s) follow the frame rate in %s" % (found, name))
     out = floor
+    turn, found = patch_turn_speed(out)
+    counts["turn sites"] += found
+    if turn != out:
+        lines.append("oot_patches: the turn action's speed clamp follows the frame rate in " + name)
+    out = turn
     return out, counts, lines
 
 
@@ -1047,6 +1096,8 @@ def report(paths, counts, protect_hearts=False):
         print("oot_patches: WARNING: the solver step count was found at %d of %d places" % (total["solver sites"], len(SOLVER_HEADS)))
     if total["floor sites"] != len(FLOOR_SITES):   # (without them, above 100 fps a moving floor leaves Link behind)
         print("oot_patches: WARNING: the floor-carry gate was found at %d of %d places" % (total["floor sites"], len(FLOOR_SITES)))
+    if total["turn sites"] != 1:   # (without it, above 60 fps Gohma cannot steer and walks into the walls of her room)
+        print("oot_patches: WARNING: the turn action's speed clamp was found %d times, not once" % total["turn sites"])
     for what, n in done.items():
         if n != 1:
             print("oot_patches: WARNING: the %s was found %d times" % (what, n))
