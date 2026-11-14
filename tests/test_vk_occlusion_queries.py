@@ -644,7 +644,7 @@ def compile_and_run(cxx, tmp, name, code, env=None):
     cpp = Path(tmp) / (name + ".cpp")
     exe = Path(tmp) / (name + ".exe")
     cpp.write_text(code, encoding="utf-8")
-    r = subprocess.run([cxx, "-std=c++20", "-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-unused-function", "-Werror",
+    r = subprocess.run([cxx, "-std=c++20", "-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-unused-function", "-Werror", "-D_CRT_SECURE_NO_WARNINGS",
                         str(cpp), "-o", str(exe)], capture_output=True, text=True)
     if r.returncode:
         sys.exit("the %s fixture did not compile:\n%s%s" % (name, r.stdout, r.stderr))
