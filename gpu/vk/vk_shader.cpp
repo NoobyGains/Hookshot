@@ -2136,6 +2136,7 @@ size_t seed_open() {
         fclose(f);
     }
     if (seed.blob.empty()) return 0;
+    static const bool seed_check = env_on("RX_VK_SEED_CHECK");
     disk_init();
     disk_listing = true;
     size_t at = 16;
@@ -2164,7 +2165,9 @@ size_t seed_open() {
             continue;
         }
         st.key = code_key(seed.blob.data() + st.control, seed.blob.data() + st.code, st.end);
-        seed_keys.insert(st.key);
+        // (only for RX_VK_SEED_CHECK, whose miss_note reads it: a seed opened in play (prepare_background) filled it while the
+        // replay's misses read it, an unordered_set rehashed under a reader)
+        if (seed_check) seed_keys.insert(st.key);
         seed.index.emplace(st.key, (uint32_t)(&st - seed.stages.data()));
         std::memcpy(st.sph, seed.blob.data() + st.code, std::min<size_t>(sizeof st.sph, st.end));
     }
