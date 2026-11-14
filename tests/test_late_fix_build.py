@@ -121,6 +121,7 @@ std::deque<DeadShadow> dead_shadows;
 std::mutex wb_pages_mu;
 @WBPAGES@;
 WbPages wb_pages, wb_parts, wb_direct;
+void (*wb_writers_hook)(uint64_t, uint64_t, uint64_t, uint64_t) = nullptr;   // (RX_VK_LOG_RB_WRITERS: off)
 @WBNOTE@
 @SECTION@
 @CAPTURE@;
