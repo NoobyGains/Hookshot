@@ -1466,6 +1466,11 @@ Row rows[] = {
     {TAB_GAMEPLAY, "Hero mode", &opts.hero_mode, 0, 1, 1, tx_onoff,
      "A harder game: Link takes double damage, and grass, pots, rocks and enemies drop no recovery hearts. Fairies, Pieces of "
      "Heart and Heart Containers stay. Changes at once.", nullptr, false, true},
+    // (hookshot: host/oot_navi.c)
+    {TAB_GAMEPLAY, "Navi callouts", &opts.navi_callouts, 0, 1, 1, tx_onoff,
+     "Off: Navi keeps the hints of the places you enter to herself, with no \"Hey! Listen!\" for them, and asking her there "
+     "gives none. Story dialogue, Z-targeting and what she says about enemies stay. From the next place you enter.", nullptr,
+     false, true},
     {TAB_GAMEPLAY, "Menu size", &opts.menu_size, 1, 3, 1, tx_menu_size,
      "How large this menu, the FPS counter and the start-up screen are drawn.", hn_menu_size, false, true},
     {TAB_GAMEPLAY, "Game speed", &opts.realtime, 0, 1, 1, tx_speed, "How the game keeps time when it runs below 60 fps.",

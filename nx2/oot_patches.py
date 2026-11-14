@@ -885,6 +885,29 @@ def patch_drops(s):
     return s, found
 
 
+# Navi callouts (host/oot_navi.c): f_80ccf0f0 registers an area hint with Navi's hint manager (x0 the registry, the manager's
+# +0x141c0; x1 the NaviAreaHintEventActor; x2 its AreaHintEventName; x3 its AreaHintPriority; 1 back when registered). Its one
+# caller is the AI node ExecuteNaviAreaHintRegist (f_80cceec0), which each NaviAreaHintEventActor the maps and logic graphs
+# place runs. With the row Off it returns 0 at once, as the game's own does with its registry full: no area hint, so no
+# "Hey! Listen!" for one and none to give when asked. Taking one off (f_80ccf290) finds none, as the game's own allows.
+NAVI_HINT_HEAD = "void f_80ccf0f0(Ctx *__restrict A64_NOESC c) {\n"
+NAVI_HINT_CALL = ("    if (hos_oot_navi_hints_off()) { c->x[0] = 0; return; }   /* (nx2/oot_patches.py: Navi callouts, "
+                  "host/oot_navi.c) */\n")
+NAVI_HINT_DECL = "extern int hos_oot_navi_hints_off(void);\n"
+
+
+def patch_navi_hints(source):
+    """f_80ccf0f0 starts with the Navi callouts row's check. None without the function; a file patched before as it is"""
+    start = source.find(NAVI_HINT_HEAD)
+    if start < 0:
+        return None
+    if NAVI_HINT_CALL in source:
+        return source
+    at = start + len(NAVI_HINT_HEAD)
+    source = source[:at] + NAVI_HINT_CALL + source[at:]
+    return source.replace('#include "a64.h"\n', '#include "a64.h"\n' + NAVI_HINT_DECL, 1)
+
+
 def patch_heap_retry(s):
     """The four places above in one file's text: (text, [GPU sites, CPU sites] made now or found made). apply() wants
     [2, 2] over the whole lift and warns otherwise"""
@@ -1120,6 +1143,12 @@ def patch_file(s, name, protect_hearts=False):
     if drops != out:
         lines.append("oot_patches: Hero mode's heart filter after the drop lotteries in " + name)
     out = drops
+    navi = patch_navi_hints(out) if protect_hearts else None
+    if navi is not None:
+        if navi != out:
+            lines.append("oot_patches: the Navi callouts row at the area hints' registration in " + name)
+        out = navi
+        counts["Navi callouts hook"] += 1
     out, whole = patch_whole_frames(out)
     counts["whole sites"] += out.count(WHOLE_MARK)   # (made now, or by an earlier run over this file)
     if whole:
@@ -1171,6 +1200,7 @@ def report(paths, counts, protect_hearts=False):
         done["disable camera centering"] = 0
         done["scene format"] = 0
         done["zstd stream hook"] = 0
+        done["Navi callouts hook"] = 0
     total = collections.Counter()
     for c in counts:
         total.update(c)

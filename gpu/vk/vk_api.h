@@ -70,6 +70,9 @@ enum { HOS_OPT_CLASSIC_COUNTERS = 61 };
 /* (HOS_OPT_HERO_MODE, 62: the Gameplay tab's Hero mode, 0 Off, 1 On; live: host/oot_damage.c doubles the damage Link takes and
    host/oot_hero.c takes the recovery hearts out of the drop lotteries' results, nx2/oot_patches.py patch_drops) */
 enum { HOS_OPT_HERO_MODE = 62 };
+/* (HOS_OPT_NAVI_CALLOUTS, 63: the Gameplay tab's Navi callouts, 1 On (the game's), 0 Off; host/oot_navi.c, nx2/oot_patches.py
+   patch_navi_hints: Off, no area hint is registered with Navi, from the next one the game would register) */
+enum { HOS_OPT_NAVI_CALLOUTS = 63 };
 
 /* (hookshot) the controls' names (host/nn_hid.c, host/pad_sdl.c, the pad_ and key_ lines of hookshot_options.ini):
    the Switch's buttons in nn::hid's bit order, and a gamepad's inputs by position (the bottom face button first:
