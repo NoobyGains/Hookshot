@@ -813,6 +813,19 @@ const char* tx_anisotropy(int v) {
     static const char* t[] = {"Game's", "2x", "4x", "8x", "16x"};
     return (unsigned)v < 5 ? t[v] : t[4];
 }
+// (the View distance, Grass and Shadow distance rows: host/oot_view.c's steps)
+const char* tx_view_distance(int v) {
+    static const char* t[] = {"Short", "Original", "Far", "Very far", "Max"};
+    return (unsigned)v < 5 ? t[v] : t[1];
+}
+const char* tx_grass(int v) {
+    static const char* t[] = {"Off", "Less", "Original", "More", "Dense"};
+    return (unsigned)v < 5 ? t[v] : t[2];
+}
+const char* tx_shadow_distance(int v) {
+    static const char* t[] = {"Short", "Original", "Far", "Max"};
+    return (unsigned)v < 4 ? t[v] : t[1];
+}
 const char* tx_speed(int v) { return v ? "Real time" : "Per frame"; }
 const char* tx_text_speed(int v) {
     static const char* t[] = {"Normal", "2x", "4x", "Instant"};
@@ -1371,6 +1384,14 @@ Row rows[] = {
     {TAB_GRAPHICS, "Anisotropic filtering", &opts.anisotropy, 0, 4, 1, tx_anisotropy,
      "Keeps textures sharp on surfaces seen at a slant, such as the ground ahead: higher is sharper in the distance, for a "
      "little GPU time. Game's is the console's own (1x or 2x).", nullptr, false, true},
+    // (hookshot, from Ocarina Reborn; where the game keeps these distances was found by hotoni's Graphics-Menu mod: host/oot_view.c)
+    {TAB_GRAPHICS, "View distance", &opts.view_distance, 0, 4, 1, tx_view_distance,
+     "How far trees, bushes and detailed models reach. Further costs CPU and GPU time. Applies at once.", nullptr, false,
+     true},
+    {TAB_GRAPHICS, "Grass", &opts.grass, 0, 4, 1, tx_grass,
+     "How much grass grows. Off or Less helps a weaker PC. Applies at once.", nullptr, false, true},
+    {TAB_GRAPHICS, "Shadow distance", &opts.shadow_distance, 0, 3, 1, tx_shadow_distance,
+     "How far scenery and characters cast shadows. Further costs GPU time. Applies at once.", nullptr, false, true},
     // (the rows to change when something is wrong, or on a card short of memory: last)
     {TAB_GRAPHICS, "GPU and memory", nullptr, 0, 0, 0, nullptr, nullptr, nullptr, false, true, -1, true},
     {TAB_GRAPHICS, "GPU device", &opts.gpu_device, 0, 8, 1, tx_gpu,

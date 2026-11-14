@@ -67,6 +67,9 @@ struct Options {
     int text_speed = 0;   // how fast dialogue prints: 0 the game's, 1 2x, 2 4x, 3 instant (host/nn_vi.c, nx2/oot_patches.py; HOS_TEXT_SPEED)
     int damage_taken = 1; // 0 Half, 1 Normal, 2 Double, 3 Quadruple (host/oot_damage.c)
     int fov = 100;        // vertical gameplay field of view, 50..150% of the game's current angle (host/oot_fov.c)
+    int view_distance = 1;    // how far foliage and detailed models reach: 0 Short, 1 Original, 2 Far, 3 Very far, 4 Max (host/oot_view.c)
+    int grass = 2;            // the grass's density: 0 Off, 1 Less, 2 Original, 3 More, 4 Dense (host/oot_view.c)
+    int shadow_distance = 1;  // how far shadows reach: 0 Short, 1 Original, 2 Far, 3 Max (host/oot_view.c)
     int text_size = 0;    // dialogue and signs' text size: 0 the game's, 1 110%, 2 125%, 3 150%, 4 175% (host/oot_text_size.c,
                           // nx2/oot_patches.py; HOS_TEXT_SIZE)
     int camera_speed = 100;   // (hookshot) the right stick's camera turn in percent of the game's, 50 to 400 (host/nn_vi.c, nx2/oot_patches.py: HOS_OPT_CAMERA_SPEED, 48)

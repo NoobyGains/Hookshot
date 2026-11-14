@@ -60,6 +60,10 @@ enum { HOS_OPT_FPS_CAP = 53 };
 /* (HOS_OPT_DAMAGE_TAKEN, 56: Damage taken, 0 Half, 1 Normal (unchanged), 2 Double, 3 Quadruple; Longshot has it at 55, which
    the Auto run row has here) */
 enum { HOS_OPT_DAMAGE_TAKEN = 56 };
+/* (HOS_OPT_VIEW_DISTANCE, 57; HOS_OPT_GRASS, 58; HOS_OPT_SHADOW_DISTANCE, 59: the Graphics tab's rows host/oot_view.c reads
+   once a frame, live. Steps: View 0 Short, 1 Original, 2 Far, 3 Very far, 4 Max; Grass 0 Off, 1 Less, 2 Original, 3 More,
+   4 Dense; Shadows 0 Short, 1 Original, 2 Far, 3 Max) */
+enum { HOS_OPT_VIEW_DISTANCE = 57, HOS_OPT_GRASS, HOS_OPT_SHADOW_DISTANCE };
 
 /* (hookshot) the controls' names (host/nn_hid.c, host/pad_sdl.c, the pad_ and key_ lines of hookshot_options.ini):
    the Switch's buttons in nn::hid's bit order, and a gamepad's inputs by position (the bottom face button first:
