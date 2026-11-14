@@ -1,6 +1,7 @@
 """The overlays (the start-up screen, the menu, the FPS counter) over the window's image: menu_record draws them with Dear ImGui
 in one frame and one recording, the start-up screen under the menu and the counter over both; nothing at all (no ImGui frame,
 no render pass, only ui::idle letting old textures go) while none shows (but one frame that bakes the glyphs after a resize), and no "0 FPS" over the start-up screen.
+The Screenshot key's note ("Screenshot saved", vk_screenshot.h) is drawn last, over all of them, and alone still makes a frame.
 
 python -I -B tests/test_fps_overlay_order.py [--cxx g++] [--source path/to/vk_menu.cpp]
 Executes the real menu_record with recording stubs; no GPU or game data.
@@ -57,13 +58,17 @@ void draw_fps(ui::Ctx&, bool under_banner) { calls += under_banner ? "F" : "f"; 
 void draw_rupees(ui::Ctx&, int v) { CHECK(v == 42); calls += "$"; }
 void timer_tick(bool, bool) {}
 void draw_corner(ui::Ctx&, bool timer, bool deaths) { CHECK(timer && deaths); calls += "c"; }   // (the Speedrun timer, the Death counter)
+bool note_on = false;   // (the Screenshot key's note, its 2 s: vk_screenshot.cpp screenshot_note)
+bool screenshot_note(bool* saved) { if (note_on) *saved = true; return note_on; }
+void draw_screenshot_note(ui::Ctx&, bool saved) { CHECK(saved); calls += "n"; }
 ''' + fn + r'''
 int main() {
     for (bool startup : {false, true}) for (bool fps : {false, true}) for (bool menu : {false, true}) for (bool can : {true, false})
-    for (bool wallet : {false, true}) for (bool corner : {false, true}) {
+    for (bool wallet : {false, true}) for (bool corner : {false, true}) for (bool note : {false, true}) {
         opts.show_fps = fps;
         opts.classic_counters = wallet, hud_rupees = wallet ? 42 : -1;
         opts.speedrun_timer = opts.death_counter = corner;
+        note_on = note;   // (shown over the start-up screen and the menu too: a press there says it was not saved)
         const bool rupees = wallet && !menu && !startup;   // (Classic counters: not over the menu or the start-up screen)
         const bool corner_shown = corner && !menu && !startup;   // (and so the timer and the deaths)
         open_now = menu;
@@ -71,7 +76,7 @@ int main() {
         can_draw = can;
         calls.clear();
         menu_record(1, 2, 640, 360);
-        if (!startup && !fps && !menu && !rupees && !corner_shown) {   // (nothing shows: no ImGui frame at all, only the reaping; after a resize, one bake)
+        if (!startup && !fps && !menu && !rupees && !corner_shown && !note) {   // (nothing shows: no ImGui frame at all, only the reaping; after a resize, one bake)
             CHECK(calls == "i");
             calls.clear(), resized = true;
             menu_record(1, 2, 640, 360);
@@ -86,6 +91,7 @@ int main() {
         if (fps && !startup) want += menu ? "F" : "f";
         if (rupees) want += "$";
         if (corner_shown) want += "c";
+        if (note) want += "n";   // (last: over everything)
         want += "dr";   // (the recorder boundary right before the recording)
         CHECK(calls == want);
     }

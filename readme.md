@@ -598,6 +598,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Controls | Opens the Controls page | |
 | | Menu shortcut | Insert or F1; F1 only; Insert, F1 or Esc | Insert, F1 or Esc |
 | | Compact menu key | Right Shift, Right Ctrl | Right Shift |
+| | Screenshot key | Off, F12 (saves the picture as the window shows it, without the menu or the FPS counter, as a PNG in the `screenshots` folder: [Controls](#controls)) | F12 |
 | Debug | Debug tools | Off, On (the tools below it while on) | Off |
 | | Player: Damage taken | Half, Normal, Double, Quadruple (live, while Debug tools is on; Half rounds damage up to a quarter heart; Heart protection wins) | Normal |
 | | Developer: Descriptor reuse | Off, On (changes at once) | On |
@@ -815,6 +816,13 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 Use a controller, or the keyboard and mouse. On the keyboard, <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move
 and the arrow keys (or <kbd>I</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd>) turn the camera.
 With the default keyboard bindings, press <kbd>E</kbd> to select **New Game** on the title screen.
+
+**Screenshots:** press <kbd>F12</kbd> to save the picture as the window shows it: at its size in the window, with the
+Graphics tab's looks in it (Retro look, Colour grade, Bloom, FXAA, Sharpness, the scaling filter) and without the menu, the
+FPS counter or the other overlays. It goes into the `screenshots` folder of the game folder as
+`Hookshot <date> <time>.png`, and "Screenshot saved" shows for two seconds. The PNG is not compressed (about 25 MB at
+4K). With HDR set to Native, the game's HDR picture is tone mapped to SDR for it (its paper white as the white).
+**Controls → Screenshot key** turns the key off; F12 cannot be bound to a control.
 
 **Mouse in the game's menus (Windows):** the title screen and its file list, the pause menu, the Key Items, Threads of
 Time and Map pages, the options and the save dialogs free the mouse while they are shown. Point at an entry to select
