@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The first start's warm goes on from a pipeline the GPU driver never finishes.
+"""The first start's warm goes on from a pipeline the GPU driver never finishes, and a start closed in it is not counted.
 
 Where the GPU has mesh shaders, programs are loaded when the game creates them (RX_VK_LOAD=create, #2760), and the start after
 every preparation builds each noted pipeline into the pipeline cache first (precompile_warm, #2869): the Builder's
 --prepare-shaders run does it, and so does the game's own first start after it. That warm had no stall guard: a pipeline the
 driver never returned from (#2107, "stuck at 99%") held it for ever, the game's start-up screen with it, and the Builder's run
 until its watchdog ended it after 5 minutes and left the game unprepared (hookshot_prepare_skipped). precompile_run and
-predict_run went on from such stragglers after 30 s; the warm did not.
+predict_run went on from such stragglers after 30 s; the warm did not. And a start closed in it counted as one that did not get
+through, so two closes ("it looked stuck") took the notes as they were, and play compiled the rest with draws left out.
 
 Compiled from the real source (gpu/vk/vk_draw.cpp precompile_warm, gpu/vk/warm_bounded.h), with stand-ins for the driver, the
 program cache and the files:
@@ -18,7 +19,7 @@ program cache and the files:
 - a slow driver that still finishes pipelines, each program longer than the limit: no stop (each pipeline counts as it ends);
 - the driver faulted, then nothing finishes, early in the run: it goes on; stuck early with no fault: waited for (the
   --prepare-shaders run's watchdog ends that);
-- after two starts that did not get through, the notes are taken as they are;
+- closed in it: the count written back as it was; after two starts that did not get through, the notes are taken as they are;
 - the preparation's own process: everything built, no marker, no save of its own (the run saves next, as its last part);
 - RX_VK_WARM_THREADS sets the worker count.
 And in the source: precompile_run loads at create calls after a warm that went on, not the keep-everything precompile.
@@ -275,6 +276,8 @@ def check_warm(cxx, tmp):
             ("stuck-compute", {"RX_VK_WARM_THREADS": "4"}, "a compute pipeline never finishes: the warm goes on without it"),
             ("slow", {}, "a slow driver that still finishes pipelines: no stop"),
             ("fault-early", {}, "the driver faulted, then nothing finishes: the warm goes on"),
+            ("closed", {}, "closed in it: not counted"),
+            ("closed", {"FIXTURE_WARMING": "1"}, "closed in the start after one that ended in it: still one"),
             ("two-failed", {"FIXTURE_WARMING": "2"}, "after two starts that did not get through: the notes as they are"),
             ("prepare-only", {"HOOKSHOT_PREPARE_ONLY": "1"}, "the preparation's own process: no marker, no save of its own")):
         work = Path(tmp) / ("case-%s-%d" % (case, len(extra)))
@@ -321,7 +324,7 @@ def main():
         raise SystemExit("C++ compiler not found: " + args.cxx)
     with tempfile.TemporaryDirectory(prefix="warm-stall-") as tmp:
         check_warm(args.cxx, tmp)
-    print("PASS: precompile_warm goes on from a stuck driver")
+    print("PASS: precompile_warm goes on from a stuck driver, and a close is not counted")
 
 
 if __name__ == "__main__":

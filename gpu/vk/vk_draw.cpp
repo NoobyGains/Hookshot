@@ -8737,9 +8737,10 @@ void prepare_progress_log(const char* what, size_t done, size_t total, std::chro
 /// compiled. The precompile does the same by keeping them all ready, which is the memory RX_VK_LOAD=create is there to save
 /// and more than a 16 GB PC has (its precompile was killed at 23,407 of 35,870 pipelines under a 12 GB cap). Here each
 /// worker borrows one program, builds its notes' pipelines one after the other and destroys each at once: never more
-/// pipelines alive than workers (warm_bounded.h). Before the game, with the precompile's progress; a start closed in it
+/// pipelines alive than workers (warm_bounded.h). Before the game, with the precompile's progress; a start that ended in it
 /// begins again at the next one, and after two that did not get through, the notes are taken as they are (what a cache
-/// then lacks is made at its first draw, as on an install that was never prepared).
+/// then lacks is made at its first draw, as on an install that was never prepared). A start closed in it (prepare_stopped)
+/// is not counted: two closes in a row ("it looked stuck") took the notes as they were, and play compiled the rest.
 /// A pipeline the driver never finishes (#2107; "stuck at 99%") holds its worker for good. As precompile_run and predict_run,
 /// once no program is left to hand out (or anywhere in the run, after a fault in the driver) and nothing has finished for
 /// RX_VK_PRECOMPILE_STALL_S seconds (30; 0: wait for all), the warm goes on and leaves that worker in the driver. Before, it
@@ -8896,6 +8897,9 @@ bool precompile_warm(void (*progress)(size_t done, size_t total)) {
         // (not by the preparation's own process: warm_bounded.h leaves_marker)
         if (warm_bounded::leaves_marker(prepare_only, all, prepare_stopped())) precompile_built_write(total);
         remove(warming.c_str());
+    } else if (prepare_stopped() && !gone_on) {
+        // (closed in it: not counted, the count it had written back, as predict_run's; one that ended in it, or went on, is)
+        if (FILE* f = fopen(warming.c_str(), "wb")) fprintf(f, "%d\n", ended_inside), fclose(f);
     }
     logf("vk: precompile: %zu noted pipelines of %zu programs and %zu compute pipelines of %zu compute programs built into the "
          "pipeline cache and let go (%zu and %zu not made, %zu whose program variant is not kept), on %u threads in %.1f s (the "
