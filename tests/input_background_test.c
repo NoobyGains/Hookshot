@@ -42,6 +42,8 @@ typedef int SRWLOCK;   /* (host/nn_hid.c guards the pad table with these since #
 #define SRWLOCK_INIT 0
 static void AcquireSRWLockShared(SRWLOCK *p) { (void)p; }
 static void ReleaseSRWLockShared(SRWLOCK *p) { (void)p; }
+static void AcquireSRWLockExclusive(SRWLOCK *p) { (void)p; }   /* (hos_hid_tap's) */
+static void ReleaseSRWLockExclusive(SRWLOCK *p) { (void)p; }
 static int pad_bind[HOS_KEY_N][2];   /* (the ocarina note layer and Sprint read it; hos_oc_wait stays 0, so nothing is consumed) */
 static SRWLOCK pad_bind_lock = SRWLOCK_INIT;
 static int pad_after_menu;
@@ -188,6 +190,31 @@ static void hold_toggle_case(void) {
     bridge_buttons = plus; packet(plus, 0, 0, 0);   /* pause itself remains usable */
     packet(plus, 0, 0, 0); /* Plus stays an ordinary hold, even with a hand-written flag. */
     bridge_buttons = 0; packet(0, 0, 0, 0);
+}
+
+/* The game's menus' mouse clicks (host/oot_menu.c), through the real hos_hid_tap and host_taps: a click is a short
+   press of the host's own, which a Toggle on that button must not latch; the player's presses of it still do. */
+static void hold_taps_case(void) {
+    front = controls_case = 1;
+    const uint64_t buttons[2] = {1ULL << B_R, 1ULL << B_A};
+    const char *const taps[2] = {"0:R/75", "0:A/75"};
+    for (int k = 0; k < 2; k++) {
+        const uint64_t b = buttons[k];
+        toggle_flags = (int)b;
+        physical_buttons = 0; packet(0, 0, 0, 0);
+        for (int click = 0; click < 2; click++) {   /* (each click: the button while it lasts, then nothing) */
+            hos_hid_tap(taps[k]); packet(b, 0, 0, 0);
+            now_ns += 80000000; packet(0, 0, 0, 0);
+        }
+        physical_buttons = b; packet(b, 0, 0, 0);   /* the player's press latches, */
+        hos_hid_tap(taps[k]); packet(b, 0, 0, 0);   /* a click while it is held changes nothing, */
+        now_ns += 80000000; packet(b, 0, 0, 0);     /* nor does the click's end, */
+        physical_buttons = 0; packet(b, 0, 0, 0);
+        hos_hid_tap(taps[k]); packet(b, 0, 0, 0);   /* nor a click while it is latched, */
+        now_ns += 80000000; packet(b, 0, 0, 0);
+        physical_buttons = b; packet(0, 0, 0, 0);   /* and the player's next press lets it go */
+        physical_buttons = 0; packet(0, 0, 0, 0);
+    }
 }
 
 /* Real read_input and Npad serialization: physical release must retain mouse routing. */
@@ -355,6 +382,12 @@ int main(int argc, char **argv) {
         else hold_background_case();
         puts("PASS: latch mouse/background routing");
         free(memory); return 0;
+    }
+    if (!strcmp(name, "hold-taps")) {
+        hold_taps_case();
+        puts("PASS: a Toggle button does not latch the host's clicks; the player's presses still latch");
+        free(memory);
+        return 0;
     }
     if (!strcmp(name, "hold-toggle")) {
         hold_toggle_case();

@@ -32,7 +32,7 @@ CASES = ("foreground", "script-background", "script-background-switch", "headles
          "no-script-background", "exclusive-foreground", "exclusive-background", "pads-env", "pads-menu", "pads-off",
          "pads-insert",
          "frame-hold", "live-frame", "reuse-frame", "wall", "zero", "empty", "single-state", "hold-toggle", "hold-mouse",
-         "hold-background", "walk-toggle")
+         "hold-background", "walk-toggle", "hold-taps")
 
 
 def main():
@@ -91,16 +91,17 @@ int hos_oot_flight_shortcut_ready(void) { CHECK(!"unexpected cheat readiness que
 void rx_option_set(int id, int value) { (void)id; (void)value; CHECK(!"unexpected cheat option change"); }
 int hos_oot_player_free(void) { return 1; }
 """
-    # (the host's own presses and stick, for the game's menus' mouse (host/oot_menu.c): none here; the player's input
-    # time it hides the mouse by: not looked at)
+    # (the host's own stick, for the game's menus' mouse (host/oot_menu.c): none here; the player's input time it hides
+    # the mouse by: not looked at. Its presses, hos_hid_tap and host_taps, are production's, below)
     host_spies = """
-static void host_taps(void) {}
 static void host_stick_read(int32_t stick[4]) { (void)stick; }
 static void host_drag_read(int32_t stick[4]) { (void)stick; }
 static void player_used(void) {}
 """
     actual = "\n".join(("static HoldToggle toggles;", cheat_state, cheat_spies, host_spies, block(hid, "static int keyboard_counts("), block(hid, "static int key("), block(hid, "static int kmap_down("),
-        block(hid, "static int game_in_front("), hid[start:end], block(hid, "static void stick_max("),
+        block(hid, "static int game_in_front("), hid[start:end],
+        re.search(r"^static SRWLOCK tap_lock = SRWLOCK_INIT;\nstatic char tap_text\[256\];", hid, re.M).group(0),
+        block(hid, "void hos_hid_tap("), block(hid, "static void host_taps(void) {"), block(hid, "static void stick_max("),
         block(hid, "static int pads_in_background("), block(hid, "static int pads_merge("),
         block(hid, "static int pads_behind("),
         # (the bound keys' helpers read_input calls: a mouse button counts only while the mouse is captured)
@@ -139,7 +140,7 @@ static void player_used(void) {}
         for case in ((a.case,) if a.case else CASES):
             case_env = dict(env)
             if case not in ("live-background", "no-script-background", "live-frame", "reuse-frame", "pads-insert", "hold-toggle",
-                            "hold-mouse", "hold-background", "walk-toggle"):
+                            "hold-mouse", "hold-background", "walk-toggle", "hold-taps"):
                 case_env["HOS_INPUT_SCRIPT"] = "0:A+LUP/200"
             if case in ("frame-hold", "live-frame", "reuse-frame"):
                 case_env["HOS_INPUT_FRAME_CLOCK"] = "1"

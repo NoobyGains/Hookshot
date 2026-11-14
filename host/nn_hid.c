@@ -313,7 +313,7 @@ static int game_in_front(void) {
 /* HOS_INPUT_SCRIPT, and HOS_INPUT_LIVE=<file>: lines appended to that file while the game runs are presses in the
    script's syntax, their times counted from when the line is read ("0:LUP/2000,2:A"): a test can steer the game
    by looking at its screenshots. */
-typedef struct { int64_t start_ms, end_ms; uint64_t buttons; int32_t stick[4]; } Press;
+typedef struct { int64_t start_ms, end_ms; uint64_t buttons; int32_t stick[4]; int host; } Press;   /* (host: hos_hid_tap's) */
 #define MAX_PRESSES 1024
 static Press presses[MAX_PRESSES];
 static int npresses = -1;
@@ -329,7 +329,7 @@ static int64_t script_elapsed_ms(int64_t now) {
     return frames * 1000 / 60;
 }
 
-static int parse_presses(const char *s, int64_t base_ms, int live);
+static int parse_presses(const char *s, int64_t base_ms, int live);   /* (live: 0 the script, 1 HOS_INPUT_LIVE, 2 the host's) */
 
 static void parse_script(void) {
     {   /* start SDL's controller thread now: pads are open by the time the game window comes to the front */
@@ -433,6 +433,7 @@ static int parse_presses(const char *s, int64_t base_ms, int live) {
         if (*s == '/') hold = strtol(s + 1, (char **)&s, 10);
         p.start_ms = base_ms + (int64_t)(t * 1000);
         p.end_ms = p.start_ms + hold;
+        p.host = live == 2;
         int slot = npresses < MAX_PRESSES ? npresses : -1;
         if (slot < 0)   /* full: reuse a press that is over */
             for (int i = 0; i < MAX_PRESSES && slot < 0; i++)
@@ -452,14 +453,16 @@ static void host_taps(void);
 static void host_stick_read(int32_t stick[4]);
 static void host_drag_read(int32_t stick[4]);   /* (above) */
 
-static void scripted_input(uint64_t *buttons, int32_t stick[4]) {
+/* (the host's taps go to *taps, not *buttons: they are the game's menus' mouse clicks, not the player's presses, so
+   hold-to-toggle does not latch them) */
+static void scripted_input(uint64_t *buttons, uint64_t *taps, int32_t stick[4]) {
     if (npresses < 0) parse_script();
     live_input();
     host_taps();
     const int64_t ms = script_elapsed_ms(hos_now_ns());
     for (int i = 0; i < npresses; i++)
         if (ms >= presses[i].start_ms && ms < presses[i].end_ms) {
-            *buttons |= presses[i].buttons;
+            *(presses[i].host ? taps : buttons) |= presses[i].buttons;
             for (int k = 0; k < 4; k++)
                 if (presses[i].stick[k]) stick[k] = presses[i].stick[k];
         }
@@ -507,7 +510,7 @@ static void host_taps(void) {
     memcpy(text, tap_text, sizeof text);
     tap_text[0] = 0;
     ReleaseSRWLockExclusive(&tap_lock);
-    if (text[0]) parse_presses(text, script_elapsed_ms(hos_now_ns()), 1);
+    if (text[0]) parse_presses(text, script_elapsed_ms(hos_now_ns()), 2);
 }
 
 static void stick_max(int32_t stick[4], const int32_t v[4]) {
@@ -1128,12 +1131,13 @@ static void move_keys_stick(int x, int y, int percent, int32_t out[2]) {
         logged = percent, hos_log("hid: walking: the movement keys tilt the left stick to %d%% (%d, %d)", percent, out[0], out[1]);
 }
 
-static void read_input(uint64_t *buttons, int32_t stick[4]) {
-    *buttons = 0;
+/* *taps: the host's own presses (hos_hid_tap), apart from the rest */
+static void read_input(uint64_t *buttons, uint64_t *taps, int32_t stick[4]) {
+    *buttons = *taps = 0;
     memset(stick, 0, 4 * sizeof *stick);
     sprint_now = 0;
     void hos_mouse_native_stick(int held);
-    scripted_input(buttons, stick);
+    scripted_input(buttons, taps, stick);
     /* (hookshot) HOS_CONTROL: the control bridge's presses (host/control.c); one that asked to be exclusive keeps the
        player's devices out while it lasts */
     if (hos_control_input(buttons, stick)) return;
@@ -1190,12 +1194,12 @@ static void read_input(uint64_t *buttons, int32_t stick[4]) {
     if (native) {
         mouse_setup();
         mouse_sens_keys();
-        hos_mouse_native_free(!((*buttons | toggles.latched) & game_stick));
+        hos_mouse_native_free(!((*buttons | *taps | toggles.latched) & game_stick));
         captured = hos_mouse_native();
         if (captured < 0) captured = 0, as_stick = 1;
     }
     if (as_stick) {
-        captured = mouse_stick(&mouse[2], &mouse[3], (int)((*buttons | toggles.latched) >> B_L & 1));
+        captured = mouse_stick(&mouse[2], &mouse[3], (int)((*buttons | *taps | toggles.latched) >> B_L & 1));
         if (captured) stick_max(stick, mouse);
     }
     mouse_buttons_arm(captured);
@@ -1228,7 +1232,7 @@ static void npad_states(Ctx *c) {
     uint64_t out = ARG(0);
     int count = (int)ARG(1);
     uint32_t id = G32(ARG(2));
-    uint64_t buttons = 0;
+    uint64_t buttons = 0, taps = 0;
     int32_t stick[4] = {0};
     int connected = id == NPAD_NO1;
     {
@@ -1251,7 +1255,7 @@ static void npad_states(Ctx *c) {
         }
     }
     if (connected) {
-        read_input(&buttons, stick);
+        read_input(&buttons, &taps, stick);
         uint64_t axes = 0;
         uint64_t flight = 0;
         int height = 0;
@@ -1262,7 +1266,7 @@ static void npad_states(Ctx *c) {
                           !pads_in_background(getenv("HOS_INPUT_BACKGROUND"), rx_option(4, 0)));
         /* Pause/map must release shield/aim before the game's menu reads input. */
         const uint64_t pause = buttons & ~toggles.previous & ((1ULL << B_PLUS) | (1ULL << B_MINUS));
-        buttons = hold_toggle_apply(&toggles, buttons, enabled, reset || pause);
+        buttons = hold_toggle_apply(&toggles, buttons, enabled, reset || pause) | taps;
         const int free_camera = rx_option(HOS_OPT_CHEAT_CAMERA, 0);
         const int flying = flight_jump_shortcut(&buttons, rx_option(HOS_OPT_CHEAT_FLIGHT, -1), menu_open, free_camera);
         if (free_camera && !menu_open) {
