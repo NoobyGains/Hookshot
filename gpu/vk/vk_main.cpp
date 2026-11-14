@@ -932,9 +932,9 @@ bool create_swapchain(uint32_t width, uint32_t height) {
             if ((f.format == VK_FORMAT_A2B10G10R10_UNORM_PACK32 || f.format == VK_FORMAT_A2R10G10B10_UNORM_PACK32) &&
                 f.colorSpace == VK_COLOR_SPACE_HDR10_ST2084_EXT)
                 fmt = f, dev.hdr = true;
-        static bool told;
-        if (!told) {
-            told = true;
+        static int told = -1;   // (said again when it changes: Windows' Use HDR turned on or off while the game runs)
+        if (told != (int)dev.hdr) {
+            told = (int)dev.hdr;
             if (dev.hdr)
                 logf("vk: HDR: an HDR10 surface (format %d), paper white %d nits, peak %d nits", (int)fmt.format, opts.hdr_white,
                      opts.hdr_peak);

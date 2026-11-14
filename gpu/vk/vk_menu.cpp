@@ -1249,6 +1249,14 @@ const char* hn_filter(int v, int variant) {
     if (variant < 0) return filter_needed() ? t[std::clamp(v, 0, 2)] : none;
     return variant == 0 ? t[std::clamp(v, 0, 2)] : variant == 1 ? none : nullptr;
 }
+/// (hookshot, from Ocarina Reborn) HDR chosen while the window's picture is SDR: the display offers no HDR10 surface
+/// (vk_main.cpp: Windows' Use HDR off, or a display without HDR)
+const char* hn_hdr(int v, int variant) {
+    static const char* const off = "Not active now: the display offers no HDR10 picture, so the game shows SDR. On Windows, "
+                                   "turn on Use HDR in the display settings.";
+    if (variant < 0) return v && dev.swap_extent.width && !dev.hdr ? off : nullptr;
+    return variant == 0 ? off : nullptr;
+}
 /// Sharpness: with DLSS or DLAA, the amount that suits them
 const char* hn_sharpness(int v, int variant) {
     static const char* const dlss = "DLSS and DLAA look softer than the game's own upscaler: around 80% suits them.";
@@ -1372,7 +1380,7 @@ Row rows[] = {
     {TAB_GRAPHICS, "HDR", &opts.hdr, 0, 2, 1, tx_hdr,
      "HDR10 out on an HDR display (Windows: Use HDR on in the display settings). Expanded: the game's SDR picture, its white at "
      "the paper white and its highlights up to the peak. Native: the game's own HDR, told the display's peak and paper white.",
-     nullptr, false, true},
+     hn_hdr, false, true},
     {TAB_GRAPHICS, "HDR paper white", &opts.hdr_white, 80, 400, 10, tx_nits,
      "How bright the picture's white is with HDR on. Around 200 for a normal room; higher in a bright one.", nullptr, false, true},
     {TAB_GRAPHICS, "HDR peak brightness", &opts.hdr_peak, 400, 4000, 100, tx_nits,
