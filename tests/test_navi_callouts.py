@@ -44,7 +44,7 @@ typedef struct { uint64_t x[32]; } Ctx;
 """
 FIXTURE = r'''#include <stdio.h>
 #include "a64.h"
-enum { HOS_OPT_NAVI_CALLOUTS = 63 };
+enum { HOS_OPT_NAVI_CALLOUTS = 64 };
 static int row = 1, failures;
 static uint64_t registry[3];
 int rx_option(int id, int otherwise) { return id == HOS_OPT_NAVI_CALLOUTS ? row : otherwise; }
@@ -92,7 +92,7 @@ def wiring():
     options = (ROOT / "gpu/vk/vk_menu.h").read_text(encoding="utf-8")
     menu = (ROOT / "gpu/vk/vk_menu.cpp").read_text(encoding="utf-8")
     replay = (ROOT / "gpu/vk/vk_replay.cpp").read_text(encoding="utf-8")
-    assert "enum { HOS_OPT_NAVI_CALLOUTS = 63 };" in api
+    assert "enum { HOS_OPT_NAVI_CALLOUTS = 64 };" in api
     assert "int navi_callouts = 1;" in options   # (On, the game's, by default)
     row = re.search(r'\{TAB_GAMEPLAY, "Navi callouts", &opts\.navi_callouts, 0, 1, 1, tx_onoff,\s*"([^}]*)\}', menu)
     assert row, "the Gameplay tab's Navi callouts row, Off or On"
