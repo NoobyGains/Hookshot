@@ -321,6 +321,12 @@ A row for something this PC cannot use is not shown: NVIDIA Reflex and AMD Anti-
 have them, the DLSS model where DLSS does not run. HDR paper white and
 HDR peak brightness show only while HDR is on, the HDR tone mapper only with HDR set to Native.
 
+On Windows, HDR needs **Use HDR** on for the display (Settings > System > Display) before the game starts.
+[`scripts/windows/launch-hdr.ps1`](scripts/windows/launch-hdr.ps1) does that for one start: copied beside
+`hookshot.exe`, it turns Use HDR on for one display, sets the HDR rows, starts the game, and turns Use HDR off again
+when the game closes if it was off before (`-List` shows the displays and whether each offers HDR; `-PeakNits`,
+`-PaperWhite`, `-Dlaa` and `-FrameGen` set those rows too).
+
 The Graphics tab groups its rows under section titles: Resolution and upscaling, Frame generation and latency, Screen,
 HDR, Detail, and GPU and memory (last: the rows to change when something is wrong). The table lists them in that order.
 
