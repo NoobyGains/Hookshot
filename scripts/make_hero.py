@@ -1,14 +1,14 @@
-"""Composite the README hero banner, the GitHub social preview and the plugin icon from a rendered emblem.
+"""Lay out the README header: the Hookshot on the left, the shield on the right, the name between them.
 
-The emblem is rendered locally with Z-Image-Turbo (prompt and seed in
-assets/brand/README.md); the layout is the one NoobyGains/usage-pulse uses; this script only lays it out and sets the type, so every
-derived picture can be rebuilt pixel for pixel.
+    python scripts/make_hero.py                       the still banner, the social preview and the icon
+    python scripts/make_hero.py --frames FOLDER       also the animation, both objects turning once
 
-    python scripts/make_hero.py
-    python scripts/make_hero.py --bg assets/brand/emblem.png --out assets/brand/hero.png
+The objects are rendered with scripts/render_emblem.py (assets/brand/README.md says from which models). The stills
+this script reads are assets/brand/emblem_hookshot.png and emblem_shield.png; --frames names a folder of
+hookshot_000.png ... and shield_000.png ... from the same script, which is not kept in the repository.
 
-Fonts: Unbounded ExtraBold (wordmark) and JetBrains Mono (tagline), static
-instances of the SIL OFL fonts, vendored in assets/brand/fonts/. Pillow is the only dependency.
+Fonts: Unbounded ExtraBold (wordmark) and JetBrains Mono (tagline), static instances of the SIL OFL fonts, vendored in
+assets/brand/fonts/. Pillow is the only dependency. The layout follows NoobyGains/usage-pulse's.
 """
 import argparse
 from pathlib import Path
@@ -21,14 +21,15 @@ FONTS = BRAND / "fonts"
 
 WORD = "Hookshot"
 SUB = "native, no emulator"
-TAGLINE = "Ocarina of Time on Windows & Linux, from your copy"
-FOOTLINE = "Vulkan  ·  DLSS  ·  FSR 4  ·  HDR  ·  frame generation  ·  ultrawide  ·  up to 240 FPS"
+TAGLINE = "Ocarina of Time on Windows & Linux"
+FOOTLINE = "Vulkan · DLSS · FSR 4 · HDR · up to 240 FPS"
 
 W, H = 1600, 600          # 2x of the 800x300 the README shows
+SIDE = 500                # each object's square
 BG = (6, 7, 11)
-# The emblem's own colours: the barrel's blue, cyan, the grip cap's gold.
+# The objects' own colours: their blue, cyan, the grip cap's gold.
 C_BLUE, C_CYAN, C_GOLD = (59, 130, 246), (34, 211, 238), (251, 191, 36)
-C_INDIGO = (30, 64, 175)   # (the glow behind the wordmark)
+GLOW = (30, 64, 175)
 GRADIENT = [(248, 250, 252), (226, 232, 240), C_BLUE, C_CYAN, C_GOLD]
 
 
@@ -47,14 +48,6 @@ def fit(draw, text, name, start, floor, max_width):
     return font(name, floor)
 
 
-def cover(im, w, h, anchor=0.5):
-    scale = max(w / im.width, h / im.height)
-    im = im.resize((round(im.width * scale), round(im.height * scale)), Image.LANCZOS)
-    x = round((im.width - w) * anchor)
-    y = (im.height - h) // 2
-    return im.crop((x, y, x + w, y + h))
-
-
 def horizontal_gradient(w, h, stops):
     grad = Image.new("RGB", (w, 1))
     px = grad.load()
@@ -68,33 +61,54 @@ def horizontal_gradient(w, h, stops):
     return grad.resize((w, h))
 
 
-def place_emblem(emblem_path, size=600, x=70):
-    """Dark canvas, square render on the left, its right edge faded into the
-    canvas so the render's own background never shows a seam."""
-    canvas = Image.new("RGB", (W, H), BG)
-    em = cover(Image.open(emblem_path).convert("RGB"), size, size)
-    fade = Image.new("L", (size, 1), 255)
-    px = fade.load()
-    for i in range(size):
-        t = i / (size - 1)
-        # (the left edge fades in too: the render's own black is a shade off the canvas's)
-        px[i, 0] = round(255 * t / 0.1) if t < 0.1 else 255 if t < 0.62 else round(255 * max(0.0, 1 - (t - 0.62) / 0.38))
-    fade = fade.resize((size, size))
-    canvas.paste(em, (x, (H - size) // 2), fade)
-    return canvas
+def soft_square(size):
+    """A mask that fades a square render out towards its edges, so its own background never shows a seam."""
+    m = Image.new("L", (size, size), 0)
+    pad = size // 9
+    ImageDraw.Draw(m).rounded_rectangle((pad, pad, size - pad, size - pad), radius=size // 5, fill=255)
+    return m.filter(ImageFilter.GaussianBlur(size // 14))
 
 
-def gradient_text(canvas, text, f, xy, glow_colour, glow_radius=28, glow_strength=0.55):
+def gradient_text(canvas, text, f, xy, glow_radius=28, glow_strength=0.55):
     """Draw *text* filled with the brand gradient over a soft glow."""
     mask = Image.new("L", canvas.size, 0)
     ImageDraw.Draw(mask).text(xy, text, font=f, fill=255)
     glow = mask.filter(ImageFilter.GaussianBlur(glow_radius))
-    canvas = Image.composite(Image.new("RGB", canvas.size, glow_colour), canvas, glow.point(lambda v: v * glow_strength))
+    canvas = Image.composite(Image.new("RGB", canvas.size, GLOW), canvas, glow.point(lambda v: v * glow_strength))
     bbox = mask.getbbox()
-    grad = horizontal_gradient(bbox[2] - bbox[0], canvas.height, GRADIENT)
     grad_full = Image.new("RGB", canvas.size, GRADIENT[0])
-    grad_full.paste(grad, (bbox[0], 0))
+    grad_full.paste(horizontal_gradient(bbox[2] - bbox[0], canvas.height, GRADIENT), (bbox[0], 0))
     return Image.composite(grad_full, canvas, mask)
+
+
+def text_layer():
+    """The banner without its objects: the name, the lines under it, all centred."""
+    canvas = Image.new("RGB", (W, H), BG)
+    d = ImageDraw.Draw(canvas)
+    room = W - 2 * SIDE + 60
+
+    def centred(text, f):
+        return (W - d.textlength(text, font=f)) / 2
+
+    word = fit(d, WORD, "Unbounded-ExtraBold.ttf", 118, 60, room)
+    canvas = gradient_text(canvas, WORD, word, (centred(WORD, word), 190))
+    d = ImageDraw.Draw(canvas)
+    sub = fit(d, SUB, "Unbounded-ExtraBold.ttf", 44, 24, room)
+    d.text((centred(SUB, sub), 322), SUB, font=sub, fill=(226, 232, 240))
+    tag = fit(d, TAGLINE, "JetBrainsMono-Medium.ttf", 27, 16, room)
+    d.text((centred(TAGLINE, tag), 408), TAGLINE, font=tag, fill=(203, 213, 225))
+    foot = fit(d, FOOTLINE, "JetBrainsMono-Regular.ttf", 19, 11, room)
+    d.text((centred(FOOTLINE, foot), 458), FOOTLINE, font=foot, fill=(120, 130, 150))
+    return canvas
+
+
+def compose(base, left, right, mask):
+    """The banner: *base* (the text layer) with the two square renders at its sides."""
+    canvas = base.copy()
+    y = (H - SIDE) // 2
+    canvas.paste(left.convert("RGB").resize((SIDE, SIDE), Image.LANCZOS), (20, y), mask)
+    canvas.paste(right.convert("RGB").resize((SIDE, SIDE), Image.LANCZOS), (W - SIDE - 20, y), mask)
+    return canvas
 
 
 def round_corners(im, radius):
@@ -105,73 +119,46 @@ def round_corners(im, radius):
     return im
 
 
-def build_banner(bg_path, out_path, text_x=720):
-    canvas = place_emblem(bg_path)
-    draw = ImageDraw.Draw(canvas)
-    right = W - text_x - 4 - 60
-    canvas = gradient_text(canvas, WORD, fit(draw, WORD, "Unbounded-ExtraBold.ttf", 118, 60, right), (text_x, 150), C_INDIGO)
-    draw = ImageDraw.Draw(canvas)
-    draw.text((text_x + 4, 282), SUB, font=fit(draw, SUB, "Unbounded-ExtraBold.ttf", 50, 30, right), fill=(226, 232, 240))
-    draw.text((text_x + 4, 376), TAGLINE, font=fit(draw, TAGLINE, "JetBrainsMono-Medium.ttf", 29, 18, right), fill=(203, 213, 225))
-    draw.text((text_x + 4, 434), FOOTLINE, font=fit(draw, FOOTLINE, "JetBrainsMono-Regular.ttf", 17, 11, right), fill=(120, 130, 150))
-    canvas = round_corners(canvas, 28)
-    canvas.save(out_path, optimize=True)
-    return canvas
-
-
-def build_social_preview(bg_path, out_path):
-    """GitHub's social preview is 1280x640: emblem centred high, wordmark below."""
+def build_social_preview(still, out_path):
+    """GitHub's social preview is 1280x640: the banner, centred on the canvas colour."""
     canvas = Image.new("RGB", (1280, 640), BG)
-    size = 400
-    em = cover(Image.open(bg_path).convert("RGB"), size, size)
-    fade = Image.new("L", (size, size), 0)
-    ImageDraw.Draw(fade).ellipse((70, 70, size - 70, size - 70), fill=255)
-    fade = fade.filter(ImageFilter.GaussianBlur(34))
-    canvas.paste(em, ((1280 - size) // 2, 0), fade)
-    d = ImageDraw.Draw(canvas)
-    word_font = fit(d, WORD, "Unbounded-ExtraBold.ttf", 92, 50, 1100)
-    tw = d.textlength(WORD, font=word_font)
-    canvas = gradient_text(canvas, WORD, word_font, ((1280 - tw) / 2, 380), C_INDIGO, 24)
-    d = ImageDraw.Draw(canvas)
-    sf = font("Unbounded-ExtraBold.ttf", 40)
-    d.text(((1280 - d.textlength(SUB, font=sf)) / 2, 496), SUB, font=sf, fill=(226, 232, 240))
-    tf = font("JetBrainsMono-Medium.ttf", 24)
-    d.text(((1280 - d.textlength(TAGLINE, font=tf)) / 2, 568), TAGLINE, font=tf, fill=(203, 213, 225))
+    small = still.resize((1280, 480), Image.LANCZOS)
+    canvas.paste(small, (0, 80))
     canvas.save(out_path, optimize=True)
-    return canvas
 
 
-def build_icon(bg_path, out_path, size=512):
-    """512x512 rounded square around the bright part of the render, for listings and avatars."""
-    src = Image.open(bg_path).convert("RGB")
-    bbox = src.convert("L").point(lambda v: 255 if v > 60 else 0).getbbox()
-    cx, cy = (bbox[0] + bbox[2]) // 2, (bbox[1] + bbox[3]) // 2
-    half = int(max(bbox[2] - bbox[0], bbox[3] - bbox[1]) * 0.62)
-    box = (max(cx - half, 0), max(cy - half, 0), min(cx + half, src.width), min(cy + half, src.height))
-    im = src.crop(box).resize((size, size), Image.LANCZOS).convert("RGBA")
+def build_icon(emblem, out_path, size=512):
+    """512x512 rounded square of the Hookshot, for listings and avatars."""
+    im = emblem.convert("RGB").resize((size, size), Image.LANCZOS).convert("RGBA")
     mask = Image.new("L", (size, size), 0)
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, size - 1, size - 1), radius=int(size * 0.22), fill=255)
     im.putalpha(mask)
     im.save(out_path)
-    return box
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--bg", default=str(BRAND / "emblem.png"))
-    ap.add_argument("--out", default=str(BRAND / "hero.png"))
-    ap.add_argument("--text-x", type=int, default=720)
-    ap.add_argument("--social", default=str(BRAND / "social-preview.png"), help="path for the 1280x640 GitHub social preview; '' to skip")
-    ap.add_argument("--icon", default=str(BRAND / "icon.png"), help="path for the 512x512 icon; '' to skip")
+    ap.add_argument("--frames", help="a folder of hookshot_NNN.png and shield_NNN.png: also write the animation")
+    ap.add_argument("--frame-ms", type=int, default=70)
     a = ap.parse_args()
-    banner = build_banner(a.bg, a.out, a.text_x)
-    print("wrote", a.out, banner.size)
-    if a.social:
-        build_social_preview(a.bg, a.social)
-        print("wrote", a.social)
-    if a.icon:
-        box = build_icon(a.bg, a.icon)
-        print("wrote", a.icon, "from box", box)
+    base, mask = text_layer(), soft_square(SIDE)
+    hook, shield = Image.open(BRAND / "emblem_hookshot.png"), Image.open(BRAND / "emblem_shield.png")
+    still = compose(base, hook, shield, mask)
+    round_corners(still, 28).save(BRAND / "hero.png", optimize=True)
+    build_social_preview(still, BRAND / "social-preview.png")
+    build_icon(hook, BRAND / "icon.png")
+    print("wrote hero.png, social-preview.png, icon.png")
+    if a.frames:
+        folder = Path(a.frames)
+        hooks, shields = sorted(folder.glob("hookshot_*.png")), sorted(folder.glob("shield_*.png"))
+        if not hooks or len(hooks) != len(shields):
+            raise SystemExit("%s: %d hookshot and %d shield frames" % (folder, len(hooks), len(shields)))
+        # animated WebP, not GIF: a GIF's 256 colours band the wordmark's gradient and the renders' shading
+        frames = [compose(base, Image.open(h), Image.open(s), mask).resize((1200, 450), Image.LANCZOS)
+                  for h, s in zip(hooks, shields)]
+        out = BRAND / "hero.webp"
+        frames[0].save(out, save_all=True, append_images=frames[1:], duration=a.frame_ms, loop=0, quality=86, method=6)
+        print("wrote hero.webp: %d frames, %.0f KB" % (len(frames), out.stat().st_size / 1024))
 
 
 if __name__ == "__main__":
