@@ -40,6 +40,11 @@ void queue_flush();          // (the same, taking dev.present_mu)
 // (hookshot) held submits out, then vkDeviceWaitIdle with the present queue's lock taken too (dev.present_mu held): the device's
 // every queue is synchronized by the host around it
 void device_wait_idle_locked();
+// (hookshot) why the swapchain is SDR though the Insert menu's HDR is on (Device::hdr_sdr_why): no VK_EXT_swapchain_colorspace;
+// HDR off in Windows' display settings; HDR on there but the driver lists no HDR10 surface
+// (docs/common-issues.md); the display lists none and the system's setting is not known (Linux, or a Windows that doesn't say).
+// hdr_sdr_count: how many, for the log's and the menu's line for each
+enum HdrSdrWhy : int { hdr_sdr_none, hdr_sdr_no_extension, hdr_sdr_os_off, hdr_sdr_driver, hdr_sdr_unknown, hdr_sdr_count };
 
 struct Device {
     VkInstance instance = VK_NULL_HANDLE;
@@ -67,6 +72,9 @@ struct Device {
     bool eds3_polygon = false, eds3_clamp = false, eds3_blend = false, eds3_a2c = false;
     bool swapchain_colorspace = false;   // (hookshot) VK_EXT_swapchain_colorspace: HDR10 surfaces are listed
     bool hdr = false;                    // (hookshot) the swapchain is HDR10 (ST 2084, Rec. 2020): framegen_hdr writes it
+    // (hookshot) why it is SDR with HDR on, for the log and the menu's hint: written by create_swapchain and read by the menu on
+    // the presenting thread both (menu_record), as hdr is
+    HdrSdrWhy hdr_sdr_why = hdr_sdr_none;
     bool mesh_fallback = false;   // (hookshot) no VK_EXT_mesh_shader: task and mesh programs as compute shaders (vk_shader.cpp)
     bool task_mesh_fallback = false;
     bool mesh_capable = false;    // (hookshot) the card has task and mesh shaders, whatever the Mesh shaders mode this run uses

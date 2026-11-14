@@ -1288,13 +1288,19 @@ const char* hn_filter(int v, int variant) {
     if (variant < 0) return filter_needed() ? t[std::clamp(v, 0, 2)] : none;
     return variant == 0 ? t[std::clamp(v, 0, 2)] : variant == 1 ? none : nullptr;
 }
-/// (hookshot, from Ocarina Reborn) HDR chosen while the window's picture is SDR: the display offers no HDR10 surface
-/// (vk_main.cpp: Windows' Use HDR off, or a display without HDR)
+/// (hookshot, from Ocarina Reborn) HDR chosen while the window's picture is SDR: the display offers no HDR10 surface, and why
+/// (dev.hdr_sdr_why, vk_main.cpp create_swapchain). Variants: each reason
 const char* hn_hdr(int v, int variant) {
-    static const char* const off = "Not active now: the display offers no HDR10 picture, so the game shows SDR. On Windows, "
-                                   "turn on Use HDR in the display settings.";
-    if (variant < 0) return v && dev.swap_extent.width && !dev.hdr ? off : nullptr;
-    return variant == 0 ? off : nullptr;
+    static const char* const t[] = {
+        "The picture stays SDR: the graphics driver offers no HDR output (no VK_EXT_swapchain_colorspace).",
+        "The picture stays SDR: HDR is off for this display in Windows' display settings.",
+        ("The picture stays SDR: Windows has HDR on, but the graphics driver offers the game no HDR output. Reinstall the "
+         "driver with a clean install, then restart the PC."),
+        "The picture stays SDR: the display offers no HDR output. Is HDR on in the display settings?"};
+    const int reasons = hdr_sdr_count - 1;   // (every HdrSdrWhy but hdr_sdr_none)
+    static_assert(sizeof t / sizeof *t == hdr_sdr_count - 1, "hn_hdr: a line for each HdrSdrWhy but hdr_sdr_none");
+    if (variant >= 0) return variant < reasons ? t[variant] : nullptr;
+    return v && dev.hdr_sdr_why != hdr_sdr_none ? t[std::clamp((int)dev.hdr_sdr_why, 1, reasons) - 1] : nullptr;
 }
 /// Sharpness: with DLSS or DLAA, the amount that suits them
 const char* hn_sharpness(int v, int variant) {
