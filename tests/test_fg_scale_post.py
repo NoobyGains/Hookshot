@@ -185,6 +185,26 @@ class PostTests(unittest.TestCase):
         self.assertIn("const uint32_t smw = retro ? rw : std::max(1u, source.w / 8), smh = retro ? rh : std::max(1u, source.h / 8);",
                       body)
 
+    # (framegen_scale's early-out terms that are rows of the pass's own, and the option each reads: scale_post_wanted must
+    # ask each, or do_present makes no view and the pass never runs on the plain window copy)
+    EARLY_OUT_ROWS = {"!look": "opts.grade", "bloom <= 0.0f": "opts.bloom", "!fxaa": "opts.fxaa", "!retro": "opts.retro"}
+
+    def test_view_made_for_the_rows(self):
+        replay = (VK / "vk_replay.cpp").read_text(encoding="utf-8")
+        at = replay.index("direct_view = texture_view(")
+        cond = replay[replay.rindex("if (tex && !dev.offscreen && (", 0, at):at]
+        self.assertIn("scale_post_wanted()", cond, "do_present makes the view only for the filter, sharpen, HDR and sides")
+        wanted = block(self.fg, "bool scale_post_wanted()")
+        body = block(self.fg, "VkImage framegen_scale(")
+        early = re.search(r"if \(!window_filter\(\)([^)]*(?:\([^)]*\))?[^)]*)\)\s*return VK_NULL_HANDLE;", body).group(1)
+        terms = [t.strip() for t in early.split("&&") if t.strip()]
+        for term in terms:
+            if term in ("!opts.sharpness", "!wide.side", "!wide.cover"):
+                continue   # (the sharpen and the sides: do_present's own terms, opts.sharpness and wide_sides_possible)
+            self.assertIn(term, self.EARLY_OUT_ROWS, "a new early-out term: add its option to scale_post_wanted and here")
+            self.assertIn(self.EARLY_OUT_ROWS[term], wanted)
+        self.assertIn("bool scale_post_wanted();", (VK / "vk_framegen.h").read_text(encoding="utf-8"))
+
     def test_shader_order(self):
         main = block(self.comp, "void main()")
         self.assertIn("vec3 c = pc.retro == 2 ? crt(uv, g, d) : pc.retro != 0 ? retro(uv) : pc.fxaa != 0 && pc.cover <= 0.0 ? "

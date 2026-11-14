@@ -637,6 +637,10 @@ std::atomic<WideSides> wide_now;   // (wide_sides_tick's, each present)
 // (the middle 16:9's left edge while Ultrawide menus has the menus there and the picture is wider, as wide_sides has it; else 0)
 float wide_margin() { return opts.wide_menus && host && host->wide_menus ? host->wide_menus(0xfu & ~kMenus) : 0.0f; }
 bool wide_sides_possible() { return wide_possible.load(std::memory_order_relaxed); }
+// (hookshot) Whether a row of the window pass's own asks for it (framegen_scale's early-out): do_present makes the picture's
+// sampled view for the pass then, as for the filter and the sharpen. It made it only for those, HDR and the menu sides, so with
+// the Window scaling filter Off, Sharpness 0 and SDR the pass never ran and these rows did nothing
+bool scale_post_wanted() { return opts.fxaa > 0 || opts.bloom > 0 || opts.grade > 0 || opts.retro > 0; }
 
 VkImage framegen_scale(VkCommandBuffer cmd, VkImageView src, VkImage image, uint32_t sw, uint32_t sh, const int crop[4], uint32_t dw, uint32_t dh,
                        bool pq) {
