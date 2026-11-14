@@ -26,7 +26,7 @@ class ScanSource(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         src = (ROOT / "gpu" / "vk" / "vk_texture.cpp").read_text(encoding="utf-8")
-        cls.fn = block(src, "bool upload_astc_gpu(Texture& tex, uint64_t total, const Ranges* dirty) {", "gpu/vk/vk_texture.cpp")
+        cls.fn = block(src, "bool upload_astc_gpu(Texture& tex, uint64_t total, const Ranges* dirty, uint64_t* moved) {", "gpu/vk/vk_texture.cpp")
 
     def test_never_reads_the_staging_arena(self):
         calls = re.findall(r"astc_opaque::scan\(([^,]+),", self.fn)

@@ -37,7 +37,7 @@ def main():
     stop = astc.index("    const uint64_t align =", astc.index("    const uint64_t staged ="))
     astc = astc[:stop].replace("    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, astc_pipe);", "    consume(cmd);")
     actual += "\n" + astc + "    (void)all; return true;\n}\n"
-    cpu = block(tex, "bool upload_inner(Texture& tex, const Ranges* dirty) {")
+    cpu = block(tex, "bool upload_inner(Texture& tex, const Ranges* dirty, uint64_t* moved) {")
     start = cpu.index("                    if (!some) continue;")
     start = cpu.index("\n", start) + 1
     assert cpu[start:].startswith("                }")

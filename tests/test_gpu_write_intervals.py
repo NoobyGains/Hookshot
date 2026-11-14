@@ -30,11 +30,13 @@ DRIVER = r'''#define _CRT_SECURE_NO_WARNINGS 1
 #include <map>
 #include <mutex>
 #include <utility>
+#include <vector>
 static int fails;
 #define CHECK(x) do { if (!(x)) { std::printf("FAIL line %d: %s\n", __LINE__, #x); fails++; } } while (0)
 static void logf(const char*, ...) {}
 static uint64_t frame_no, rec_value, completed_value, tl_watch_prog;
 struct Texture { uint64_t gpu, guest_size, gpu_wrote_seen; uint32_t id, width, height, nvn_format; };
+using Ranges = std::vector<std::pair<uint64_t, uint64_t>>;   // (what a reader may also report: the written parts)
 std::map<uint64_t, std::pair<uint64_t, uint64_t>> gpu_wrote;
 std::mutex gpu_wrote_mu;
 /* WRITER */
@@ -53,7 +55,7 @@ static void write(uint64_t lo, uint64_t hi, uint64_t value) {
 // (the submission gpu_wrote_into finds for a texture of 0x1000 bytes at gpu, seen nothing yet; 0: none)
 static uint64_t found(uint64_t gpu) {
     Texture t{gpu, 0x1000, 0, 1, 16, 16, 0};
-    return gpu_wrote_into(t) ? t.gpu_wrote_seen : 0;
+    return gpu_wrote_into(t, nullptr) ? t.gpu_wrote_seen : 0;
 }
 
 int main() {
@@ -69,10 +71,10 @@ int main() {
     completed_value = 100;
     {   // (seen once, not found again; a later write is)
         Texture t{0x130000, 0x1000, 0, 1, 16, 16, 0};
-        CHECK(gpu_wrote_into(t) && t.gpu_wrote_seen == 10);
-        CHECK(!gpu_wrote_into(t));
+        CHECK(gpu_wrote_into(t, nullptr) && t.gpu_wrote_seen == 10);
+        CHECK(!gpu_wrote_into(t, nullptr));
         write(0x130800, 0x130900, 12);
-        CHECK(gpu_wrote_into(t) && t.gpu_wrote_seen == 12);
+        CHECK(gpu_wrote_into(t, nullptr) && t.gpu_wrote_seen == 12);
     }
     gpu_wrote.clear();
     write(0x200000, 0x210000, 20);
@@ -109,7 +111,7 @@ def main():
     a = p.parse_args()
     src = (ROOT / "gpu/vk/vk_texture.cpp").read_text(encoding="utf-8")
     code = (DRIVER.replace("/* WRITER */", block(src, "void texture_gpu_wrote(uint64_t gpu, uint64_t size) {"))
-            .replace("/* READER */", block(src, "bool gpu_wrote_into(Texture& tex) {")))
+            .replace("/* READER */", block(src, "bool gpu_wrote_into(Texture& tex, Ranges* out) {")))
     with tempfile.TemporaryDirectory(prefix="gpu-write-intervals-") as tmp:
         cpp, exe = Path(tmp) / "intervals.cpp", Path(tmp) / "intervals.exe"
         cpp.write_text(code, encoding="utf-8")
