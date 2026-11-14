@@ -57,6 +57,8 @@ def source(tour, a):
         fail("host/control.c's status no longer says the game's event, loading and age, which the tour waits on")
     if 'strcmp(units, "hos")' not in ctl_c:
         fail("host/control.c's sequence no longer takes HOS_INPUT_SCRIPT's units (the tour's presses)")
+    if 'j_get(d, req, "steps")' not in ctl_c:
+        fail("host/control.c's sequence no longer takes steps, which the client sends a HOS_INPUT_SCRIPT press as (hos_steps)")
     if '"refused"' not in ctl_c or '"cancelled"' not in ctl_c:
         fail("host/control.c no longer replies refused or cancelled")
     # the refusals asking again cannot change are named in the game's words
@@ -338,12 +340,18 @@ class FakeGame:
                     self.a_presses += 1
                 r.update(queued=1, frames=req.get("frames", 8))
             elif cmd == "sequence":
-                if req.get("units") != "hos":
-                    return {"id": req.get("id"), "ok": False, "error": "bad_request", "message": "units"}
-                self.inputs.append(req["script"])
-                span = max(float(p.split(":")[0]) + int((p.split("/") + ["200"])[1]) / 1000 for p in req["script"].split(","))
+                # (as host/control.c takes it: steps in frames, which the client sends a script in HOS_INPUT_SCRIPT's units
+                # as (scripts/hookshot_ctl.py hos_steps), or such a script with units hos)
+                if isinstance(req.get("steps"), list) and "script" not in req and req.get("units") in (None, "frames"):
+                    steps = req["steps"]
+                elif isinstance(req.get("script"), str) and req.get("units") == "hos":
+                    steps = [{"at": round(float(p.split(":")[0]) * 60),
+                              "frames": round(float((p.split("/") + ["200"])[1]) * 60 / 1000)} for p in req["script"].split(",")]
+                else:
+                    return {"id": req.get("id"), "ok": False, "error": "bad_request", "message": "steps or a hos script"}
+                self.inputs.append(steps)
                 start = self.frame
-                self.advance(int(span * 60) + 1)
+                self.advance(max(st["at"] + st["frames"] for st in steps) + 1)
                 r.update(start=start, end=self.frame)
             elif cmd == "wait":
                 if req["event"] == "present":
@@ -446,10 +454,10 @@ def bridge_driving(tour, a, states, rec):
         for r in fake.requests:
             if r["cmd"] == "teleport" and not isinstance(r.get("to"), int):
                 fail("a teleport not by the destination's index: %s" % r)
-        # the presses go as HOS_INPUT_SCRIPT's units, the reply once they are over
+        # the presses go as HOS_INPUT_SCRIPT's units, which the client sends as steps in frames, the reply once they are over
         before = fake.frame
         g.press(tour.LOOK)
-        if fake.inputs[-1] != tour.LOOK or fake.frame - before < int((tour.LOOK_SPAN - 0.2) * 60):
+        if fake.inputs[-1] != ctl.hos_steps(tour.LOOK) or fake.frame - before < int((tour.LOOK_SPAN - 0.2) * 60):
             fail("the look around is not one sequence over its span")
         # the items: the Debug tab's actions in the live file, one a line
         g.cheat(a["item"] + 200)
