@@ -115,15 +115,22 @@ static void decode_next(Dec *d) {
 }
 static void decode_pending(Dec *d) { decode_next(d); }
 static void input_room(Dec *d) { (void)d; }   /* (the input limit's event: tests/test_video_input_limit.py) */
+/* the reservations (a buffer acquired before its picture): counted, not filled here */
+static int reserves, fills;
+static uint64_t sync_reserve(void) { return 0x5ec0000000000000ull | (uint64_t)++reserves; }
+static void fill_reserved(Dec *d) { (void)d; fills++; }
 
+@PUT@
+@END@
 @ACQUIRE@
 
 static int bad;
 static void check(int ok, const char *what) { if (!ok) { printf("FAIL: %s\n", what); bad = 1; } }
 /* one AcquireXDecoderOutputBuffer(&index, &sync, decoder) by a thread that holds a core (or not) */
+static uint32_t out_index;
+static uint64_t sync;   /* (the sync handle the last acquire wrote) */
 static uint64_t acquire(int core, int pending, int registered) {
-    static uint32_t index;
-    static uint64_t sync;
+    sync = 0;
     for (int i = 0; i < dec.qn; i++) picture_free(&dec.queue[(dec.qhead + i) % MAX_QUEUE]);
     memset(&dec, 0, sizeof dec);
     if (!pool.nv12) pool.w = pool.h = 4, pool.count = 1, pool.nv12 = (uint8_t *)calloc(1, 4 * 4 * 3 / 2);
@@ -133,8 +140,9 @@ static uint64_t acquire(int core, int pending, int registered) {
     dec.acquires = prior_acquires;
     Ctx c;
     memset(&c, 0, sizeof c);
-    c.x[0] = (uint64_t)(uintptr_t)&index, c.x[1] = (uint64_t)(uintptr_t)&sync, c.x[2] = 1;
+    c.x[0] = (uint64_t)(uintptr_t)&out_index, c.x[1] = (uint64_t)(uintptr_t)&sync, c.x[2] = 1;
     held = core, takes = takes_under_lock = decodes = decodes_with_core = sleeps = sleeps_with_core = 0;
+    reserves = fills = 0;
     dec_acquire(&c);
     return c.x[0];
 }
@@ -147,6 +155,8 @@ int main(void) {
     end_after = 1;
     r = acquire(1, 1, 1);
     check(r == 0 && dec.eos && decodes_with_core == 0, "nothing decoded after the last submission: decoded without the core");
+    check(reserves == 1 && sync == dec.reserved[0] && !dec.slot_last[0],
+          "after the end, nothing left: reserved as any other (the end gave its own picture), not handed out again done");
     check(takes == 1 && takes_under_lock == 0 && held == 1, "and the core back after the lock");
     end_after = 0;
 
@@ -169,6 +179,11 @@ int main(void) {
        when a sleep takes 5 ms */
     r = acquire(1, 0, 1);
     check(r == 0 && sleeps == 50 && sleeps_with_core == 0, "the first acquire waits ~100 ms of 2-ms sleeps, then the buffer again");
+    /* (the buffer is reserved for the next picture, its sync not reached until that picture is in it: a sync reached at
+       once let Donkey Kong Bananza's player count a picture never sent, and abort) */
+    check(reserves == 1 && dec.reserved[0] == (0x5ec0000000000000ull | 1) && sync == dec.reserved[0] && dec.busy[0],
+          "the idle buffer is reserved, with the reservation's sync handle");
+    check(fills == 1, "reservations made before are owed the pictures first");
     prior_acquires = 1;
     r = acquire(1, 0, 1);
     check(r == 0 && sleeps == 50 && sleeps_with_core == 0, "an acquire after the first waits ~100 ms");
@@ -186,6 +201,35 @@ int main(void) {
     r = acquire(1, 1, 1);
     check(r == 0 && sleeps == 3, "a pending submission is still waited for");
     late = 0;
+
+    /* the stream's end is a picture of its own: the last one again, marked last (every submission fills one buffer) */
+    memset(&dec, 0, sizeof dec);
+    Picture *q = &dec.queue[0];
+    q->w = q->h = 4, q->pts = 700, q->nv12 = (uint8_t *)calloc(1, 4 * 4 * 3 / 2);
+    q->nv12[5] = 9;
+    dec.qn = 1;
+    end_picture(&dec);
+    check(dec.qn == 2 && dec.queue[1].last && !dec.queue[0].last && dec.queue[1].pts == 700, "the end: the last picture again, marked last");
+    check(dec.queue[1].nv12 && dec.queue[1].nv12 != q->nv12 && dec.queue[1].nv12[5] == 9 && dec.queue[1].w == 4, "a copy of its data");
+    picture_free(&dec.queue[0]), picture_free(&dec.queue[1]);
+    memset(&dec, 0, sizeof dec);
+    dec.last_pts = 900;
+    end_picture(&dec);
+    check(dec.qn == 1 && dec.queue[0].last && !dec.queue[0].nv12 && dec.queue[0].pts == 900,
+          "nothing decoded before the end: a picture without data at the last time, marked last");
+    /* room for the end's own picture after the decoder's last pictures: the one decoded before it and the seven an AV1
+       decoder's eight frame threads hold back; and with none left, no decoded picture dropped for the copy */
+    check(MAX_QUEUE >= 1 + 7 + 1, "the queue holds the end's own picture after the decoder's last eight");
+    memset(&dec, 0, sizeof dec);
+    for (int i = 0; i < MAX_QUEUE; i++) {
+        Picture *f = &dec.queue[i];
+        f->w = f->h = 4, f->pts = 1000 + i, f->nv12 = (uint8_t *)calloc(1, 4 * 4 * 3 / 2);
+    }
+    dec.qn = MAX_QUEUE;
+    end_picture(&dec);
+    check(dec.qn == MAX_QUEUE && dec.queue[dec.qhead].pts == 1000 && dec.queue[MAX_QUEUE - 1].last &&
+          dec.queue[MAX_QUEUE - 1].pts == 1000 + MAX_QUEUE - 1, "a full queue: the newest marked last, no picture dropped for a copy");
+    for (int i = 0; i < MAX_QUEUE; i++) picture_free(&dec.queue[i]);
     if (!bad) puts("ok");
     return bad;
 }
@@ -208,7 +252,10 @@ def main():
                        through(src, "typedef struct {\n    const char *name;", "} Av1Decoder;"),
                        through(src, "typedef struct {\n    AVCodecContext *ctx;", "} Dec;"),
                        "static volatile LONG64 submissions;"))
-    fixture = HARNESS.replace("@TYPES@", types).replace("@ACQUIRE@", block(src, "static void dec_acquire(Ctx *c) {"))
+    fixture = (HARNESS.replace("@TYPES@", types)
+               .replace("@PUT@", block(src, "static void put_picture(Dec *d, int slot, int reserved) {"))
+               .replace("@END@", block(src, "static void end_picture(Dec *d) {"))
+               .replace("@ACQUIRE@", block(src, "static void dec_acquire(Ctx *c) {")))
     compiler = shutil.which(args.cxx)
     if not compiler:
         raise SystemExit("C++ compiler not found: " + args.cxx)
