@@ -669,6 +669,13 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   system, the menu options and the `RX_`/`HOS_` switches you changed) and ends with a link that opens the form with them
   filled in (the switches by name only); `hookshot_log.txt` (this run's log so far) and `hookshot_log.1.txt` (the run
   before's, which has the crash if the game crashed last time); and `picture.png`, the game's picture without the menu.
+  Settings whose defaults depend on the display, upscaler, Auto preset or other run-time context are listed after the
+  changes, in the same answer, under a **Depends on this PC** line, with their current value and “default depends on this
+  PC”. They are not counted as changed settings; the report does not invent a default from a run-time list index. The rows
+  a preset sets keep their fixed defaults on Custom while Auto (this PC) has never chosen for the options file; with a
+  preset, or once Auto has chosen, they depend on this PC.
+  Fixed defaults, including GPU Auto, the system-default microphone and Frame generation by's Auto, still report actual
+  changes; the Aspect ratio's default is the monitor's shape, and the Game language's `language.txt`'s.
   Your home folder is written `~` (`%USERPROFILE%` on Windows) and your user name `<user>` in the logs' paths. A switch's
   value is written only when it is a number, a size or on/off, and never for a name with `TOKEN`, `KEY`, `ROOM`,
   `SECRET`, `PASS`, `SERVER` or `USER` in it; other values read `(value left out)`. Nothing else goes in (no saves, no
