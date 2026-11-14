@@ -94,6 +94,10 @@ enum { HOS_OPT_NAVI_CALLOUTS = 64 };
 /* (HOS_OPT_SPRINT, 87 is Keyboard's; 88: the Controls tab's Sprint row, host/nn_hid.c sprint_step: 1 on, 0 Sprint's key and button do
    nothing. Longshot has it at 54, which is hold-to-toggle's here) */
 enum { HOS_OPT_SPRINT = 88 };
+/* (HOS_OPT_TELEPORT_PICTURES, 94: whether the Teleport page's screenshots are taken, gpu/vk/vk_menu.cpp; only while the Debug
+   tools are on. host/hos_main.c oot_capture_tick watches for Link settling in a map only then. NotRexed has it at 59, which
+   Shadow distance has here.) */
+enum { HOS_OPT_TELEPORT_PICTURES = 94 };
 
 /* (hookshot) the controls' names (host/nn_hid.c, host/pad_sdl.c, the pad_ and key_ lines of hookshot_options.ini):
    the Switch's buttons in nn::hid's bit order, and a gamepad's inputs by position (the bottom face button first:

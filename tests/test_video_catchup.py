@@ -99,7 +99,12 @@ static void decode_next(Dec *d) {
 }
 static void decode_pending(Dec *d) { (void)d; }
 static void input_room(Dec *d) { (void)d; }
+/* the reservations (a buffer acquired before its picture: tests/test_video_reserved_buffers.py): none filled here */
+static int reserves;
+static uint64_t sync_reserve(void) { return 0x5ec0000000000000ull | (uint64_t)++reserves; }
+static void fill_reserved(Dec *d) { (void)d; }
 
+@PUT@
 @ACQUIRE@
 
 static int bad;
@@ -184,7 +189,9 @@ def main():
                        through(src, "typedef struct {\n    const char *name;", "} Av1Decoder;"),
                        through(src, "typedef struct {\n    AVCodecContext *ctx;", "} Dec;"),
                        "static volatile LONG64 submissions;"))
-    fixture = HARNESS.replace("@TYPES@", types).replace("@ACQUIRE@", block(src, "static void dec_acquire(Ctx *c) {"))
+    fixture = (HARNESS.replace("@TYPES@", types)
+               .replace("@PUT@", block(src, "static void put_picture(Dec *d, int slot, int reserved) {"))
+               .replace("@ACQUIRE@", block(src, "static void dec_acquire(Ctx *c) {")))
     compiler = shutil.which(args.cxx)
     if not compiler:
         raise SystemExit("C++ compiler not found: " + args.cxx)

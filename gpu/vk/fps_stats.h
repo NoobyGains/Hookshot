@@ -114,6 +114,7 @@ struct Summary {
     double gpu_ms = 0;         // (the GPU's mean time a frame)
     int pipelines = 0, left_out = 0;   // (summed over the window)
     double low_fps = 0;        // (the 1% low over the low window)
+    double max_ms = 0;         // (the slowest frame over the low window)
 };
 
 /// The frames presented in (now - window, now], and the 1% low over (now - low_window, now]
@@ -126,7 +127,7 @@ Summary summarize(const Ring<N>& r, int64_t now, int64_t window, int64_t low_win
         const Frame& f = r.back(i);
         const int64_t age = now - f.at_ns;
         if (age >= std::max(window, low_window)) break;
-        if (age < low_window) low.push_back(f.ms);
+        if (age < low_window) low.push_back(f.ms), s.max_ms = std::max<double>(s.max_ms, f.ms);
         if (age >= window) continue;
         s.frames++;
         s.avg_ms += f.ms;
@@ -201,8 +202,9 @@ inline int rate_grade(double fps, double target_ms) {
     return fps >= want * 0.95 ? 0 : fps >= want * 2 / 3 ? 1 : 2;
 }
 
-/// The text lines: "16.7 ms", "1% low 52"
+/// The text lines: "16.7 ms", "1% low 52", "max 48 ms"
 inline int frame_time_text(char* b, size_t n, double ms) { return snprintf(b, n, ms >= 100 ? "%.0f ms" : "%.1f ms", ms); }
 inline int low_text(char* b, size_t n, double fps) { return snprintf(b, n, "1%% low %.0f", fps); }
+inline int max_text(char* b, size_t n, double ms) { return snprintf(b, n, ms >= 100 ? "max %.0f ms" : "max %.1f ms", ms); }
 
 } // namespace mkwvk::fps_stats

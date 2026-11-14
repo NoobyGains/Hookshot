@@ -70,7 +70,7 @@ enum { HOS_PAD_SOUTH, HOS_PAD_EAST, HOS_PAD_WEST, HOS_PAD_NORTH, HOS_PAD_BACK, H
        HOS_PAD_RIGHT };
 enum { HOS_MOUSE_LEFT = 1, HOS_MOUSE_RIGHT = 2 };
 @@TEXT_ENUMS@@
-struct { int output_res, preset, ultrawide, handheld, audio_output; } opts;
+struct { int output_res, preset, ultrawide, handheld, audio_output, retake_key; } opts;   // (retake_key: main's Retake picture button, read in the pad block)
 struct Row { int* value; int lo, hi; bool restart; };
 struct HostStub { uint32_t (*pad_raw)(); float (*aspect_ratio)(void); };   // (aspect_ratio: Window, the shape the game started with, outputs_sync)
 extern HostStub host_value;
@@ -89,6 +89,8 @@ int ultrawide_read = 1;
 struct { int key() const { return 0; } bool pending() const { return false; } } mods_list;
 int mods_slot = -1;
 bool is_mods_row(const Row&) { return false; }
+std::atomic<int> teleport_map_now{-1}, teleport_capture_want{-1};   // (the Teleport pictures' retake: no map here)
+bool teleport_captures_on() { return false; }
 uint32_t screen_w = 1920, screen_h = 1080;
 bool screen_size(uint32_t* w, uint32_t* h) {
     return screen_w && screen_h ? (*w = screen_w, *h = screen_h, true) : false;

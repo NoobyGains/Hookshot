@@ -103,7 +103,12 @@ int main() {
     CHECK("the stutter's causes", s.pipelines == 3 && s.left_out == 7);
     CHECK("the 1% low has the 50 ms frame", s.low_fps < 50 && s.low_fps > 40);   // (6 slowest: 50 and 5 x 16.7 ms: 45)
     const fs::Summary late = fs::summarize(r, t + 20 * fs::kSecond, fs::kSecond / 2, fs::kLowWindow);
-    CHECK("nothing in the window", late.frames == 0 && late.avg_ms == 0 && late.low_fps == 0);
+    CHECK("nothing in the window", late.frames == 0 && late.avg_ms == 0 && late.low_fps == 0 && late.max_ms == 0);
+    CHECK("max is the slowest frame of the low window, the 50 ms one", near(s.max_ms, 50.0, 0.01));
+    // (the max reaches past the half second: the stutter 8 s back is in it, the average has no frame)
+    const fs::Summary later = fs::summarize(r, t + 1 * fs::kSecond, fs::kSecond / 2, fs::kLowWindow);
+    CHECK("max still has the stutter 1 s on, the average none", near(later.max_ms, 50.0, 0.01) && later.frames == 0);
+    CHECK("max is gone past the low window", fs::summarize(r, t + 11 * fs::kSecond, fs::kSecond / 2, fs::kLowWindow).max_ms == 0);
 
     // the graph's columns: each its slowest frame, oldest left, marks where shaders were built or draws left out
     int col[100];
@@ -164,5 +169,9 @@ int main() {
     CHECK("long ms text", !std::strcmp(b, "250 ms"));
     fs::low_text(b, sizeof b, 52.4);
     CHECK("low text", !std::strcmp(b, "1% low 52"));
+    fs::max_text(b, sizeof b, 48.26);
+    CHECK("max text", !std::strcmp(b, "max 48.3 ms"));
+    fs::max_text(b, sizeof b, 250.4);
+    CHECK("long max text", !std::strcmp(b, "max 250 ms"));
     std::puts("fps stats: all checks passed");
 }

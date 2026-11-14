@@ -908,7 +908,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   the last 10 seconds). From this level on, the number and the frame time are green at the Game frame rate cap's rate,
   amber under it and red under two thirds of it. (The cap's rate is the display's refresh instead with V-Sync On when
   that is slower; with Uncapped and V-Sync not On there is no line, and the colours are against 60.) **Graph** adds
-  the frame times of the last 4 seconds (each point the slowest frame of its span, so no stutter is missed), with a
+  the slowest frame of the last 10 seconds beside the 1% low (`max 48.3 ms`) and the frame times of the last 4 seconds (each point the slowest frame of its span, so no stutter is missed), with a
   dashed line at the Game frame rate cap's frame time and a red mark over frames that took more than twice it; its
   scale follows the usual frame, so a spike is drawn at the top rather than flattening the rest. **Breakdown** adds
   where the frame's time went on the game's presenting thread, as a bar and in numbers: the game's own code (Game),
@@ -1547,6 +1547,18 @@ Windows the Intel shader compiles row.
 A save whose minimap stopped showing after a Teleport on an earlier build (the area left had hidden it, and the flag
 stayed set in the save) is mended by the Teleport itself: teleport to an outdoor area, wait until you can move, then
 save from the game's System menu. The minimap then stays after a restart.
+
+The **Rupees** row in the same tab's **Player** group adds or takes rupees: Left and Right choose an amount (-1000 to
++1000, starting at +100), Enter applies it. The row shows how many rupees Link has now in brackets once a save is loaded.
+The total stays between 0 and what his wallet holds (200, 500 with the Adult's Wallet, 1000 with the Giant's).
+
+The Teleport list shows a picture of the chosen destination above its help, taken from your own game: while Debug tools is
+on, the first time Link stays a few seconds in a place, with no map loading and no cutscene, Hookshot keeps a screenshot of
+it, one file a place, in the `teleport_pictures` folder in the game folder (nothing is shipped or sent anywhere). It shows
+the picture for Link's current age, or the other age's when there is only that one. To replace a picture, choose a button in
+**Retake picture** (a key, a mouse button or a controller button the game and Hookshot don't already use; `retake_key` in
+`hookshot_options.ini`), then press it in play: the screenshot is taken again where you are. **Free camera** with a retake
+gets views Link can't reach. Delete the `teleport_pictures` folder to start over.
 
 `RX_VK_UI_GAME_FONT=0` draws the menu with the included font (Libertinus) even when the game's files have the game's own
 menu font. `RX_VK_UI_PROMPTS=pad` (or `keys`) shows the controller's (or the keyboard's) prompts whatever was used last,
