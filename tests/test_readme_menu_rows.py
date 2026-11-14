@@ -2,7 +2,8 @@
 
 Four rows had none: Ultrawide menus, Mesh shaders, Discord status (which is on by default) and the Controls page's
 Button prompts. The rows are read from gpu/vk/vk_menu.cpp's table and the lines from the readme's
-"| Tab | Option | Choices | Default |" table; nothing runs. Restart and Quit are actions with no choice to list; the
+"| Tab | Option | Choices | Default |" table; nothing runs. Restart and Quit are actions with no choice to list (Motion,
+Controls and Mods open a page and Bug report saves one: lines with no default); the
 Controls page's two rows have lines of their own among the Controls tab's; the Motion page's rows are on the Motion
 line, the Graphics tab's section titles have none, and the Debug tab's lines at the table's end are left out.
 
@@ -77,7 +78,7 @@ class ReadmeMenuRowsTests(unittest.TestCase):
             with self.subTest(option=cells[1]):
                 self.assertEqual(len(cells), 4)
                 self.assertTrue(cells[2])
-                self.assertTrue(cells[3] or cells[1] in ("Motion", "Controls", "Bug report"))   # (they open a page or do a thing: no default)
+                self.assertTrue(cells[3] or cells[1] in ("Motion", "Controls", "Mods", "Bug report"))   # (they open a page or do a thing: no default)
 
 
 if __name__ == "__main__":

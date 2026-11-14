@@ -476,7 +476,7 @@ The menu has six tabs, Graphics, Audio, Gameplay, Controls, Neural and Debug:
 a controller (or the triggers). <kbd>Up</kbd> and <kbd>Down</kbd> choose a row, <kbd>Left</kbd> and <kbd>Right</kbd>
 change it (<kbd>Enter</kbd> changes it too); beside the rows, the help says what the row is and, on a line of its own,
 what the value chosen does. On a controller the D-pad chooses and changes, A changes too and opens a page (Motion,
-Controls, the Teleport list, the inventory), and B goes back or closes the menu: A and B are the buttons your layout puts the Switch's A and B
+Controls, Mods, the Teleport list, the inventory), and B goes back or closes the menu: A and B are the buttons your layout puts the Switch's A and B
 on (with the Nintendo layout, A is the right face button). The mouse is free while the menu is open: click a tab, click a row's name to choose it (its
 value stays), click the left or right half of a value to lower or raise it, drag a slider, turn the wheel to scroll the rows (it never changes a value), and right-click to go back. The
 button prompts at the bottom show the keys or the controller's buttons, whichever you used last. Your choices are saved
@@ -559,6 +559,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Menu language | Auto (the game's language), or English, Português (Brasil), Español (Latinoamérica), Español (España), Français, Deutsch, Italiano, Nederlands, Polski, Русский, 日本語, 한국어, 简体中文, 繁體中文 | Auto |
 | | Discord status | Off, On ("Playing Hookshot" and the time played in your Discord status, while Discord runs on this PC) | On |
 | | Skip opening | Off, On (skips the new-game opening: the story movie and Navi waking Link; later cutscenes and the title screen stay) | Off |
+| | Mods | Opens the Mods page: each mod in the `mods` folder on or off, and the order they load in (after a restart; [Mods](#mods)) | |
 | | Bug report | Saves a report into a new folder in `bug-reports` (below) | |
 | Controls | Controller in background | Off, On | Off |
 | | Mouse camera | As the stick, Native, Off | As the stick |

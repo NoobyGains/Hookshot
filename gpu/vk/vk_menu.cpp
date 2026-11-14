@@ -58,6 +58,7 @@
 #include "upscaler_rows.h"
 #include "auto_settings.h"
 #include "menu_restart.h"
+#include "mods_page.h"   // (the Mods page's list and its choice for the next start)
 #include "vk_menu_i18n.h"
 #include "display_modes.h"   // (the Aspect ratio and Output resolution rows: the screen's sizes and their shapes)
 #ifndef HOOKSHOT_ENV_H   // (env_on: the switches' one rule)
@@ -1486,6 +1487,10 @@ Row rows[] = {
     {TAB_GAMEPLAY, "Skip opening", &opts.skip_opening, 0, 1, 1, tx_onoff,
      "Skips the new-game opening (the story movie and Navi waking Link) and leaves later cutscenes, the Deku Tree "
      "meeting, and the title screen alone.", nullptr, false, true},
+    // (hookshot) opens the Mods page (page 6, draw_mods): host/mods.c's mods, on or off and in order for the next start
+    {TAB_GAMEPLAY, "Mods", nullptr, 0, 0, 0, nullptr,
+     "Your mods from the mods folder beside the game: turn each on or off and choose which wins when two have the same file, "
+     "without renaming their folders. Applies after a restart."},
 
     // Controls (13 rows; Motion opens the 6 TAB_MOTION rows, Controls its page with the 2 TAB_PAGE rows)
     {TAB_CONTROLS, "Controller in background", &opts.pad_background, 0, 1, 1, tx_onoff,
@@ -1863,6 +1868,33 @@ int cur_tab = TAB_GRAPHICS;
 int tab_selected[TAB_COUNT + 1] = {};   // (and the Motion page's)
 bool is_motion_row(const Row& r) { return r.tab == TAB_CONTROLS && !r.value && !strcmp(r.name, "Motion"); }
 
+// ---- (hookshot) the Mods page (page 6, Gameplay's Mods row opens it): the mods host/mods.c found as the game started
+// (MkwVkHost.mod), each on or off and in load order for the next start (mods_page.h). A change is written at once to
+// mods/hookshot-mods.ini (MkwVkHost.mods_save, mods_commit) and takes a restart: the page has one slot in restart_state ----
+namespace mp = mods_page;
+mp::List mods_list;
+bool mods_loaded = false;
+int mods_slot = -1;   // (the page's slot in restart_state: mods_page.h's key, 0 while its choice is this run's)
+int mod_sel = 0;      // (the page's selection, a place in mods_list)
+int mods_fit = 1;     // (the rows that fit, as last drawn: Page Up and Down)
+bool mods_save_failed = false;   // (the last change could not be written: the help says so)
+bool is_mods_row(const Row& r) { return r.tab == TAB_GAMEPLAY && !r.value && !strcmp(r.name, "Mods"); }
+/// The host's list, read once (it is read as the game starts, before the window and its renderer)
+void mods_load() {
+    if (mods_loaded || !host || !host->mod) return;
+    mods_loaded = true;
+    MkwVkMod m{};
+    for (int i = 0; i < 4096 && host->mod(i, &m); i++) {
+        m.name[sizeof m.name - 1] = 0;
+        mp::Mod x;
+        x.name = m.name, x.index = i, x.on_start = x.on = m.on != 0, x.files = m.files, x.renamed = m.renamed != 0;
+        x.exefs = m.exefs != 0;
+        mods_list.mods.push_back(std::move(x));
+    }
+}
+/// How many files the mods at host indexes a and b both have
+int mods_shared(int a, int b) { return host && host->mod_shared ? host->mod_shared(a, b) : 0; }
+
 // ---- the rows that take a restart: their values at the start (menu_init, the GPU's at menu_set_gpu_count) ----
 namespace mr = menu_restart;
 mr::State restart_state;
@@ -1877,16 +1909,20 @@ void restart_init() {
         restart_slot[i] = rows[i].restart && rows[i].value ? restart_state.add(*rows[i].value) : -1;
         if (restart_slot[i] >= 0) restart_names[restart_slot[i]] = rows[i].name;
     }
+    mods_slot = restart_state.add(0);   // (hookshot: the Mods page's choice, one slot for all of it; 0 what the game started with)
+    if (mods_slot >= 0) restart_names[mods_slot] = "Mods";
 }
 int restart_slot_of(const Row& r) { return restart_slot[&r - rows]; }
 /// A row that takes a restart, changed from what the game started with (a row past menu_restart.h's kMax has no slot: never)
 bool restart_changed(const Row& r) {
+    if (is_mods_row(r)) return mods_slot >= 0 && mods_list.pending();   // (the Mods page's choice, its one slot)
     const int slot = restart_slot_of(r);
     return r.value && r.restart && slot >= 0 && *r.value != restart_state.start[slot];
 }
 void restart_values(int* now) {
     for (int i = 0; i < kRows; i++)
         if (restart_slot[i] >= 0) now[restart_slot[i]] = *rows[i].value;
+    if (mods_slot >= 0) now[mods_slot] = mods_list.key();   // (0 as the game started; another choice, another number)
 }
 /// The rows whose value is not the one the game runs with (a bit a slot)
 unsigned restart_pending() {
@@ -2782,8 +2818,8 @@ const std::vector<int>& bindable_keys() {
     }
     return k;
 }
-int page = 0;          // 0 the options, 1 the controls, 3 the teleport list, 4 the inventory, 5 the restart question (2: was the
-                       // debug tools' own page, now on the Debug tab)
+int page = 0;          // 0 the options, 1 the controls, 3 the teleport list, 4 the inventory, 5 the restart question, 6 the mods
+                       // (2: was the debug tools' own page, now on the Debug tab)
 int csel = 0, ccol = menu_hit::kCtlPrimary;   // the page's row (options, then bindings and reset) and binding column
 const int kTop = tab_row_count(TAB_PAGE);   // (Layout preset and Button prompts: a preset shows in the grid at once)
 int listening = 0;     // waiting for the new input: 1 a gamepad's, 2 a key
@@ -2824,12 +2860,12 @@ double fps_target_ms() {
     return fps_stats::target_ms_for(cap, fifo, fifo ? (display_refresh_mhz() + 500) / 1000 : 0);
 }
 menu_hit::Map hits;      // (the menu's controls as last drawn: the mouse's, menu_tick)
-float scroll_at[TAB_MOTION + 2];   // (the first row shown, eased toward the selection: the options' tabs and the Motion page, then
-                                   // the Controls page: kControlsSlot)
-constexpr int kControlsSlot = TAB_MOTION + 1;
-int wheel_rows[TAB_MOTION + 2];   // (the mouse wheel's notches since the last drawing, a slot each: scroll_rows scrolls by them)
-int scrolled_to[TAB_MOTION + 2] = {-1, -1, -1, -1, -1, -1};   // (the selection scroll_rows last brought into view)
-float scroll_want[TAB_MOTION + 2];   // (where scroll_at is going: the wheel moves it, a new selection too)
+float scroll_at[TAB_MOTION + 3];   // (the first row shown, eased toward the selection: the options' tabs and the Motion page, then
+                                   // the Controls page: kControlsSlot, and the Mods page: kModsSlot)
+constexpr int kControlsSlot = TAB_MOTION + 1, kModsSlot = TAB_MOTION + 2;
+int wheel_rows[TAB_MOTION + 3];   // (the mouse wheel's notches since the last drawing, a slot each: scroll_rows scrolls by them)
+int scrolled_to[TAB_MOTION + 3] = {-1, -1, -1, -1, -1, -1};   // (the selection scroll_rows last brought into view)
+float scroll_want[TAB_MOTION + 3];   // (where scroll_at is going: the wheel moves it, a new selection too)
 float ease_step = 0;     // (this drawing's share of the way: the time since the last one)
 
 ui::Ctx ui_ctx(uint32_t w, uint32_t h) {
@@ -3303,7 +3339,13 @@ void row_value_cell(ui::Ctx& c, const Row& r, ImVec2 va, ImVec2 vb, bool selecte
         if (pending == &r) choice_cell(c, va, vb, "Press again to confirm", selected, false, false);
         else if (is_share_row(r)) choice_cell(c, va, vb, share_value.empty() ? "Save" : share_value, selected, false, false);   // (an action, not a page)
         else if (&r == &rows[kBugReportRow]) choice_cell(c, va, vb, bug_report_cell(), selected, false, false);   // (how the last report went)
-        else {
+        else if (is_mods_row(r)) {   // (hookshot: how many mods are on for the next start, and the page's arrow)
+            mods_load();
+            const std::string on = mods_list.size() ? std::to_string(mods_list.on_count()) + " of " + std::to_string(mods_list.size()) + " on"
+                                                    : "None found";
+            choice_cell(c, va, vb, on, selected, false, false);
+            ui::triangle(c, ImVec2(vb.x - 15 * s, mid), 10 * s, 1, selected ? ui::kGoldInk : ui::kInk);
+        } else {
             choice_cell(c, va, vb, "", selected, false, false);
             ui::triangle(c, ImVec2(vb.x - 15 * s, mid), 10 * s, 1, selected ? ui::kGoldInk : ui::kInk);
         }
@@ -3616,6 +3658,161 @@ void draw_controls(ui::Ctx& c) {
     }
     c.d->PopClipRect();
     (void)(listening ? ui::prompt_bar(c, wait, 1) : sel_i < 0 ? ui::prompt_bar(c, option, 3) : ui::prompt_bar(c, idle, 5));   // (the prompts, on top of the help and the rows)
+}
+
+/// (hookshot) The Mods page's choice written for the next start (mods/hookshot-mods.ini, by the host), at each change; the
+/// restart question asked again at the next close
+void mods_commit() {
+    std::vector<int> order, on;
+    mods_list.choice(&order, &on);
+    mods_save_failed = !order.empty() && !(host && host->mods_save && host->mods_save(order.data(), on.data(), (int)order.size()));
+    int now[mr::kMax];
+    restart_values(now);
+    restart_state.note(now);
+}
+/// Gameplay's Mods row: the page, the list read if it was not yet
+void mods_open() {
+    mods_load();
+    page = 6, mod_sel = std::clamp(mod_sel, 0, std::max(0, mods_list.size() - 1));
+}
+/// The Mods page's keys, pad and mouse (menu_tick, page 6): Up and Down choose (Page Up and Down, Home and End too), Left,
+/// Right and Enter turn the mod on or off, the tab keys (Q and E, Tab, LB and RB) move it up or down the order, Esc goes
+/// back to the Gameplay tab. The mouse: the row under it chosen, a click on Off or On sets it, on an arrow moves the mod; a
+/// right click goes back, the wheel scrolls
+void mods_tick(const bool* press, bool tab_left, bool tab_right, const MkwVkPointer* ptr, int mx, int my, bool moved, bool& changed) {
+    const int n = mods_list.size();
+    int set = -1, move = 0;   // (set: 0 off, 1 on, 2 the other; move: -1 up, 1 down)
+    bool back = press[5];
+    if (ptr) {
+        const menu_hit::Hit hit = hits.at((float)mx, (float)my);
+        if (hit.part == menu_hit::kRow && (moved || ptr->pressed) && hit.index != mod_sel)
+            mod_sel = hit.index, scrolled_to[kModsSlot] = mod_sel, changed = true;   // (under the cursor: in view, not scrolled to)
+        if (ptr->pressed & HOS_MOUSE_LEFT) {
+            if (hit.part == menu_hit::kRow && hit.side) set = hit.side > 0 ? 1 : 0;   // (Off's half or On's)
+            else if (hit.part == menu_hit::kButton) move = hit.index ? 1 : -1;
+        }
+        if (ptr->pressed & HOS_MOUSE_RIGHT) back = true;
+        if (ptr->wheel) wheel_rows[kModsSlot] += ptr->wheel, changed = true;   // (scrolls; the selection stays)
+    }
+    if (back) {
+        page = 0, changed = true;   // (to the Gameplay tab, Mods still selected)
+        return;
+    }
+    if (!n) return;
+    const int was = mod_sel;
+    if (press[1]) mod_sel = (mod_sel + n - 1) % n;
+    if (press[2]) mod_sel = (mod_sel + 1) % n;
+    if (press[13] || press[14]) mod_sel = std::clamp(mod_sel + (press[14] - press[13]) * std::max(1, mods_fit - 1), 0, n - 1);
+    if (press[15]) mod_sel = 0;
+    if (press[16]) mod_sel = n - 1;
+    if (mod_sel != was) changed = true;
+    if (press[3] || press[4] || press[7]) set = 2;
+    if (tab_left || tab_right) move = tab_left ? -1 : 1;
+    bool chose = false;
+    if (set >= 0) chose = set == 2 ? mods_list.toggle(mod_sel) : mods_list.set(mod_sel, set == 1);
+    if (move) {
+        const int to = mods_list.move(mod_sel, move);
+        chose |= to != mod_sel;
+        mod_sel = to;
+    }
+    if (chose) mods_commit(), changed = true;
+}
+
+/// (hookshot) The Mods page: a row a mod, in the next start's load order (the first loads first, a lower one wins a file both
+/// have): its name, a line with its files and the mod on that shares them (who wins), Off and On; on the selected row two
+/// arrows that move it (Q and E, LB and RB, do the same). The mods off by their folder's name last, greyed. The help beside the
+/// list: where the mod loads, and every mod on that shares files with it
+void draw_mods(ui::Ctx& c) {
+    mods_load();
+    const int n = mods_list.size(), movable = mods_list.movable();
+    mod_sel = n ? std::clamp(mod_sel, 0, n - 1) : 0;
+    const std::string right = std::to_string(mods_list.on_count()) + " of " + std::to_string(n) + " on";
+    const float s = c.s, hh = title_banner(c, "Mods", n ? right.c_str() : nullptr);
+    float cx0, cx1, hx0, hx1;
+    bool narrow;
+    columns(c, &cx0, &cx1, &hx0, &hx1, &narrow);
+    column(c, cx0, cx1, hh);
+    const auto shared = [](int a, int b) { return mods_shared(a, b); };
+    const ui::Prompt with[] = {{ui::kUpDown, "Choose"}, {ui::kLeftRight, "On / Off"}, {ui::kTabs, "Move"}, {ui::kBack, "Back"}};
+    const ui::Prompt without[] = {{ui::kUpDown, "Choose"}, {ui::kBack, "Back"}};
+    const float bar_top = ui::prompt_bar_top(c);   // (the strip itself drawn last, over all: below)
+    std::string title = "No mods found", help, hint;
+    if (n) {
+        title = mods_list.mods[mod_sel].name;
+        help = mp::help(mods_list, mod_sel);
+        hint = mp::clash_text(mods_list, mod_sel, shared);
+    } else {
+        help = "A mod goes in the mods folder beside the game, as emulators keep them: mods/<name>/romfs/... (or deeper, as "
+               "mods/contents/<title id>/<name>/romfs). Hookshot reads the folder as the game starts: restart after adding one.";
+    }
+    if (mods_save_failed)
+        hint = std::string("hookshot-mods.ini could not be written in the mods folder: this change is lost when the game closes.") +
+               (hint.empty() ? "" : " ") + hint;
+    const bool after = n && mods_list.changed(mod_sel);
+    float bottom = std::min(c.h - c.safe, bar_top) - 10 * s;   // (the rows end above the prompts)
+    if (narrow) {
+        bottom = std::min(bar_top, c.h - c.safe) - 200 * s;
+        help_box(c, hx0, hx1, bottom + 8 * s, nullptr, help.c_str(), hint.empty() ? nullptr : hint.c_str(), nullptr, 0, after,
+                 bottom + 8 * s, bar_top - 10 * s);
+    } else {
+        help_box(c, hx0, hx1, std::max(hh + 26 * s, c.h * 0.30f), title.c_str(), help.c_str(), hint.empty() ? nullptr : hint.c_str(),
+                 nullptr, 0, after, hh + 18 * s, bar_top - 12 * s);
+    }
+    const float rx0 = cx0 + 44 * s, rx1 = cx1 - 44 * s;
+    float top = hh + 22 * s;
+    if (!n) {
+        ui::text_mid_centre(c, c.f.heading, 21 * s, (cx0 + cx1) * 0.5f, top + 60 * s, ui::kSoft, "No mods found");
+        ui::prompt_bar(c, without, 2);
+        return;
+    }
+    ui::text_mid(c, c.f.body, 15 * s, rx0 + 20 * s, top + 8 * s, ui::kDim, "Load order: a mod lower in the list wins a file both have");
+    top += 30 * s;
+    const float rh = 50 * s, pitch = 58 * s, split = rx1 - (rx1 - rx0) * 0.27f, arrow_w = 32 * s;
+    const float ax1 = split - 6 * s, ax0 = ax1 - 2 * arrow_w - 4 * s, name_x1 = ax0 - 6 * s;   // (the move arrows, between)
+    int shown = 0;
+    const float first = scroll_rows(kModsSlot, n, mod_sel, top, bottom, pitch, &shown);
+    mods_fit = shown;
+    scroll_bar(c, cx0 + 20 * s, top, top + shown * pitch - (pitch - rh), n, shown, first);
+    marquee_max = 0;
+    c.d->PushClipRect(ImVec2(cx0, top - 8 * s), ImVec2(cx1, bottom + 8 * s));
+    for (int i = 0; i < n; i++) {
+        const float y = top + (i - first) * pitch;
+        if (y + rh < top - 8 * s || y > bottom + 8 * s) continue;
+        const mp::Mod& m = mods_list.mods[i];
+        const bool sel = i == mod_sel, next_start = mods_list.changed(i);
+        const float y0 = std::max(y, top - 8 * s), y1 = std::min(y + rh, bottom + 8 * s);
+        // (the name cell, as name_cell draws one, with the detail line under the name)
+        const ImVec2 a(rx0, y), b(name_x1, y + rh);
+        c.d->AddRectFilled(a, b, sel ? ui::kCellNameSel : ui::kCellName);
+        c.d->AddRect(a, b, ui::kEdge, 0, std::max(1.0f, s));
+        if (sel) c.d->AddRectFilled(a, ImVec2(a.x + 4 * s, b.y), ui::kGoldHi);
+        float room = b.x - a.x - 36 * s;
+        if (next_start) {   // (a change for the next start: a gold diamond, as on the tabs' rows; the help says it in words)
+            ui::diamond(c, ImVec2(b.x - 12 * s, y + rh * 0.5f), 4 * s, ui::kGoldHi);
+            room -= 14 * s;
+        }
+        ImFont* f = sel ? c.f.strong : c.f.body;
+        const ImU32 ink = m.renamed ? ui::kDim : sel ? ui::kInkBright : ui::kInk;
+        ui::text_mid(c, f, 17.5f * s, a.x + 20 * s, y + 17 * s, ink, fit(c, f, 17.5f * s, room, mp::label(mods_list, i), false).c_str());
+        const bool clash = m.on && !mp::clashes(mods_list, i, shared).empty();
+        ui::text_mid(c, c.f.body, 14 * s, a.x + 20 * s, y + 36 * s, clash ? ui::kAccent : ui::kDim,
+                     fit(c, c.f.body, 14 * s, room, mp::detail(mods_list, i, shared), false).c_str());
+        const ImVec2 va(split, y), vb(rx1, y + rh);
+        halves_cell(c, va, vb, "Off", "On", m.on, sel, m.renamed);
+        hits.add(rx0, y0, rx1, y1, menu_hit::kRow, i, va.x, vb.x);
+        if (sel && i < movable && movable > 1) {   // (the move arrows, on top of the row's box for the mouse: up, then down)
+            for (int k = 0; k < 2; k++) {
+                const ImVec2 p(ax0 + k * (arrow_w + 4 * s), y + 6 * s), q = p + ImVec2(arrow_w, rh - 12 * s);
+                const bool can = k ? i + 1 < movable : i > 0;
+                c.d->AddRectFilled(p, q, ui::kCellDark);
+                c.d->AddRect(p, q, ui::kEdge, 0, std::max(1.0f, s));
+                ui::triangle(c, (p + q) * 0.5f, 11 * s, k ? 3 : 2, can ? ui::kGoldHi : ui::alpha(ui::kDim, 0.5f));
+                if (can) hits.add(p.x, std::max(p.y, y0), q.x, std::min(q.y, y1), menu_hit::kButton, k);
+            }
+        }
+    }
+    c.d->PopClipRect();
+    (void)(mod_sel < movable ? ui::prompt_bar(c, with, 4) : ui::prompt_bar(c, without, 2));   // (the prompts, on top of all)
 }
 
 /// A small square page arrow at a (its size side): dir 0 back, 1 on; dim when it cannot go that way
@@ -3976,6 +4173,7 @@ void draw_menu(ui::Ctx& c) {
     else if (page == 1) draw_controls(k);
     else if (page == 3) draw_teleport(k);
     else if (page == 4) draw_inventory(k);
+    else if (page == 6) draw_mods(k);
     else if (tune_mode) draw_tune_bar(k);
     else draw_options(k);
     if (menu_ox <= 0) return;
@@ -5382,6 +5580,8 @@ void menu_tick() {
             }
             if (item_choice != chosen) inventory_reveal();   // (a click on a card: its page)
         }
+    } else if (open_now.load() && page == 6) {   // (hookshot) the Mods page
+        mods_tick(press, tab_left, tab_right, mouse ? &ptr : nullptr, mx, my, moved, changed);
     } else if (open_now.load() && page == 3) {   // the teleport list
         if (mouse) teleport_mouse(ptr, mx, my, press, changed);
         if (press[5]) page = 0, changed = true;   // (to the Debug tab, Teleport still selected)
@@ -5513,6 +5713,7 @@ void menu_tick() {
         else if (press[7] && is_motion_row(r)) cur_tab = TAB_MOTION, tab_selected[TAB_MOTION] = 0, press[7] = false, changed = true;
         else if (press[7] && is_share_row(r)) share_pipeline_list(), press[7] = false, changed = true;
         else if (press[7] && &r == &rows[kBugReportRow]) bug_report_save(), press[7] = false, changed = true;
+        else if (press[7] && is_mods_row(r)) mods_open(), press[7] = false, changed = true;   // (hookshot: the Mods page)
         else if (press[7] && !r.value && can_bind()) page = 1, csel = 0, ccol = menu_hit::kCtlPrimary, changed = true;
         if ((press[3] || press[4] || press[7]) && r.value) {   // (Enter, or A, as Right)
             if (press[7]) press[4] = true;

@@ -3,6 +3,7 @@
    (hookshot_vk.so) beside the executable. Decided at rx_start, before any other rx_* call; a DLL that is missing or finds no usable Vulkan
    device leaves the WebGPU renderer in place (logged). */
 #include "hos.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #define WIN32_LEAN_AND_MEAN
@@ -211,6 +212,19 @@ static float host_wide_menus(uint32_t keep_mask) {   /* (MkwVkHost.wide_menus) *
     return hos_wide_margin;
 }
 float hos_wide_cover(void);   /* hos_main.c */
+/* (hookshot) the mods, for the Insert menu's Mods page (MkwVkHost.mod, mod_shared, mods_save): host/mods.c */
+int hos_mods_info(int index, const char **name, int *on, int *files, int *renamed, int *exefs);
+int hos_mods_shared(int a, int b);
+int hos_mods_save(const int *order, const int *on, int n);
+static int host_mod(int index, MkwVkMod *out) {
+    const char *name = "";
+    int on = 0, files = 0, renamed = 0, exefs = 0;
+    if (!out || !hos_mods_info(index, &name, &on, &files, &renamed, &exefs)) return 0;
+    memset(out, 0, sizeof *out);
+    snprintf(out->name, sizeof out->name, "%s", name);
+    out->on = on, out->files = files, out->renamed = renamed, out->exefs = exefs;
+    return 1;
+}
 int hos_mouse_pointer(MkwVkPointer *out);   /* display.c, posix/display_sdl.c */
 int hos_sdl_gyro_status(void);   /* pad_sdl.c */
 extern const char *hos_romfs_dir;   /* nn_fs.c, set by hos_main.c */
@@ -248,7 +262,7 @@ static const MkwVkHost vk_host = {
     host_watch_guest_writes, hos_pad_raw, hos_binding, hos_bind, host_aspect_ratio, host_take_key_press,
     hos_mouse_pointer, hos_mic_count, hos_mic_name, hos_mic_select, hos_sdl_gyro_status, hos_log_flush, hos_prompts_face,
     host_romfs_dir, host_wide_menus, host_slept_ns, host_fps_timing, hos_prompts_live_parts, host_screen_size,
-    hos_wide_cover,
+    hos_wide_cover, host_mod, hos_mods_shared, hos_mods_save,
 };
 
 static const MkwVkRenderer *vk;   /* the Vulkan back end, when it was chosen and started */
