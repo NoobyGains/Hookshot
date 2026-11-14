@@ -12,6 +12,23 @@
 <h4 align="center">The Legend of Zelda: Ocarina of Time (Nintendo Switch 2) running natively on Windows & Linux, with no emulator.
 </h4>
 
+> **About this copy (NoobyGains/Hookshot).** The original repository, `NotRexed/Hookshot`, is no longer on GitHub.
+> This fork now follows [**notquiteog/Hookshot**](https://github.com/notquiteog/Hookshot), the active continuation:
+> releases, updates and new work come from there, and this fork's `main` is kept in step with it. GitHub still shows
+> "forked from NotRexed/Hookshot" above, because a fork's parent cannot be changed.
+>
+> What this fork adds, from getting the game running in HDR on an RTX 5090 at 4K:
+>
+> - [`scripts/windows/launch-hdr.ps1`](scripts/windows/launch-hdr.ps1): copy it beside `hookshot.exe` and start the
+>   game with it. It turns Windows' "Use HDR" on for one display, sets the HDR rows (and DLAA and frame generation when
+>   asked), starts the game, and puts Windows back when the game closes. `-List` shows your displays. It includes the
+>   Windows 11 24H2 fix, where the older switch turns on wide colour instead of HDR.
+> - The RTX 5090 run in [docs/tested-configurations.md](docs/tested-configurations.md): 4K, HDR Native, DLAA, frame
+>   generation 2x to 4x with V-Sync on and off.
+>
+> Both are offered upstream in [notquiteog/Hookshot#36](https://github.com/notquiteog/Hookshot/pull/36). Links below to
+> `NotRexed/Hookshot` issues and pull requests are from before the removal and no longer open.
+
 
 <p align="center">
   <a href="#project-status">Status</a> |
