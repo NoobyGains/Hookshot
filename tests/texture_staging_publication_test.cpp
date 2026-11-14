@@ -102,9 +102,9 @@ int run(int argc, char** argv) {
     const std::string test = argv[1];
     if (test == "cpu") { cpu(37, 0x5b); cpu(513, 0xa7); require(flushes == 2, "one flush per completed slice"); }
     else if (test == "astc") {
-        cpu(37, 0x3c); require(upload_astc_gpu(tex, tex.L.layer_size * tex.layers, nullptr), "ASTC gathered layers published");
+        cpu(37, 0x3c); require(upload_astc_gpu(tex, tex.L.layer_size * tex.layers, nullptr, nullptr), "ASTC gathered layers published");
         Ranges dirty{{tex.L.layer_size, tex.L.layer_size * 2}};
-        require(upload_astc_gpu(tex, tex.L.layer_size * tex.layers, &dirty), "dirty layer published");
+        require(upload_astc_gpu(tex, tex.L.layer_size * tex.layers, &dirty, nullptr), "dirty layer published");
         require(flushes == 3, "ASTC flushes each gathered allocation slice");
     } else if (test == "atom") {
         auto a = staging(17,16), b = staging(19,16);
@@ -140,7 +140,7 @@ int run(int argc, char** argv) {
         require(!s.buffer && !s.data && !s.allocation && arenas.empty() && flushes == 0, "no unmapped slice admitted");
         require(attempts.size() == 2 && destroys == 2, "both successfully allocated unmapped attempts released");
     } else if (test == "fallback-astc") {
-        fail_large = true; require(upload_astc_gpu(tex, tex.L.layer_size * tex.layers, nullptr), "ASTC gather uses the mapped fallback");
+        fail_large = true; require(upload_astc_gpu(tex, tex.L.layer_size * tex.layers, nullptr, nullptr), "ASTC gather uses the mapped fallback");
         require(attempts == std::vector<uint64_t>({kModelArena, 1u << 20}) && flushes == 1, "ASTC fallback bytes published once");
     } else if (test == "fallback-reuse") {
         fail_large = true; cpu(37,0x5b); auto old = arenas.front().buffer;

@@ -67,6 +67,7 @@ struct Texture {
     bool only_cleared = false; // (hookshot) all the GPU did was clear it: what the CPU writes after still counts (a font cache's glyphs)
     uint32_t gpu_gen = 0;     // (the memory generation when the GPU last wrote it: CPU writes after it are taken)
     bool released = false;    // its texture was finalized after the GPU wrote it: CPU writes count again
+    bool resampled = false;   // (hookshot) finalized, then sampled again: a cache the game keeps (keep_resampled.h)
     uint32_t release_gen = 0;
     uint64_t gpu_wrote_seen = 0;   // (the newest finished GPU write into its storage it was uploaded after)
     uint64_t last_written = 0;     // (the frame the GPU last wrote it: a render target, each frame it is used)
@@ -174,6 +175,9 @@ VkFormat image_format_of(VkFormat vf, bool astc_decoded);
 VkFormat view_format_of(VkFormat image, bool astc_decoded, bool bc, int view_nvn, ViewUse use, VkFormat force_format);
 /// The format a draw renders in on this device, into a texture of NVN format tex_nvn through a view of NVN format view_nvn
 VkFormat attachment_format(int tex_nvn, int view_nvn);
+/// Whether textures of this NVN format hold 4 components of its 3 (widened on upload): their image's texels are not their
+/// storage's bytes
+bool nvn_format_widened(int nvn_format);
 /// The view format an NVN texture and view sample / render in
 int view_nvn_format(const nvn_tex* t, const nvn_view* v);
 /// The level and layer a view starts at (the texture's levels)

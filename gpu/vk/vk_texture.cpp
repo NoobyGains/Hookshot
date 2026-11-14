@@ -58,6 +58,7 @@
 #include "vram_compact.h"
 #include "evict_reason.h"
 #include "keep_rendered.h"
+#include "keep_resampled.h"
 #include "target_overlap.h"
 #include "host_shaders/block_linear_unswizzle_2d_comp_spv.h"
 #ifndef HOOKSHOT_ENV_H   // (env_on: the switches' one rule)
@@ -124,6 +125,19 @@ VkFormat widened(VkFormat f, int* from_bpb) {
     default: *from_bpb = 0; return f;
     }
 }
+/// The bits of one in a widened format's alpha: what the upload gives the component a 3-component format lacks, which NVN
+/// reads as one (1.0 in a float or normalized format, 1 in an integer one)
+uint32_t alpha_one(VkFormat wide) {
+    switch (wide) {
+    case VK_FORMAT_R8G8B8A8_UNORM: return 0xFF;
+    case VK_FORMAT_R8G8B8A8_SNORM: return 0x7F;
+    case VK_FORMAT_R16G16B16A16_SFLOAT: return 0x3C00;
+    case VK_FORMAT_R16G16B16A16_UNORM: return 0xFFFF;
+    case VK_FORMAT_R16G16B16A16_SNORM: return 0x7FFF;
+    case VK_FORMAT_R32G32B32A32_SFLOAT: return 0x3F800000;
+    default: return 1;   // (the UINT and SINT ones)
+    }
+}
 /// A storage-capable view format of the image's class (sRGB views cannot be storage)
 VkFormat storage_view_format(VkFormat f) {
     f = linear_twin(f);
@@ -182,6 +196,13 @@ VkFormat attachment_format(int tex_nvn, int view_nvn) {
     return view_format_of(image_format_of(widened(fi.format, &from), fi.astc), fi.astc, false, view_nvn, ViewUse::Attachment,
                           VK_FORMAT_UNDEFINED);
 }
+/// (hookshot) Whether textures of this NVN format hold 4 components of its 3 (widened on upload): their image's texels are
+/// not their storage's bytes
+bool nvn_format_widened(int nvn_format) {
+    int from = 0;
+    widened(vk_format(nvn_format).format, &from);
+    return from != 0;
+}
 namespace {
 /// The class an image format shares images by (see the top of the file)
 uint32_t format_class(VkFormat vf, int nvn_format, int bpb, bool astc_decoded) {
@@ -205,6 +226,23 @@ VkComponentSwizzle component(unsigned s) {
     case NVN_TEXTURE_SWIZZLE_B: return VK_COMPONENT_SWIZZLE_B;
     case NVN_TEXTURE_SWIZZLE_A: return VK_COMPONENT_SWIZZLE_A;
     default: return VK_COMPONENT_SWIZZLE_IDENTITY;
+    }
+}
+/// Whether a sampled view of this NVN format reads alpha as one: the X formats (the bits are there, unused), RGB_DXT1 (BC1
+/// without its alpha, vk_formats.cpp) and the 3-component ones (their image holds an alpha they lack: widened)
+bool alpha_reads_one(int nvn_format) {
+    switch (nvn_format) {
+    case NVN_FORMAT_RGBX8: case NVN_FORMAT_RGBX8SN: case NVN_FORMAT_RGBX8UI: case NVN_FORMAT_RGBX8I:
+    case NVN_FORMAT_RGBX16F: case NVN_FORMAT_RGBX16: case NVN_FORMAT_RGBX16SN: case NVN_FORMAT_RGBX16UI:
+    case NVN_FORMAT_RGBX16I: case NVN_FORMAT_RGBX32F: case NVN_FORMAT_RGBX32UI: case NVN_FORMAT_RGBX32I:
+    case NVN_FORMAT_RGBX8_SRGB: case NVN_FORMAT_BGRX8: case NVN_FORMAT_BGRX8_SRGB: case NVN_FORMAT_BGR5: case NVN_FORMAT_RGB5:
+    case NVN_FORMAT_RGB_DXT1: case NVN_FORMAT_RGB_DXT1_SRGB:
+        return true;
+    default: {
+        int from = 0;
+        widened(vk_format(nvn_format).format, &from);
+        return from != 0;
+    }
     }
 }
 
@@ -605,8 +643,10 @@ uint64_t completed_value = 0;
 // (GPU writes into guest memory by buffers: GPU address -> (end, the submission that wrote it last))
 std::map<uint64_t, std::pair<uint64_t, uint64_t>> gpu_wrote;
 std::mutex gpu_wrote_mu;
+// (measurement: what the gpu-write path copies against what the whole path used to copy: the same events, so one run gives both)
+std::atomic<uint64_t> st_gw_events{0}, st_gw_moved_kb{0}, st_gw_dirty_kb{0}, st_gw_whole_kb{0};
 }  // namespace
-bool gpu_wrote_into(Texture& tex);
+bool gpu_wrote_into(Texture& tex, std::vector<std::pair<uint64_t, uint64_t>>* out = nullptr);
 namespace {
 Staging staging(uint64_t n, uint64_t align = 256) {
     // Separate slices may already be read by submitted parallel segments. A flush must not share their cache atom.
@@ -1159,14 +1199,14 @@ const uint8_t* guest_bytes(uint64_t gpu, uint64_t n, std::vector<uint8_t>& scrat
     return scratch.data();
 }
 
-void widen_rows(uint8_t* dst, const uint8_t* src, size_t texels, int from, int to) {
-    const int comp = from / 3;
+/// 3-component texels of `from` bytes as 4 components of `to`: each texel's bytes, then the alpha `one` (alpha_one of the
+/// image's format; the image's bytes are little-endian)
+void widen_rows(uint8_t* dst, const uint8_t* src, size_t texels, int from, int to, uint32_t one) {
+    uint8_t a[4] = {};
+    for (int k = 0; k < to - from; k++) a[k] = (uint8_t)(one >> 8 * k);
     for (size_t i = 0; i < texels; i++) {
         std::memcpy(dst + i * to, src + i * from, from);
-        uint8_t* a = dst + i * to + from;
-        if (comp == 1) a[0] = 0xFF;
-        else if (comp == 2) a[0] = 0x00, a[1] = 0x3C;   // (half 1.0; UNORM16 would want 0xFFFF: close enough for alpha)
-        else { const float one = 1.0f; std::memcpy(a, &one, 4); }
+        std::memcpy(dst + i * to + from, a, to - from);
     }
 }
 
@@ -1177,6 +1217,82 @@ bool overlaps(const Ranges* dirty, uint64_t a, uint64_t b) {
     for (const auto& r : *dirty)
         if (r.first < b && a < r.second) return true;
     return false;
+}
+
+/// The two sets of written ranges - what the GPU buffers covered, and what the CPU wrote since the last upload - as
+/// one list in order, touching and overlapping ranges merged: the upload and overlaps() read it in that order. A CPU
+/// range has to join the part, not wait for a later pass: the upload moves upload_gen past it, and after that nothing
+/// looks for it again.
+void join_ranges(Ranges& into, const Ranges& more) {
+    into.insert(into.end(), more.begin(), more.end());
+    if (into.size() < 2) return;
+    std::sort(into.begin(), into.end());
+    size_t w = 0;
+    for (size_t i = 1; i < into.size(); i++)
+        if (into[i].first <= into[w].second) into[w].second = std::max(into[w].second, into[i].second);
+        else into[++w] = into[i];
+    into.resize(w + 1);
+}
+
+/// The GOB-block row geometry of one level: the rows a written page can force up, how many there are, and what one
+/// row takes of the storage. A row is self-contained, so it is the unit both the marking and the copy work in.
+struct RowGeom {
+    uint32_t rows_per;   // (block rows in one GOB block)
+    uint32_t nrows;      // (of them in this level)
+    uint64_t row_bytes;  // (one row of the storage, GOB padding and all)
+};
+RowGeom row_geom(const LevelGeo& g, int src_bpb) {
+    const uint32_t rows_per = 8u << g.tile_h;
+    return {rows_per, (g.th + rows_per - 1) / rows_per,
+            (((uint64_t)g.tw * src_bpb + 63) / 64) * (512ull << (g.tile_h + g.tile_d))};
+}
+
+/// The band of blocks one run of GOB rows covers in a level: the first block row and how many, stopped at the
+/// level's height. The GPU unswizzle dispatches in blocks, so a written range reaches it as exactly these rows -
+/// the same rows the CPU path copies - instead of the whole level.
+std::pair<uint32_t, uint32_t> unswizzle_band(const LevelGeo& g, const RowGeom& rg, uint32_t row0, uint32_t nrow) {
+    const uint32_t first = row0 * rg.rows_per;
+    return {first, std::min(g.th - first, nrow * rg.rows_per)};
+}
+
+/// The block rows of one layer that a set of written ranges forces up: all of them when the ranges cannot narrow the
+/// level (no ranges at all, a linear or 3D level, an ASTC source, a format widened on the way), otherwise the rows of
+/// GOB blocks a written page falls in. Such a row is self-contained in the storage, so these rows are exactly what
+/// the copy takes from guest memory, and that is what *bytes counts: the ranges themselves answer for less than the
+/// copy moves, since a page reaching into a row brings the whole row. Returns (first row, rows) pairs.
+std::vector<std::pair<uint32_t, uint32_t>> dirty_runs(const LevelGeo& g, const RowGeom& rg, uint64_t src_off,
+                                                      uint64_t span, int src_bpb, const Ranges* dirty,
+                                                      bool whole_level, uint64_t* bytes) {
+    std::vector<std::pair<uint32_t, uint32_t>> runs;
+    if (whole_level || !dirty) {
+        runs.push_back({0, rg.nrows});
+    } else {
+        std::vector<uint8_t> mark(rg.nrows, 0);
+        for (const auto& r : *dirty) {
+            const uint64_t lo = std::max(r.first, src_off), hi = std::min(r.second, src_off + span);
+            if (lo >= hi) continue;
+            const uint64_t r0 = (lo - src_off) / rg.row_bytes;
+            const uint64_t r1 = std::min<uint64_t>((hi - 1 - src_off) / rg.row_bytes, rg.nrows - 1);
+            for (uint64_t k = r0; k <= r1; k++) mark[k] = 1;
+        }
+        for (uint32_t k = 0; k < rg.nrows;) {
+            if (!mark[k]) { k++; continue; }
+            uint32_t e = k;
+            while (e < rg.nrows && mark[e]) e++;
+            runs.push_back({k, e - k});
+            k = e;
+        }
+    }
+    if (bytes) {
+        uint64_t taken = 0;
+        for (const auto& [row0, nrow] : runs) {
+            const uint32_t y0 = row0 * rg.rows_per;
+            const uint32_t th = std::min(g.th - y0, nrow * rg.rows_per);
+            taken += (uint64_t)g.tw * th * g.td * (uint64_t)src_bpb;
+        }
+        *bytes = taken;
+    }
+    return runs;
 }
 
 /// The view of one level the ASTC decoder writes: every layer, or one (layer)
@@ -1266,7 +1382,7 @@ bool bc_reformat(Texture& tex, VkFormat f) {
     return true;
 }
 
-bool upload_astc_gpu(Texture& tex, uint64_t total, const Ranges* dirty) {
+bool upload_astc_gpu(Texture& tex, uint64_t total, const Ranges* dirty, uint64_t* moved) {
     astc_fail = nullptr;
     if (tex.type != VK_IMAGE_TYPE_2D || tex.samples != VK_SAMPLE_COUNT_1_BIT || !astc_ready()) {
         astc_fail = "not a 2D image the GPU decoder takes";
@@ -1309,6 +1425,7 @@ bool upload_astc_gpu(Texture& tex, uint64_t total, const Ranges* dirty) {
     const uint64_t staged = tail * layers.size();
     flush_mapped_range(s.allocation, s.offset, staged);   // (encoded blocks read by the GPU decoder, not necessarily coherent)
     st_bytes += (int64_t)staged;
+    if (moved) *moved += staged;   // (whole layers, chosen by the ranges: what this path really takes)
     VkCommandBuffer cmd = upload_cmd();
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, astc_pipe);
     const uint64_t align = std::max<uint64_t>(dev.props.limits.minStorageBufferOffsetAlignment, 4);
@@ -1318,7 +1435,7 @@ bool upload_astc_gpu(Texture& tex, uint64_t total, const Ranges* dirty) {
         if (is_bc1 && sc.alpha) {   // (new contents with alpha: BC3 again, every layer uploaded into it)
             if (bc_reformat(tex, VK_FORMAT_BC3_UNORM_BLOCK)) {
                 tex.bc1 = 1;
-                return upload_astc_gpu(tex, total, nullptr);
+                return upload_astc_gpu(tex, total, nullptr, moved);
             }
         } else if (!is_bc1 && !tex.bc1) {
             if (sc.alpha) tex.bc1 = 1;
@@ -1466,7 +1583,7 @@ bool unswizzle_ready() {
 }
 
 /// The whole texture (every level and layer dirty overlaps) unswizzled on the GPU; false: not a texture for it
-bool upload_unswizzle_gpu(Texture& tex, uint64_t total, const Ranges* dirty) {
+bool upload_unswizzle_gpu(Texture& tex, uint64_t total, const Ranges* dirty, uint64_t* moved) {
     if (tex.type != VK_IMAGE_TYPE_2D || tex.astc || tex.bc || !(tex.usage & VK_IMAGE_USAGE_STORAGE_BIT) ||
         is_bc(tex.format) || is_astc(tex.format) || is_depth_format(tex.format) || nvn_tex_is_linear(&tex.d))
         return false;
@@ -1514,6 +1631,7 @@ bool upload_unswizzle_gpu(Texture& tex, uint64_t total, const Ranges* dirty) {
             any = overlaps(dirty, g.offset + (uint64_t)layer * tex.L.layer_size,
                            g.offset + (uint64_t)layer * tex.L.layer_size + g.swizzled);
         if (!any) continue;
+        const RowGeom rg = row_geom(g, tex.bpb);
         const uint64_t key = mix(0x5B1Cu, mix(level, (uint64_t)vf));
         const VkImageView view = cached_image_view(&tex, key, [&](VkResult* result) {
             return make_view(&tex, VK_IMAGE_VIEW_TYPE_2D_ARRAY, vf, VK_IMAGE_ASPECT_COLOR_BIT, level, 1, 0,
@@ -1537,10 +1655,36 @@ bool upload_unswizzle_gpu(Texture& tex, uint64_t total, const Ranges* dirty) {
         w[1].dstBinding = 1, w[1].descriptorCount = 1, w[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         w[1].pImageInfo = &ii;
         vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, unsw_layout, 0, 2, w);
-        vkCmdPushConstants(cmd, unsw_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof pc, &pc);
         checkpoint_mark(cmd, tex.gpu, 'g');
-        vkCmdDispatch(cmd, (g.tw + 31) / 32, (g.th + 31) / 32, tex.layers);
-        st_bytes += (int64_t)g.swizzled * tex.layers;
+        if (!dirty) {   // (all of it: every layer in one dispatch, as before)
+            pc.origin[0] = pc.origin[1] = pc.origin[2] = pc.pad0 = 0;
+            pc.destination[0] = pc.destination[1] = pc.destination[2] = 0;
+            vkCmdPushConstants(cmd, unsw_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof pc, &pc);
+            vkCmdDispatch(cmd, (g.tw + 31) / 32, (g.th + 31) / 32, tex.layers);
+            st_bytes += (int64_t)g.swizzled * tex.layers;
+            if (moved) *moved += (uint64_t)g.swizzled * tex.layers;
+            continue;
+        }
+        // (hookshot) a part of the level only: the shader reads at (invocation + origin) and writes at
+        // (invocation + destination), so the written block rows go in as both, one dispatch per layer and run,
+        // and the level's untouched rows are neither read nor written
+        for (uint32_t layer = 0; layer < tex.layers; layer++) {
+            const uint64_t src_off = g.offset + (uint64_t)layer * tex.L.layer_size;
+            if (src_off >= total) continue;
+            uint64_t taken = 0;
+            const auto runs = dirty_runs(g, rg, src_off, g.swizzled, tex.bpb, dirty, false, &taken);
+            if (runs.empty()) continue;
+            st_bytes += (int64_t)taken;
+            if (moved) *moved += taken;
+            for (const auto& [row0, nrow] : runs) {
+                const auto [first, blocks] = unswizzle_band(g, rg, row0, nrow);
+                if (!blocks) continue;
+                pc.origin[0] = 0, pc.origin[1] = first, pc.origin[2] = layer, pc.pad0 = 0;
+                pc.destination[0] = 0, pc.destination[1] = (int32_t)first, pc.destination[2] = (int32_t)layer;
+                vkCmdPushConstants(cmd, unsw_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof pc, &pc);
+                vkCmdDispatch(cmd, (g.tw + 31) / 32, (blocks + 31) / 32, 1);
+            }
+        }
     }
     full_barrier(cmd);
     descriptors_disturbed();
@@ -1736,11 +1880,11 @@ void upload_frame_report() {
     for (UpStat& u : up_frame) u = {};
     up_slowest.clear();
 }
-bool upload_inner(Texture& tex, const Ranges* dirty);
-bool upload(Texture& tex, const Ranges* dirty) {
+bool upload_inner(Texture& tex, const Ranges* dirty, uint64_t* moved);
+bool upload(Texture& tex, const Ranges* dirty, uint64_t* moved = nullptr) {
     const auto t0 = std::chrono::steady_clock::now();
     up_route = UP_CPU;
-    const bool ok = upload_inner(tex, dirty);
+    const bool ok = upload_inner(tex, dirty, moved);
     const int64_t ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
     frame_upload_ns.fetch_add(ns, std::memory_order_relaxed);
     std::lock_guard lk(up_mu);
@@ -1833,7 +1977,7 @@ bool upload_never(const Texture& tex) {
            // rendered, not uploaded)
            tex.aspect == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
 }
-bool upload_inner(Texture& tex, const Ranges* dirty) {
+bool upload_inner(Texture& tex, const Ranges* dirty, uint64_t* moved) {
     PROF(PROF_UPLOAD);
     if (upload_never(tex)) return false;
     const uint64_t total = tex.guest_size;
@@ -1853,15 +1997,15 @@ bool upload_inner(Texture& tex, const Ranges* dirty) {
                  (unsigned long long)tex.first_seen);
         }
     }
-    if (tex.astc && (up_route = UP_ASTC, upload_astc_gpu(tex, total, dirty))) return true;
+    if (tex.astc && (up_route = UP_ASTC, upload_astc_gpu(tex, total, dirty, moved))) return true;
     up_route = UP_CPU;
     if (tex.bc) return false;   // (no CPU path into BC3)
     // (the GPU's unswizzle reads guest memory as it is: not where the capture kept the storage as it was at its submit)
-    if (!(tex.gpu < (1ull << 40) && memory_has_shadow(tex.gpu, total)) && upload_unswizzle_gpu(tex, total, dirty))
+    if (!(tex.gpu < (1ull << 40) && memory_has_shadow(tex.gpu, total)) && upload_unswizzle_gpu(tex, total, dirty, moved))
         return up_route = UP_GPU, true;
     const bool linear = nvn_tex_is_linear(&tex.d);
     int widen_from = 0;
-    widened(tex.d.format ? vk_format(tex.nvn_format).format : tex.format, &widen_from);
+    const VkFormat wide = widened(tex.d.format ? vk_format(tex.nvn_format).format : tex.format, &widen_from);
     if (upload_all_zero(tex, total, dirty, widen_from != 0)) return true;
     const int src_bpb = tex.bpb;
     const int out_bpb = tex.astc ? 4 : widen_from ? (widen_from == 3 ? 4 : widen_from == 6 ? 8 : 16) : src_bpb;
@@ -1879,29 +2023,14 @@ bool upload_inner(Texture& tex, const Ranges* dirty) {
             const uint64_t span = linear ? (uint64_t)stride * g.th : std::max<uint64_t>(g.swizzled, 1);
             if (!overlaps(dirty, src_off, src_off + span)) continue;
             // the block rows to upload: all of them, or those a written page falls in (2D block-linear levels)
-            const uint32_t rows_per = 8u << g.tile_h;   // (block rows of a GOB block)
-            const uint32_t nrows = (g.th + rows_per - 1) / rows_per;
-            const uint64_t gobs_x = ((uint64_t)g.tw * src_bpb + 63) / 64;
-            const uint64_t row_bytes = gobs_x * (512ull << (g.tile_h + g.tile_d));
-            std::vector<std::pair<uint32_t, uint32_t>> runs;   // (first row, rows)
-            if (!dirty || linear || tex.astc || widen_from || g.td > 1 || g.tile_d) {
-                runs.push_back({0, nrows});
-            } else {
-                std::vector<uint8_t> mark(nrows, 0);
-                for (const auto& r : *dirty) {
-                    const uint64_t lo = std::max(r.first, src_off), hi = std::min(r.second, src_off + span);
-                    if (lo >= hi) continue;
-                    const uint64_t r0 = (lo - src_off) / row_bytes, r1 = std::min<uint64_t>((hi - 1 - src_off) / row_bytes, nrows - 1);
-                    for (uint64_t k = r0; k <= r1; k++) mark[k] = 1;
-                }
-                for (uint32_t k = 0; k < nrows;) {
-                    if (!mark[k]) { k++; continue; }
-                    uint32_t e = k;
-                    while (e < nrows && mark[e]) e++;
-                    runs.push_back({k, e - k});
-                    k = e;
-                }
-            }
+            const RowGeom rg = row_geom(g, src_bpb);
+            const uint32_t rows_per = rg.rows_per, nrows = rg.nrows;
+            const uint64_t row_bytes = rg.row_bytes;
+            uint64_t taken = 0;
+            const std::vector<std::pair<uint32_t, uint32_t>> runs =   // (first row, rows)
+                dirty_runs(g, rg, src_off, span, src_bpb, dirty,
+                           !dirty || linear || tex.astc || widen_from || g.td > 1 || g.tile_d, &taken);
+            if (moved) *moved += taken;   // (what this layer's copy takes from the storage, rows and all)
             for (const auto& [row0, nrow] : runs) {
                 const uint32_t y0 = row0 * rows_per;                       // (blocks)
                 const uint32_t th = std::min(g.th - y0, nrow * rows_per);   // (blocks)
@@ -2012,7 +2141,7 @@ bool upload_inner(Texture& tex, const Ranges* dirty) {
                                                            (u32)tex.block_w, (u32)tex.block_h,
                                                            std::span<uint8_t>(out, (size_t)g.w * px_h * g.d * 4));
                 } else if (widen_from) {
-                    widen_rows(out, blocks, (size_t)g.tw * th * g.td, src_bpb, out_bpb);
+                    widen_rows(out, blocks, (size_t)g.tw * th * g.td, src_bpb, out_bpb, alpha_one(wide));
                 }
                 st_bytes += (int64_t)out_bytes;
                 // (a sparse image: only its blocks this holds texels other than zero get memory; the others read
@@ -2897,15 +3026,25 @@ Texture* texture_touch(Texture* tex, bool for_sampling) {
     if (tex->retry_frame > frame_no) return tex;
     static thread_local Ranges dirty;
     static const bool no_partial = env_on("RX_VK_NO_PARTIAL");   // (A/B: whole re-uploads)
-    // (a buffer the GPU wrote over its storage, done since: all of it again; the tiles of MKW's terrain are filled so
-    // and stayed the flat placeholder they were made with)
+    static const bool gpu_write_whole = env_on("RX_VK_GPU_WRITE_WHOLE");   // (A/B: all of it again on a GPU write)
     const uint64_t seen_before = tex->gpu_wrote_seen;   // (put back if the upload fails: the write is still to be taken)
-    const bool gpu_dirty = tex->uploaded && gpu_wrote_into(*tex);
+    // (a buffer the GPU wrote over its storage, done since: what it wrote again. A bind marks its whole range written
+    // though the shader may touch less of it, and the game's scratch lands on the storage of a finalized target: the
+    // 2560x1440 ones took 15 MB a frame for a 1.75 MB bind. The tiles of MKW's terrain are filled so and stayed the flat
+    // placeholder they were made with: they lie in the bound ranges, so they are still filled.
+    // RX_VK_GPU_WRITE_WHOLE=1: all of it again, as before)
+    const bool gpu_part = !no_partial && !gpu_write_whole && tex->uploaded && !tex->sparse;
+    const bool gpu_dirty = tex->uploaded && gpu_wrote_into(*tex, gpu_part ? &dirty : nullptr);
+    const bool gpu_partial = gpu_dirty && gpu_part && !dirty.empty();
     const bool partial = !no_partial && !gpu_dirty && tex->uploaded && !tex->gpu_written && !tex->released;
     // (a texture the GPU drew and the game finalized: only what the CPU wrote since then. Its memory never got the
     // GPU's texels, and a write before (another variable in the same page) re-uploaded garbage over a drawn LUT:
     // the rainbow sky)
     const uint32_t since = tex->gpu_written && tex->released ? std::max(tex->upload_gen, tex->release_gen) : tex->upload_gen;
+    // (hookshot) one the game finalized and samples after that: a cache it keeps (the shadow map it draws, finalizes and samples
+    // for hundreds of frames). The eviction pass keeps it over the budget: keep_resampled.h. Not only "well after it was drawn":
+    // the 12288 x 12288 shadow map was sampled within a few frames of being drawn, then went unused 400 frames and was evicted
+    if (tex->gpu_written && tex->released) tex->resampled = true;
     if (tex->gpu_written && tex->released && frame_no > tex->last_written + 60) {
         // (hookshot: one the game finalized, sampled again well after it was drawn: what the eviction keeps them for)
         static std::unordered_set<uint32_t> told;
@@ -2913,6 +3052,11 @@ Texture* texture_touch(Texture* tex, bool for_sampling) {
             logf("vk: texture #%u %#llx %ux%u x%u NVN %#x the GPU drew, finalized by the game, sampled again at frame %llu (drawn at "
                  "%llu)", tex->id, (unsigned long long)tex->gpu, tex->width, tex->height, tex->layers, tex->nvn_format,
                  (unsigned long long)frame_no, (unsigned long long)tex->last_written);
+    }
+    if (gpu_partial) {   // (the CPU's writes since go in the same part: what the whole upload used to cover. Its ranges
+                         // are not found again later: the upload below moves upload_gen past them)
+        static thread_local Ranges cpu;
+        if (texture_dirty(*tex, since, cpu)) join_ranges(dirty, cpu);
     }
     if (tex->uploaded && !gpu_dirty && !texture_dirty(*tex, since, dirty)) return tex;
     const uint32_t gen = memory_generation();
@@ -3005,23 +3149,51 @@ Texture* texture_touch(Texture* tex, bool for_sampling) {
                  tex->released ? "finalized" : "live", (unsigned long long)kb, dirty.size(), gpu_dirty ? ", a GPU buffer wrote it" : "");
     }
     const auto up0 = std::chrono::steady_clock::now();
-    const bool up_ok = upload(*tex, partial || sparse_written ? &dirty : nullptr);
+    const bool up_part = partial || sparse_written || gpu_partial;
+    uint64_t gw_moved = 0;   // (what the upload path actually took from the storage, counted where it takes it)
+    const bool up_ok = upload(*tex, up_part ? &dirty : nullptr, &gw_moved);
     {   // (an upload over 15 ms: what it was, 60 of them)
         const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - up0).count();
         static int slow_logged;
         if (ms > 15.0) programs_slow_upload(ms, tex->width, tex->height, tex->nvn_format);   // (RX_VK_LOG_PROGRAM_LIFE=1)
         if (ms > 15.0 && slow_logged++ < 60) {
             uint64_t part = 0;
-            if (partial) for (const auto& r : dirty) part += r.second - r.first;
+            if (up_part) for (const auto& r : dirty) part += r.second - r.first;
             logf("vk: slow upload %.1f ms: #%u %#llx %ux%ux%u x%u levels %u NVN %#x%s%s, %llu of %llu KB%s", ms, tex->id,
                  (unsigned long long)tex->gpu, tex->width, tex->height, tex->depth, tex->layers, tex->levels,
                  tex->nvn_format, tex->astc ? " ASTC" : "",
                  tex->bc ? (linear_twin(tex->format) == VK_FORMAT_BC7_UNORM_BLOCK ? " (BC7)" : " (BC3)") : "",
-                 (unsigned long long)((partial ? part : tex->guest_size) >> 10), (unsigned long long)(tex->guest_size >> 10),
+                 (unsigned long long)((up_part ? part : tex->guest_size) >> 10), (unsigned long long)(tex->guest_size >> 10),
                  tex->uploaded ? " again" : "");
         }
     }
     if (up_ok) {
+        if (gpu_dirty) {   // (the GPU-write path's own tally: what the upload path took, the ranges it was handed,
+                           // and the whole it spared. They differ: a route that works whole levels or whole layers
+                           // moves more than its ranges name, and only the first is a saving.)
+            uint64_t part = 0;
+            if (gpu_partial) for (const auto& r : dirty) part += r.second - r.first;
+            const uint64_t whole = tex->guest_size, ranges = gpu_partial ? part : whole;
+            const uint64_t n = st_gw_events.fetch_add(1, std::memory_order_relaxed) + 1;
+            st_gw_moved_kb.fetch_add(gw_moved >> 10, std::memory_order_relaxed);
+            st_gw_dirty_kb.fetch_add(ranges >> 10, std::memory_order_relaxed);
+            st_gw_whole_kb.fetch_add(whole >> 10, std::memory_order_relaxed);
+            // (RX_VK_GPU_WRITE_LOG=1: one line per event, so a short scene or a single burst tells you the same
+            // story as the running tally - the tally only speaks again every 50 events)
+            static const bool gw_each = env_on("RX_VK_GPU_WRITE_LOG");
+            if (gw_each)
+                logf("vk: gpu-write upload #%u: %llu KB taken by the path, %llu KB of written ranges, %llu KB whole (%s)",
+                     tex->id, (unsigned long long)(gw_moved >> 10), (unsigned long long)(ranges >> 10),
+                     (unsigned long long)(whole >> 10), gpu_partial ? "the part" : "whole");
+            if (n == 1 || n % 50 == 0)
+                logf("vk: gpu-write uploads: %llu (%llu MB taken by the upload path, %llu MB of written ranges, the "
+                     "whole image would have been %llu MB), %s",
+                     (unsigned long long)n,
+                     (unsigned long long)(st_gw_moved_kb.load(std::memory_order_relaxed) >> 10),
+                     (unsigned long long)(st_gw_dirty_kb.load(std::memory_order_relaxed) >> 10),
+                     (unsigned long long)(st_gw_whole_kb.load(std::memory_order_relaxed) >> 10),
+                     gpu_partial ? "the part" : "whole");
+        }
         tex->upload_value = rec_value, tex->upload_seg = tl_seg;
         // (its storage joins the submit-time capture: what the game writes into it after a submit is not taken for it)
         // (any size: the capture copies only the pages the CPU wrote, and the big CPU-streamed textures were read as the
@@ -3036,7 +3208,7 @@ Texture* texture_touch(Texture* tex, bool for_sampling) {
             if (logged++ < 20 || (tex->guest_size > (4u << 20) && big[tex->gpu]++ < 3)) {
                 uint64_t part = 0, nz = 0, readable = 0;
                 for (const auto& r : dirty) part += r.second - r.first;
-                if (partial) {   // (what the CPU wrote: how much of it is not zero, and in which levels)
+                if (partial || gpu_partial) {   // (what was written again: how much of it is not zero, and in which levels)
                     std::vector<uint8_t> b;
                     char lv[96] = "";
                     int lvn = 0;
@@ -3057,8 +3229,10 @@ Texture* texture_touch(Texture* tex, bool for_sampling) {
                 logf("vk: texture %#llx %ux%ux%u x%u levels %u NVN %#x (%llu KB of storage) re-uploaded (its memory was "
                      "written; flags %#x): %s, %llu KB of it%s%s", (unsigned long long)tex->gpu, tex->width, tex->height,
                      tex->depth, tex->layers, tex->levels, tex->nvn_format, (unsigned long long)(tex->guest_size >> 10),
-                     tex->d.flags, gpu_dirty ? "a GPU write into its storage" : partial ? "what the CPU wrote" : "whole",
-                     (unsigned long long)((partial || sparse_written ? part : tex->guest_size) >> 10),
+                     tex->d.flags, gpu_dirty ? (gpu_partial ? "the part of its storage a GPU buffer wrote"
+                                                            : "a GPU write into its storage")
+                               : partial ? "what the CPU wrote" : "whole",
+                     (unsigned long long)((up_part ? part : tex->guest_size) >> 10),
                      tex->gpu_written ? ", over what the GPU wrote" : "", tex->released ? " (finalized since)" : "");
             }
         }
@@ -3066,6 +3240,7 @@ Texture* texture_touch(Texture* tex, bool for_sampling) {
         tex->upload_gen = gen;
         tex->gpu_written = false;
         tex->released = false;
+        tex->resampled = false;   // (drawn again: "sampled after finalizing" only once finalized again; keep_resampled.h)
         tex->retry_frame = 0;
     } else if (upload_never(*tex)) {
         tex->uploaded = true;   // (nothing to try again)
@@ -3166,17 +3341,14 @@ VkImageView texture_view(Texture* tex, const nvn_tex* t, const nvn_view* v, VkIm
         unsigned sw[4] = {d.swizzle_r, d.swizzle_g, d.swizzle_b, d.swizzle_a};
         if (v && v->set_swizzle)
             for (int i = 0; i < 4; i++) sw[i] = v->swz[i];
-        // (X formats read alpha as one)
-        switch (nf) {
-        case NVN_FORMAT_RGBX8: case NVN_FORMAT_RGBX8SN: case NVN_FORMAT_RGBX8UI: case NVN_FORMAT_RGBX8I:
-        case NVN_FORMAT_RGBX16F: case NVN_FORMAT_RGBX16: case NVN_FORMAT_RGBX16SN: case NVN_FORMAT_RGBX16UI:
-        case NVN_FORMAT_RGBX16I: case NVN_FORMAT_RGBX32F: case NVN_FORMAT_RGBX32UI: case NVN_FORMAT_RGBX32I:
-        case NVN_FORMAT_RGBX8_SRGB: case NVN_FORMAT_BGRX8: case NVN_FORMAT_BGRX8_SRGB:
+        if (alpha_reads_one(nf))   // (X formats and 3-component ones)
             for (unsigned& s : sw)
                 if (s == NVN_TEXTURE_SWIZZLE_A) s = NVN_TEXTURE_SWIZZLE_ONE;
-            break;
-        default: break;
-        }
+        // (RGB5A1 and RGB5 hold red in bits 0-4 and blue in 10-14, and their image is A1R5G5B5, the other way round
+        // (vk_formats.cpp): what reads red reads the image's blue, and the other way)
+        if (nf == NVN_FORMAT_RGB5A1 || nf == NVN_FORMAT_RGB5)
+            for (unsigned& s : sw)
+                s = s == NVN_TEXTURE_SWIZZLE_R ? NVN_TEXTURE_SWIZZLE_B : s == NVN_TEXTURE_SWIZZLE_B ? NVN_TEXTURE_SWIZZLE_R : s;
         static const bool swap_9e5 = env_on("RX_VK_9E5_SWAP");   // (hookshot, diagnosis: R and B swapped)
         if (swap_9e5 && nf == NVN_FORMAT_RGB9E5F) std::swap(sw[0], sw[2]);
         cm = {component(sw[0]), component(sw[1]), component(sw[2]), component(sw[3])};
@@ -3952,6 +4124,7 @@ void texture_written(Texture* tex, const char* why) {
     tex->gpu_written = true;
     tex->gpu_gen = memory_generation();
     tex->released = false;
+    tex->resampled = false;   // (drawn again: "sampled after finalizing" only once finalized again; keep_resampled.h)
     tex->uploaded = true;
 }
 
@@ -4002,11 +4175,6 @@ void texture_gpu_wrote(uint64_t gpu, uint64_t size) {
                  (unsigned long long)frame_no, (unsigned long long)tl_watch_prog);
     }
     std::lock_guard lk(gpu_wrote_mu);
-    auto it = gpu_wrote.find(lo);
-    if (it != gpu_wrote.end() && it->second.first >= hi) {
-        it->second.second = rec_value;
-        return;
-    }
     // (the records are kept apart, each part of the memory in one: gpu_wrote_into looks back at only the one record before a
     // texture, and an older write that a later, smaller one sat inside was missed. One this write lands in keeps what is left
     // of it before and after, with its own submission)
@@ -4024,16 +4192,23 @@ void texture_gpu_wrote(uint64_t gpu, uint64_t size) {
     while (gpu_wrote.size() > 65536) gpu_wrote.erase(gpu_wrote.begin());   // (a write inside one adds two)
 }
 /// A finished GPU write into the texture's storage it was not uploaded after (and notes it as seen)
-bool gpu_wrote_into(Texture& tex) {
+bool gpu_wrote_into(Texture& tex, Ranges* out) {
+    if (out) out->clear();
     std::lock_guard lk(gpu_wrote_mu);
     if (gpu_wrote.empty()) return false;
     const uint64_t lo = tex.gpu, hi = tex.gpu + std::max<uint64_t>(tex.guest_size, 1);
     uint64_t newest = 0;
     auto it = gpu_wrote.upper_bound(lo);
-    if (it != gpu_wrote.begin()) --it;
+    if (it != gpu_wrote.begin()) --it;   // (no stored range starts earlier and overlaps a later one, so this is complete)
     for (; it != gpu_wrote.end() && it->first < hi; ++it)
-        if (it->second.first > lo && it->second.second <= completed_value && it->second.second > tex.gpu_wrote_seen)
+        if (it->second.first > lo && it->second.second <= completed_value && it->second.second > tex.gpu_wrote_seen) {
             newest = std::max(newest, it->second.second);
+            if (out) {   // (the range of its storage the buffer covers, in the image's own offsets)
+                const uint64_t a = std::max(it->first, lo) - lo, b = std::min<uint64_t>(it->second.first, hi) - lo;
+                if (!out->empty() && out->back().second >= a) out->back().second = std::max(out->back().second, b);
+                else out->push_back({a, b});
+            }
+        }
     if (!newest) return false;
     tex.gpu_wrote_seen = newest;
     static int logged;
@@ -4287,6 +4462,14 @@ void texture_rendered(Texture* tex) {
             it = it->second.first <= hi ? gpu_owned.erase(it) : std::next(it);
         gpu_owned[lo] = {hi, memory_generation()};
         if (gpu_owned.size() > 65536) gpu_owned.erase(gpu_owned.begin());   // (bounded; the oldest addresses go)
+        // (hookshot) and a GPU buffer's write into its storage from an earlier submission is older than this drawing:
+        // gpu_wrote_into took it for newer the first time the game sampled the image after finalizing it, and the whole
+        // image was uploaded from guest memory over what the pass drew (1920x1080 and 2560x1440 targets made over a
+        // buffer's old storage after an area load). A write in this submission still counts: which came first is not
+        // known here. Passes only, once a frame: the parallel replay holds its lock here then (texture_marked).
+        // RX_VK_NO_DRAWN_OVER_BUFFER_WRITE=1: as before
+        static const bool older = !env_on("RX_VK_NO_DRAWN_OVER_BUFFER_WRITE");
+        if (older && rec_value) tex->gpu_wrote_seen = std::max(tex->gpu_wrote_seen, rec_value - 1);
     }
 }
 uint64_t texture_frame_no() {
@@ -5014,17 +5197,42 @@ void texture_frame(uint64_t completed) {
     // after a while of play (issues 107 and 386). Kept, up to RX_VK_KEEP_FINALIZED_MB (512 by default; 0:
     // evicted as before), the least recently used beyond that going as before. (Not written back into the memory instead: the game
     // may have put other things there since, and a write-back over scene data once crashed it)
+    // (hookshot) the textures the GPU drew that the game samples again after finalizing them, used in the last 1,800 presents: kept
+    // over the budget, the most recently used first, within keep_finalized's cap (shared: what they may hold comes off its room), at
+    // most RX_VK_KEEP_RESAMPLED_MB (512 by default; 0: evicted as before) and an eighth of the budget, and none near what the driver
+    // allows. Their total first, as finalized_kept's: keep_resampled.h
+    static const uint64_t keep_resampled_max =
+        (uint64_t)(getenv("RX_VK_KEEP_RESAMPLED_MB") ? std::max(0, atoi(getenv("RX_VK_KEEP_RESAMPLED_MB"))) : 512) << 20;
     static const uint64_t keep_finalized_max =
         (uint64_t)(getenv("RX_VK_KEEP_FINALIZED_MB") ? std::max(0, atoi(getenv("RX_VK_KEEP_FINALIZED_MB"))) : 512) << 20;
-    const auto keep_finalized = [&](const Texture* tex) {
+    // (an eighth of the budget as a size, before the rules take an excess off it: steady from pass to pass. Near the driver's limit
+    // the 97% line gives it 0)
+    const uint64_t resampled_cap = keep_resampled::cap(keep_resampled_max, keep_finalized_max, size_budget, known, used, allowed);
+    const auto gpu_owns = [&](const Texture* tex) {   // (its storage's range still the one the GPU drew it in)
+        const auto g = gpu_owned.find(tex->gpu);
+        return g != gpu_owned.end() && g->second.first == tex->gpu + std::max<uint64_t>(tex->guest_size, 1);
+    };
+    const auto finalized_once = [&](const Texture* tex) {   // (keep_finalized's textures, the resampled ones among them)
         if (!keep_finalized_max || !tex->gpu_written || !tex->released || !tex->first_written ||
             tex->first_written != tex->last_written || tex->bytes > (4ull << 20))
             return false;
-        const auto g = gpu_owned.find(tex->gpu);   // (its storage's range still the one the GPU drew it in)
-        if (g == gpu_owned.end() || g->second.first != tex->gpu + std::max<uint64_t>(tex->guest_size, 1)) return false;
+        if (!gpu_owns(tex)) return false;
         return !drawn_over(tex) && !drawn_over_shifted(tex);
     };
+    const auto keep_finalized = [&](const Texture* tex) {
+        // (a resampled one keep_resampled may keep is its, below, not counted here; with that rule off, kept here as before)
+        if (resampled_cap && tex->resampled && keep_resampled::recent(frame_no - tex->last_frame)) return false;
+        return finalized_once(tex);
+    };
     uint64_t finalized_kept = 0;
+    uint64_t resampled_total = 0;
+    if (resampled_cap)
+        for (auto& [last, tex] : order)
+            if (tex->resampled &&   // (first: the overlap search only for the few marked)
+                keep_resampled::candidate(drawn_over_shifted(tex) || drawn_over(tex), gpu_owns(tex), tex->gpu_written, true,
+                                          frame_no - last))
+                resampled_total += tex->bytes;
+    const uint64_t finalized_room = keep_resampled::finalized_room(keep_finalized_max, resampled_total, resampled_cap);
     size_t finalized_kept_n = 0;
     if (keep_finalized_max)
         for (auto& [last, tex] : order)
@@ -5087,6 +5295,19 @@ void texture_frame(uint64_t completed) {
         static const bool keep_over_only = env_on("RX_VK_KEEP_RENDERED_OVER");
         const uint64_t keep_rendered = keep_rendered::presents(known, used, allowed, keep_over_only);
         const bool overwritten = shifted || drawn_over(tex);   // (above)
+        // (above. Oldest first, as keep_finalized. Past its cap, a small finalized one is keep_finalized's again, below)
+        const bool resampled_candidate =
+            resampled_cap && tex->resampled &&
+            keep_resampled::candidate(overwritten, gpu_owns(tex), tex->gpu_written, true, frame_no - last);
+        if (resampled_candidate && keep_resampled::keep(tex->bytes, resampled_total, resampled_cap)) {
+            static int logged;
+            if (logged++ < 20)
+                logf("vk: texture #%u %#llx %ux%u NVN %#x (%llu MB) the GPU drew and the game samples again after finalizing it: kept, "
+                     "not evicted (%llu MB of such textures, cap %llu MB; RX_VK_KEEP_RESAMPLED_MB=0: evicted)", tex->id,
+                     (unsigned long long)tex->gpu, tex->width, tex->height, tex->nvn_format, (unsigned long long)(tex->bytes >> 20),
+                     (unsigned long long)(resampled_total >> 20), (unsigned long long)(resampled_cap >> 20));
+            continue;
+        }
         // (hookshot, RX_VK_COMPACT: the hold's pass, above. A live texture stays once the excess over its line is covered: the
         // reserve's line for one long unused, the hold's own for one unused ten seconds, and what the other rules ask (the 90%
         // rule, the budget's size, the driver's limit) for one unused as long as an eviction asks with the compaction off)
@@ -5094,13 +5315,19 @@ void texture_frame(uint64_t completed) {
             const uint64_t to = vram_compact::hold_target(frame_no - last, need_unused, rule_to, hold_to, evict_to);
             if (to == UINT64_MAX || vram_compact::hold_met(total_bytes, hold_live, hold_dead, to)) continue;
         }
-        if (finalized_kept && keep_finalized(tex)) {   // (above. Oldest first: beyond the cap the least recently used go)
-            if (finalized_kept <= keep_finalized_max) continue;
+        // (one keep_resampled let go past its cap: keep_finalized's as before that rule, if it is one of its textures. It joins
+        // keep_finalized's total here, so the older ones walked before it were judged without it: they keep a little more)
+        const bool finalized_after_resampled = resampled_candidate && finalized_once(tex);
+        if (finalized_after_resampled) finalized_kept += tex->bytes;
+        // (above. Oldest first: beyond the cap the least recently used go. The cap is keep_finalized's room: what keep_resampled may
+        // hold this pass is off it)
+        if (finalized_kept && (finalized_after_resampled || keep_finalized(tex))) {
+            if (finalized_kept <= finalized_room) continue;
             finalized_kept -= tex->bytes;
             static int logged;
             if (logged++ < 100)
                 logf("vk: kept finalized textures over %llu MB: #%u %#llx %ux%u NVN %#x goes (unused for %llu frames)",
-                     (unsigned long long)(keep_finalized_max >> 20), tex->id, (unsigned long long)tex->gpu, tex->width,
+                     (unsigned long long)(finalized_room >> 20), tex->id, (unsigned long long)tex->gpu, tex->width,
                      tex->height, tex->nvn_format, (unsigned long long)(frame_no - last));
         }
         if (!overwritten && tex->gpu_written && !tex->released && !evict_rendered && frame_no - last < keep_rendered) continue;

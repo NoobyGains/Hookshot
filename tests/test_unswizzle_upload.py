@@ -50,7 +50,7 @@ def actual(source):
     marker = "int memory_guest_contained("
     contained = block(mem, marker) if marker in mem else ""
     # the rows: from where a block-linear level's source is found to the unswizzle's timing
-    cpu = block(tex, "bool upload_inner(Texture& tex, const Ranges* dirty) {")
+    cpu = block(tex, "bool upload_inner(Texture& tex, const Ranges* dirty, uint64_t* moved) {")
     start = cpu.rindex("\n", 0, cpu.index("const uint64_t from = src_off")) + 1
     end = cpu.index(";", cpu.index("st_unswizzle_ns +=", start)) + 1
     rows = cpu[start:end]

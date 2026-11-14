@@ -16,7 +16,7 @@ VK = ROOT / "gpu" / "vk"
 
 def main():
 	tex = (VK / "vk_texture.cpp").read_text(encoding="utf-8")
-	body = tex[tex.index("bool upload_inner(Texture& tex, const Ranges* dirty) {"):]
+	body = tex[tex.index("bool upload_inner(Texture& tex, const Ranges* dirty, uint64_t* moved) {"):]
 	body = body[:body.index("\n}\n")]
 	if "texture_resident_queue(&tex" not in body:
 		raise SystemExit("upload_inner no longer queues sparse binds: this test needs updating")

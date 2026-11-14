@@ -34,6 +34,7 @@
 #include "import_hold.h"
 #include "import_fence.h"
 #include "mirror_budget.h"   // (mirror_budget's rules: Auto's, and a preset's cap)
+#include "import_reach.h"
 #include "mirror_trim.h"
 #include "wb_learn.h"
 #include "mirror_inherit.h"
@@ -141,6 +142,20 @@ Pool* last_pool = nullptr;            // (the last pool_of hit: draws in a row b
 extern Pool* pool_cache[4096];
 void retire_pool(std::map<uint64_t, Pool>::iterator it);
 Pool* pool_lookup(uint64_t guest, uint64_t size);
+// (hookshot) The spans of the imports in `imported`, for the scans down the table by start (import_reach.h): how far below an
+// address one that reaches it may start. Kept by imported_add and imported_take, the only ways in and out (pools_mu held)
+import_reach::Reach live_reach;
+/// An import into the table, counted in live_reach (pools_mu held)
+std::map<uint64_t, Pool>::iterator imported_add(const Pool& p) {
+    const auto [it, added] = imported.emplace(p.lo, p);
+    if (added) live_reach.add(p.hi - p.lo);
+    return it;
+}
+/// An import out of the table, its node (and the Pool in it) kept where it is, no longer counted (pools_mu held)
+std::map<uint64_t, Pool>::node_type imported_take(std::map<uint64_t, Pool>::iterator it) {
+    live_reach.remove(it->second.hi - it->second.lo);
+    return imported.extract(it);
+}
 struct SrwMutex {   // (a slim reader/writer lock: half std::mutex's cost, taken for every buffer a draw binds)
     SRWLOCK l = SRWLOCK_INIT;
     void lock() { AcquireSRWLockExclusive(&l); }
@@ -2905,7 +2920,7 @@ void bg_drain() {
             --o;
             if (o == imp) continue;
             if (o->second.hi <= p.lo) {
-                if (o->second.hi + (1ull << 30) < p.lo) break;
+                if (import_reach::beyond(live_reach, o->second.lo, p.lo)) break;   // (none further down reaches p.lo)
                 continue;
             }
             overlap = true;
@@ -2919,7 +2934,7 @@ void bg_drain() {
             continue;
         }
         if (imp != imported.end()) retire_pool(imp);
-        imported.emplace(lo, p);
+        imported_add(p);
         guest_pages_set(p.lo, p.hi, p.address);
     }
 }
@@ -2940,7 +2955,7 @@ void prefetch_chunks(uint64_t lo, uint64_t hi, uint64_t chunk) {
         for (auto o = imported.lower_bound(b); o != imported.begin();) {
             --o;
             if (o->second.hi > a) return true;
-            if (o->second.hi + (1ull << 30) < a) break;
+            if (import_reach::beyond(live_reach, o->second.lo, a)) break;
         }
         return false;
     };
@@ -3020,11 +3035,13 @@ Pool* pool_lookup(uint64_t guest, uint64_t size) {
     if (guest < it->lo || guest >= it->hi || !size || size > it->hi - guest) return nullptr;
     const uint64_t chunk = import_chunk();
     const GuestPool range = chunk ? GuestPool{guest, guest + size} : *it;
-    auto covering = [&]() {
-        auto c = imported.upper_bound(range.lo);
-        if (c == imported.begin()) return imported.end();
-        --c;
-        return c->second.lo <= range.lo && c->second.hi >= range.hi ? c : imported.end();
+    auto covering = [&]() {   // (the import holding the whole range: the last one starting at or below it, or one further down)
+        for (auto c = imported.upper_bound(range.lo); c != imported.begin();) {
+            --c;
+            if (c->second.hi >= range.hi) return c;
+            if (import_reach::beyond(live_reach, c->second.lo, range.hi)) break;   // (none further down reaches range.hi)
+        }
+        return imported.end();
     };
     auto imp = chunk ? covering() : imported.find(range.lo);
     if (chunk && range.hi > UINT64_MAX - (chunk - 1)) return nullptr;
@@ -3070,7 +3087,7 @@ Pool* pool_lookup(uint64_t guest, uint64_t size) {
                 while (it != imported.begin()) {
                     --it;
                     if (it->second.hi <= lo) {
-                        if (it->second.hi + (1ull << 30) < lo) break;   // (imports are at most 1 GB: none further down reaches lo)
+                        if (import_reach::beyond(live_reach, it->second.lo, lo)) break;   // (none further down reaches lo)
                         continue;
                     }
                     overlapped.push_back(it->first);
@@ -3125,7 +3142,7 @@ Pool* pool_lookup(uint64_t guest, uint64_t size) {
                 p.gpu_only |= o->second.gpu_only, p.gpu_written |= o->second.gpu_written, p.trims = std::max(p.trims, o->second.trims),
                     p.trim_epoch = std::max(p.trim_epoch, o->second.trim_epoch), retire_pool(o);
         }
-        imp = imported.emplace(p.lo, p).first;
+        imp = imported_add(p);
         guest_pages_set(p.lo, p.hi, p.address);
         if (chunk) prefetch_chunks(p.lo, p.hi, chunk);
         if (overlapped.size() > 1) {
@@ -3191,14 +3208,16 @@ bool import_in_background(uint64_t guest, uint64_t size) {
     if (guest < it->lo || guest >= it->hi || size > it->hi - guest) return false;
     const uint64_t chunk = import_chunk();
     if (!chunk || guest + size > UINT64_MAX - chunk) return false;
-    if (auto c = imported.upper_bound(guest); c != imported.begin() && std::prev(c)->second.lo <= guest &&
-                                              std::prev(c)->second.hi >= guest + size)
-        return false;   // (covered)
+    for (auto c = imported.upper_bound(guest); c != imported.begin();) {   // (covered: by the last one at or below it, or further down)
+        --c;
+        if (c->second.hi >= guest + size) return false;
+        if (import_reach::beyond(live_reach, c->second.lo, guest + size)) break;
+    }
     const uint64_t lo = guest / chunk * chunk, hi = (guest + size + chunk - 1) / chunk * chunk;
     for (auto o = imported.lower_bound(hi); o != imported.begin();) {   // (an import there: the synchronous path grows it)
         --o;
         if (o->second.hi <= lo) {
-            if (o->second.hi + (1ull << 30) < lo) break;
+            if (import_reach::beyond(live_reach, o->second.lo, lo)) break;
             continue;
         }
         return false;
@@ -3605,7 +3624,7 @@ void retire_pool(std::map<uint64_t, Pool>::iterator it) {
     static const bool no_inherit = env_on("RX_VK_NO_INHERIT");
     if (old->mstate == Pool::MIRROR_ON && !no_inherit) old->inherit_pending = true, old->retired_epoch = mirror_epoch;
     pools_gen++;
-    retired_pools.push_back(imported.extract(it));
+    retired_pools.push_back(imported_take(it));
     last_pool = nullptr;
     std::fill(std::begin(pool_cache), std::end(pool_cache), nullptr);
     static int logged;
@@ -3890,11 +3909,11 @@ void memory_note_gpu_write(uint64_t gpu, uint64_t size) {
     }
     std::lock_guard lk(pools_mu);
     rb_hazard_locked(guest, guest + size);
-    // (and the pools it reaches keep their mirrors: imports are at most 1 GB, so none further down reaches guest)
+    // (and the pools it reaches keep their mirrors: down the table until none further down can reach guest, import_reach.h)
     for (auto it = imported.upper_bound(guest + size - 1); it != imported.begin();) {
         --it;
         if (it->second.hi > guest) it->second.gpu_only = true;
-        else if (it->second.hi + (1ull << 30) < guest) break;
+        else if (import_reach::beyond(live_reach, it->second.lo, guest)) break;
     }
 }
 void memory_rb_recording_begun() {
@@ -4010,7 +4029,7 @@ int memory_guest_imported(uint64_t lo, uint64_t hi) {
     while (it != imported.begin()) {
         --it;
         if (it->second.hi > lo) return 1;
-        if (it->second.hi + (1ull << 30) < lo) break;   // (imports are at most 1 GB: none further down reaches lo)
+        if (import_reach::beyond(live_reach, it->second.lo, lo)) break;   // (none further down reaches lo: import_reach.h)
     }
     for (const auto& nh : retired_pools)
         if (nh.mapped().memory && nh.mapped().lo < hi && lo < nh.mapped().hi) return 1;
@@ -4090,6 +4109,30 @@ uint64_t gpu_pool_start(uint64_t gpu) {   // (EvilOOT) where it begins
     }
     const Pool* p = pool_of(gpu, 1);
     return p ? p->lo : 0;
+}
+/// (hookshot) How much of [gpu, gpu + n) from gpu on one import can hold: up to the end of the game pool holding gpu, since
+/// pool_lookup takes a range inside one pool only (and for a virtual pool's address, from 1 TB, only as far as the host maps it
+/// on). in_pool false: no pool holds gpu, so no import does, up to the next pool's start. Never 0 for n > 0 (vk_replay.cpp
+/// gpu_piece_bind: the replay's own writes go on a piece at a time)
+uint64_t gpu_pool_piece(uint64_t gpu, uint64_t n, bool& in_pool) {
+    in_pool = false;
+    uint64_t guest = gpu;
+    if (gpu >= (1ull << 40)) {
+        uint64_t avail = 0;
+        if (!host->gpu_ptr(gpu, &avail) || !avail) return n;
+        n = std::min(n, avail);
+        guest = host->gpu_guest(gpu);
+    }
+    if (!n) return 0;
+    ParLock plk;   // (before pools_mu, always)
+    std::lock_guard lk(pools_mu);
+    // (pool_lookup's pool: the last one starting at or below guest)
+    const auto it = std::upper_bound(guest_pools.begin(), guest_pools.end(), guest, [](uint64_t a, const GuestPool& p) { return a < p.lo; });
+    if (it != guest_pools.begin() && guest < (it - 1)->hi) {
+        in_pool = true;
+        return std::min(n, (it - 1)->hi - guest);
+    }
+    return it == guest_pools.end() ? n : std::min(n, it->lo - guest);
 }
 
 // (pools leaving, a mirror made, or the next submission: a remembered read binding is looked up again)
@@ -4587,7 +4630,7 @@ void imports_give_back() {   // (pools_mu held)
         if (grace) p.retired_value = ~0ull, p.retired_ms = import_now_ms();   // (AMD, Intel on Windows: after the wait, above)
         freed += p.hi - p.lo;
         n++;
-        evicted_pools.push_back(imported.extract(it));
+        evicted_pools.push_back(imported_take(it));
     }
     if (!n) {
         static int logged_none;
@@ -4675,7 +4718,7 @@ bool mirrors_trim() {   // (pools_mu held; true when one was trimmed: its parts 
     trims_waiting++;
     for (Pool& m : made) {
         m.gpu_only = gpu_only, m.gpu_written = gpu_written, m.trims = trims, m.trim_epoch = mirror_epoch;
-        auto it = imported.emplace(m.lo, m).first;
+        auto it = imported_add(m);
         guest_pages_set(it->second.lo, it->second.hi, it->second.address);
         it->second.mstate = Pool::MIRROR_WANTED;
         mirror_wanted.push_back(&it->second);

@@ -71,7 +71,14 @@ VkFormatInfo vk_format(int nvn_format) {
     case NVN_FORMAT_RG32F: return {VK_FORMAT_R32G32_SFLOAT, false, 1, 1};
     case NVN_FORMAT_RG32UI: return {VK_FORMAT_R32G32_UINT, false, 1, 1};
     case NVN_FORMAT_RG32I: return {VK_FORMAT_R32G32_SINT, false, 1, 1};
+    case NVN_FORMAT_RGB16F: return {VK_FORMAT_R16G16B16_SFLOAT, false, 1, 1};   // (3 components: widened, vk_texture.cpp)
+    case NVN_FORMAT_RGB16: return {VK_FORMAT_R16G16B16_UNORM, false, 1, 1};
+    case NVN_FORMAT_RGB16SN: return {VK_FORMAT_R16G16B16_SNORM, false, 1, 1};
+    case NVN_FORMAT_RGB16UI: return {VK_FORMAT_R16G16B16_UINT, false, 1, 1};
+    case NVN_FORMAT_RGB16I: return {VK_FORMAT_R16G16B16_SINT, false, 1, 1};
     case NVN_FORMAT_RGB32F: return {VK_FORMAT_R32G32B32_SFLOAT, false, 1, 1};
+    case NVN_FORMAT_RGB32UI: return {VK_FORMAT_R32G32B32_UINT, false, 1, 1};
+    case NVN_FORMAT_RGB32I: return {VK_FORMAT_R32G32B32_SINT, false, 1, 1};
     case NVN_FORMAT_RGBX8: return {VK_FORMAT_R8G8B8A8_UNORM, false, 1, 1};
     case NVN_FORMAT_RGBX8SN: return {VK_FORMAT_R8G8B8A8_SNORM, false, 1, 1};
     case NVN_FORMAT_RGBX8UI: return {VK_FORMAT_R8G8B8A8_UINT, false, 1, 1};
@@ -95,7 +102,7 @@ VkFormatInfo vk_format(int nvn_format) {
     case NVN_FORMAT_RGBA8I: return {VK_FORMAT_R8G8B8A8_SINT, false, 1, 1};
     case NVN_FORMAT_RGBX8_SRGB: return {VK_FORMAT_R8G8B8A8_SRGB, false, 1, 1};
     case NVN_FORMAT_RGBA8_SRGB: return {VK_FORMAT_R8G8B8A8_SRGB, false, 1, 1};
-    case NVN_FORMAT_RGB5: return {VK_FORMAT_B5G5R5A1_UNORM_PACK16, false, 1, 1};
+    case NVN_FORMAT_RGB5: return {VK_FORMAT_A1R5G5B5_UNORM_PACK16, false, 1, 1};   // (RGB5A1's: see there)
     case NVN_FORMAT_RGBA16: return {VK_FORMAT_R16G16B16A16_UNORM, false, 1, 1};
     case NVN_FORMAT_RGBA16SN: return {VK_FORMAT_R16G16B16A16_SNORM, false, 1, 1};
     case NVN_FORMAT_RGBA16UI: return {VK_FORMAT_R16G16B16A16_UINT, false, 1, 1};
@@ -110,14 +117,27 @@ VkFormatInfo vk_format(int nvn_format) {
     case NVN_FORMAT_DEPTH24_STENCIL8: return {VK_FORMAT_D24_UNORM_S8_UINT, false, 1, 1};
     case NVN_FORMAT_DEPTH32F_STENCIL8: return {VK_FORMAT_D32_SFLOAT_S8_UINT, false, 1, 1};
     case NVN_FORMAT_RGBA4: return {VK_FORMAT_A4B4G4R4_UNORM_PACK16, false, 1, 1};
+    // (NVN's RGB5A1 holds red in bits 0-4, green 5-9, blue 10-14 and alpha in bit 15: Vulkan's A1B5G5R5, which needs
+    // VK_KHR_maintenance5. It is kept as A1R5G5B5, and a sampled view swaps red and blue back (vk_texture.cpp
+    // texture_view). RGB5 is RGB5A1 whose top bit is unused: alpha reads one)
     case NVN_FORMAT_RGB5A1: return {VK_FORMAT_A1R5G5B5_UNORM_PACK16, false, 1, 1};
     case NVN_FORMAT_RGB565: return {VK_FORMAT_B5G6R5_UNORM_PACK16, false, 1, 1};
     case NVN_FORMAT_BGR565: return {VK_FORMAT_R5G6B5_UNORM_PACK16, false, 1, 1};
+    // (NVN names packed formats from the lowest bits up (RGB565: red in bits 0-4): BGR5A1 is blue in bits 0-4, green 5-9,
+    // red 10-14, alpha 15, Vulkan's A1R5G5B5; A1BGR5 is alpha in bit 0, then blue, green and red, Vulkan's R5G5B5A1. BGR5 is
+    // BGR5A1 whose top bit is unused: its alpha reads one (vk_texture.cpp alpha_reads_one))
+    case NVN_FORMAT_BGR5: return {VK_FORMAT_A1R5G5B5_UNORM_PACK16, false, 1, 1};
+    case NVN_FORMAT_BGR5A1: return {VK_FORMAT_A1R5G5B5_UNORM_PACK16, false, 1, 1};
+    case NVN_FORMAT_A1BGR5: return {VK_FORMAT_R5G5B5A1_UNORM_PACK16, false, 1, 1};
     case NVN_FORMAT_RGB10A2: return {VK_FORMAT_A2B10G10R10_UNORM_PACK32, false, 1, 1};
     case NVN_FORMAT_RGB10A2UI: return {VK_FORMAT_A2B10G10R10_UINT_PACK32, false, 1, 1};
     case NVN_FORMAT_R11G11B10F: return {VK_FORMAT_B10G11R11_UFLOAT_PACK32, false, 1, 1};
     case NVN_FORMAT_RGB9E5F: return {VK_FORMAT_E5B9G9R9_UFLOAT_PACK32, false, 1, 1};
+    // (RGB_DXT1 is RGBA_DXT1 with alpha read as one (vk_texture.cpp alpha_reads_one): one Vulkan format, so a texture and
+    // its views of either share one image. Vulkan's BC1_RGB is another view class than BC1_RGBA)
+    case NVN_FORMAT_RGB_DXT1: return {VK_FORMAT_BC1_RGBA_UNORM_BLOCK, false, 1, 1};
     case NVN_FORMAT_RGBA_DXT1: return {VK_FORMAT_BC1_RGBA_UNORM_BLOCK, false, 1, 1};
+    case NVN_FORMAT_RGB_DXT1_SRGB: return {VK_FORMAT_BC1_RGBA_SRGB_BLOCK, false, 1, 1};
     case NVN_FORMAT_RGBA_DXT1_SRGB: return {VK_FORMAT_BC1_RGBA_SRGB_BLOCK, false, 1, 1};
     case NVN_FORMAT_RGBA_DXT3: return {VK_FORMAT_BC2_UNORM_BLOCK, false, 1, 1};
     case NVN_FORMAT_RGBA_DXT3_SRGB: return {VK_FORMAT_BC2_SRGB_BLOCK, false, 1, 1};
@@ -132,7 +152,9 @@ VkFormatInfo vk_format(int nvn_format) {
     case NVN_FORMAT_BPTC_SFLOAT: return {VK_FORMAT_BC6H_SFLOAT_BLOCK, false, 1, 1};
     case NVN_FORMAT_BPTC_UFLOAT: return {VK_FORMAT_BC6H_UFLOAT_BLOCK, false, 1, 1};
     case NVN_FORMAT_BGRX8: return {VK_FORMAT_B8G8R8A8_UNORM, false, 1, 1};
+    case NVN_FORMAT_BGRA8: return {VK_FORMAT_B8G8R8A8_UNORM, false, 1, 1};
     case NVN_FORMAT_BGRX8_SRGB: return {VK_FORMAT_B8G8R8A8_SRGB, false, 1, 1};
+    case NVN_FORMAT_BGRA8_SRGB: return {VK_FORMAT_B8G8R8A8_SRGB, false, 1, 1};
     default: return {VK_FORMAT_UNDEFINED, false, 1, 1};
     }
 }

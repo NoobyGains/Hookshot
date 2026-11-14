@@ -22,7 +22,8 @@ def main():
     fn = block(draw, "bool vertex_bind_reuse(")
     streams = block(draw, "for (uint32_t b = 0; b < 16; b++)")
     ask = streams.index("vertex_bind_reuse(")
-    look = streams.index("gpu_buffer_bind(")
+    # (the stream's lookups: its binding, and for a stream bound whole its pool's end)
+    look = min(streams.index("extent_bind("), streams.index("vertex_whole_extent("))
     if ask > look:
         raise SystemExit("vertex streams look the pool up before checking the stream already bound")
     made = block(mem, "bool mirror_make(Pool& pool) {")

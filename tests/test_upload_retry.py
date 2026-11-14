@@ -62,7 +62,7 @@ def main():
     epoch = touch.index("    tex->checked_epoch = epoch;\n    // (hookshot) an image whose last upload failed")
     wait = touch.find("if (tex->retry_frame > frame_no) return tex;")
     seen = touch.find("const uint64_t seen_before = tex->gpu_wrote_seen;")
-    wrote = touch.index("gpu_wrote_into(*tex)")
+    wrote = touch.index("gpu_wrote_into(*tex,")
     dirty = touch.index("texture_dirty(*tex, since, dirty)")
     if not epoch < wait < seen < wrote < dirty:
         raise SystemExit("FAIL: the wait for a failed upload's retry is not before gpu_wrote_into and the dirty scan")
@@ -71,7 +71,7 @@ def main():
     taken = touch.index("from_memory_taken = true;")
     if touch.index("evicted_from_memory.erase(e);") > taken or taken > touch.index("const bool up_ok = upload("):
         raise SystemExit("FAIL: an evicted texture's memory entry, taken before a failed upload, is not noted to be put back")
-    inner = block(src, "bool upload_inner(Texture& tex, const Ranges* dirty) {")
+    inner = block(src, "bool upload_inner(Texture& tex, const Ranges* dirty, uint64_t* moved) {")
     if "if (upload_never(tex)) return false;" not in inner:
         raise SystemExit("FAIL: upload_inner and the retry do not share the test for an image no upload takes")
     print("PASS: a texture whose upload failed waits 30 frames and is tried again with what it had to take; whatever its kind")

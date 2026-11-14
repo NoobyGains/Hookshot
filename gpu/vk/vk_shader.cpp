@@ -212,16 +212,23 @@ Code parse_code(const uint8_t* ctl, const std::vector<uint8_t>& area) {
     using Shader::Ampere::Instruction;
     std::vector<Instruction> native;
     Shader::Ampere::ProgramCaptureState capture;
+    // (hookshot) A word the capture reads as a branch that would leave every program (to before its start, between two
+    // instructions, or 1 MiB or more on) is no instruction of this one. The capture's end rules are narrower than the
+    // lowering's (a loop left only by predicated EXITs, a library function that ends the shader), so it can read on past
+    // the program's end into what follows it there. The program ends before that word: the lowering, which takes a
+    // program only to its own end with every branch inside it (an indirect one's targets when it translates), says
+    // whether it does, and only if it does not is the program refused, naming the word as before. (Refused at the word
+    // itself, compute program 79116b290d46542f was left out on every platform: "the branch at instruction 16404
+    // (+0x40140) goes outside the program")
+    uint32_t outside = ~0u;   // (that word's instruction number)
     for (uint32_t i = 0; hdr + (i + 1) * sizeof(Instruction) <= len; i++) {
         Instruction& insn = native.emplace_back();
         std::memcpy(&insn, area.data() + hdr + i * sizeof(Instruction), sizeof insn);
         const auto r = capture.Observe(insn, i);
         if (r == Shader::Ampere::ProgramCaptureState::Result::InvalidTarget) {
-            char why[96];
-            snprintf(why, sizeof why, "the branch at instruction %u (+%#x) goes outside the program", i,
-                     (unsigned)(i * sizeof(Instruction)));
-            c.why = why;
-            return c;
+            native.pop_back();
+            outside = i;
+            break;
         }
         if (r == Shader::Ampere::ProgramCaptureState::Result::Complete) break;
     }
@@ -325,10 +332,24 @@ Code parse_code(const uint8_t* ctl, const std::vector<uint8_t>& area) {
                 }
             }
         }
-        char why[160];
-        snprintf(why, sizeof why, "does not lower at +%#x: %s", lowered.error_offset, std::string(lowered.error).c_str());
+        char why[256];
+        if (outside != ~0u)   // (the code before the word the capture stopped at does not lower: refused for that word, as before)
+            snprintf(why, sizeof why, "the branch at instruction %u (+%#x) goes outside the program (%#x code bytes), and the "
+                     "code before it does not lower at +%#x: %s", outside, (unsigned)(outside * sizeof(Instruction)),
+                     len - hdr, lowered.error_offset, std::string(lowered.error).c_str());
+        else
+            snprintf(why, sizeof why, "does not lower at +%#x: %s", lowered.error_offset, std::string(lowered.error).c_str());
         c.why = why;
         return c;
+    }
+    if (outside != ~0u) {   // (hookshot: each program once, up to 64: it ended before the word the capture stopped at)
+        static std::mutex mu;
+        static std::unordered_set<uint64_t> seen;
+        std::lock_guard lk(mu);
+        if (seen.size() < 64 && seen.insert(c.key).second)
+            logf("vk: NVN2 program %016llx (stage %u) ends at +%#x, before the word at +%#x that would branch outside it "
+                 "(%#x code bytes)", (unsigned long long)c.key, st, lowered.source_size,
+                 (unsigned)(outside * sizeof(Instruction)), len - hdr);
     }
     c.texture_bound = lowered.required_texture_buffer;
     c.code.assign(sizeof(Shader::ProgramHeader) / 8, 0);
@@ -396,7 +417,9 @@ bool handle_is_integer(uint32_t handle) {
     case VK_FORMAT_R16G16_UINT: case VK_FORMAT_R16G16_SINT: case VK_FORMAT_R16G16B16A16_UINT:
     case VK_FORMAT_R16G16B16A16_SINT: case VK_FORMAT_R32_UINT: case VK_FORMAT_R32_SINT: case VK_FORMAT_R32G32_UINT:
     case VK_FORMAT_R32G32_SINT: case VK_FORMAT_R32G32B32A32_UINT: case VK_FORMAT_R32G32B32A32_SINT:
-    case VK_FORMAT_A2B10G10R10_UINT_PACK32: case VK_FORMAT_S8_UINT: return true;
+    case VK_FORMAT_A2B10G10R10_UINT_PACK32: case VK_FORMAT_S8_UINT:
+    case VK_FORMAT_R8G8B8_UINT: case VK_FORMAT_R8G8B8_SINT: case VK_FORMAT_R16G16B16_UINT: case VK_FORMAT_R16G16B16_SINT:
+    case VK_FORMAT_R32G32B32_UINT: case VK_FORMAT_R32G32B32_SINT: return true;
     default: return false;
     }
 }

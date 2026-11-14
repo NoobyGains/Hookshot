@@ -24,7 +24,7 @@ def main():
         raise SystemExit("a BC3 texture whose upload failed is marked uploaded (drawn as noise, never made again)")
     if "if (tex->retry_frame > frame_no) return tex;" not in tex:
         raise SystemExit("a failed BC3 upload is tried again every submission (it stages the whole ASTC source)")
-    upload = tex[tex.index("bool upload_astc_gpu(Texture& tex, uint64_t total, const Ranges* dirty) {"):]
+    upload = tex[tex.index("bool upload_astc_gpu(Texture& tex, uint64_t total, const Ranges* dirty, uint64_t* moved) {"):]
     upload = upload[:upload.index("\n}\n")]
     if upload.count("return false;") != upload.count("astc_fail = \"") or "no memory for the BC3 scratch" not in upload:
         raise SystemExit("a failed ASTC upload does not say why")
