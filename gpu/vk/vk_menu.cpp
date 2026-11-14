@@ -51,6 +51,7 @@
 #include "vk_fsr3.h"      // (the Upscaler row: whether AMD FSR 3.1 runs on this GPU)
 #include "vk_fsr3fi.h"    // (the Frame generation row: whether FSR 3.1 makes the frame)
 #include "vk_fsr4.h"
+#include "fg_scale_post.h"   // (the Bloom and Colour grade rows' steps)
 #include "vk_temporal.h"
 #include "vk_reflex.h"
 #include "vk_antilag.h"
@@ -827,6 +828,15 @@ const char* tx_shadow_distance(int v) {
     return (unsigned)v < 4 ? t[v] : t[1];
 }
 const char* tx_speed(int v) { return v ? "Real time" : "Per frame"; }
+// (the FXAA, Bloom and Colour grade rows: vk_framegen.cpp framegen_scale)
+const char* tx_bloom(int v) {
+    static const char* t[kBloomSteps] = {"Off", "Low", "Medium", "High"};
+    return (unsigned)v < kBloomSteps ? t[v] : t[0];
+}
+const char* tx_grade(int v) {
+    static const char* t[kGrades] = {"Off", "Rich", "Vivid", "Warm", "Cool", "Cinematic"};
+    return (unsigned)v < kGrades ? t[v] : t[0];
+}
 const char* tx_text_speed(int v) {
     static const char* t[] = {"Normal", "2x", "4x", "Instant"};
     if ((unsigned)v >= sizeof t / sizeof t[0]) return t[0];
@@ -1377,6 +1387,16 @@ Row rows[] = {
      "tone mapper, the same mid grey with highlights that roll off into the peak and keep their colour.",
      nullptr, false, true},
     {TAB_GRAPHICS, "Detail", nullptr, 0, 0, 0, nullptr, nullptr, nullptr, false, true, -1, true},
+    // (hookshot, from Ocarina Reborn: on the finished picture, in the window's scaling pass; not on HDR's Native picture)
+    {TAB_GRAPHICS, "FXAA", &opts.fxaa, 0, 1, 1, tx_onoff,
+     "Smooths jagged edges on the finished picture, for little GPU time; in the Window scaling filter's place while on. Not "
+     "needed with DLSS, DLAA or FSR, which smooth already, nor with HDR set to Native. Changes at once.", nullptr, false, true},
+    {TAB_GRAPHICS, "Bloom", &opts.bloom, 0, kBloomSteps - 1, 1, tx_bloom,
+     "A soft glow around bright light (the sun, fire, magic) on the finished picture. Not with HDR set to Native. Changes at "
+     "once.", nullptr, false, true},
+    {TAB_GRAPHICS, "Colour grade", &opts.grade, 0, kGrades - 1, 1, tx_grade,
+     "A colour grade on the finished picture: richer colour and contrast, a warm or cool tone, a soft vignette. Off shows the "
+     "game's own colours. Not with HDR set to Native. Changes at once.", nullptr, false, true},
     {TAB_GRAPHICS, "Texture detail", &opts.texture_detail, 0, 3, 1, tx_texture_detail,
      "How much of the big textures (ground, walls, buildings) is kept in video memory. Lower uses less, for a softer "
      "picture up close: for 6 and 8 GB cards that slow down after a while. Applies to textures made after the change; "

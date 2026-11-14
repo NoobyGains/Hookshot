@@ -17,7 +17,11 @@ const float kSteps = 255.0;
 // (side 1) or black (side 2), with a short soft edge; vk_framegen.cpp wide_sides. Side 3: this dispatch makes the picture at
 // 1/8 for side 1's blur instead, into dst; side 1 then reads it as small)
 layout(binding = 2) uniform sampler2D small;
-layout(push_constant) uniform P { int mode; float sharp; float x0; float x1; int side; float cover; } pc;
+// (and the FXAA, Bloom and Colour grade rows, last on the picture before the sides: vk_framegen.cpp framegen_scale. From Ocarina
+// Reborn. Look 0 is the picture untouched; the grade's saturation and contrast are around mid grey, warm (+) or cool (-) its
+// white balance, and the vignette a soft darkening of the corners. Bloom 0 is none, 1 the glow at its strongest)
+layout(push_constant) uniform P { int mode; float sharp; float x0; float x1; int side; float cover;
+                                  float sat; float contrast; float warm; float vignette; int look; float bloom; int fxaa; } pc;
 // (and the loading cover between two areas, which the game draws in that middle too: pc.cover, 0 open to 1 closed, closes the
 // sides by as much. The game blends its cover over the picture's light, before the picture is coded for the screen (measured:
 // under a half-open cover a pixel's light is the same fraction of its light without it at every brightness, its code is
@@ -120,6 +124,81 @@ vec3 side_fill(vec2 uv) {
     const vec3 fill = sum / weight * 0.75;
     return pc.cover > 0.0 ? dimmed(fill, 1.0 - pc.cover) : fill;   // (under the loading cover, as pixel())
 }
+// the Colour grade row
+vec3 grade(vec3 c, vec2 uv) {
+    const float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    c = mix(vec3(luma), c, pc.sat);
+    c = (c - 0.5) * pc.contrast + 0.5;
+    c *= vec3(1.0 + pc.warm, 1.0 + pc.warm * 0.25, 1.0 - pc.warm);
+    const float r = length((uv - 0.5) * vec2(1.0, 0.75)) * 1.6;   // (0 in the middle, about 1 in the corners)
+    c *= 1.0 - pc.vignette * smoothstep(0.45, 1.0, r);
+    return clamp(c, 0.0, 1.0);
+}
+// the Bloom row: the light above a threshold, from the picture at 1/8 (side 3's dispatch, as the sides' blur), blurred wide
+// and added back over the picture
+vec3 bloom_glow(vec2 uv) {
+    const vec2 step = 1.5 / vec2(textureSize(small, 0));
+    vec3 sum = vec3(0.0);
+    float weight = 0.0;
+    for (int y = -3; y <= 3; y++)
+        for (int i = -3; i <= 3; i++) {
+            const float w = exp(-float(i * i + y * y) / 6.0);
+            const vec3 t = textureLod(small, clamp(uv + vec2(i, y) * step, vec2(0.0), vec2(1.0)), 0.0).rgb;
+            const float l = dot(t, vec3(0.2126, 0.7152, 0.0722));
+            sum += w * t * smoothstep(0.62, 0.95, l);   // (only what is bright glows)
+            weight += w;
+        }
+    return sum / weight;
+}
+// the FXAA row: edges smoothed on the picture as it is scaled, in the manner of FXAA 3.11's quality preset 10 (a contrast test
+// on the 3 x 3 luma, then a blend across the edge, its end found by a short search along it). Linear taps: it scales too
+float lum(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+vec3 fxaa(vec2 uv) {
+    const vec2 px = 1.0 / vec2(textureSize(src, 0));
+    const vec3 rgbM = textureLod(src, uv, 0.0).rgb;
+    const float m = lum(rgbM);
+    const float n = lum(textureLod(src, uv + vec2(0.0, -px.y), 0.0).rgb), s = lum(textureLod(src, uv + vec2(0.0, px.y), 0.0).rgb);
+    const float w = lum(textureLod(src, uv + vec2(-px.x, 0.0), 0.0).rgb), e = lum(textureLod(src, uv + vec2(px.x, 0.0), 0.0).rgb);
+    const float lo = min(m, min(min(n, s), min(w, e))), hi = max(m, max(max(n, s), max(w, e)));
+    const float range = hi - lo;
+    if (range < max(0.0312, hi * 0.125)) return rgbM;   // (no edge here: the pixel untouched)
+    const float nw = lum(textureLod(src, uv - px, 0.0).rgb), se = lum(textureLod(src, uv + px, 0.0).rgb);
+    const float ne = lum(textureLod(src, uv + vec2(px.x, -px.y), 0.0).rgb), sw = lum(textureLod(src, uv + vec2(-px.x, px.y), 0.0).rgb);
+    const float horiz = abs(nw + ne - 2.0 * n) + 2.0 * abs(w + e - 2.0 * m) + abs(sw + se - 2.0 * s);
+    const float vert = abs(nw + sw - 2.0 * w) + 2.0 * abs(n + s - 2.0 * m) + abs(ne + se - 2.0 * e);
+    const bool hor = horiz >= vert;
+    const float l1 = hor ? n : w, l2 = hor ? s : e;
+    const float g1 = abs(l1 - m), g2 = abs(l2 - m);
+    float stepLen = hor ? px.y : px.x;
+    float lEdge = l2;
+    if (g1 >= g2) { stepLen = -stepLen; lEdge = l1; }
+    const float grad = 0.25 * max(g1, g2), lAvg = 0.5 * (lEdge + m);
+    vec2 base = uv;
+    if (hor) base.y += stepLen * 0.5; else base.x += stepLen * 0.5;
+    const vec2 dir = hor ? vec2(px.x, 0.0) : vec2(0.0, px.y);
+    vec2 a = base - dir, b = base + dir;
+    float ea = lum(textureLod(src, a, 0.0).rgb) - lAvg, eb = lum(textureLod(src, b, 0.0).rgb) - lAvg;
+    bool da = abs(ea) >= grad, db = abs(eb) >= grad;
+    const float steps[6] = float[](1.5, 2.0, 2.0, 2.0, 4.0, 8.0);
+    for (int i = 0; i < 6 && !(da && db); i++) {
+        if (!da) { a -= dir * steps[i]; ea = lum(textureLod(src, a, 0.0).rgb) - lAvg; da = abs(ea) >= grad; }
+        if (!db) { b += dir * steps[i]; eb = lum(textureLod(src, b, 0.0).rgb) - lAvg; db = abs(eb) >= grad; }
+    }
+    const float distA = hor ? uv.x - a.x : uv.y - a.y, distB = hor ? b.x - uv.x : b.y - uv.y;
+    const bool nearA = distA < distB;
+    const float dist = min(distA, distB), len = distA + distB;
+    const bool mSmaller = m - lAvg < 0.0;
+    const bool good = ((nearA ? ea : eb) < 0.0) != mSmaller;
+    float offset = good ? 0.5 - dist / len : 0.0;
+    // (and the sub-pixel part: lines a pixel thin)
+    const float avg = (2.0 * (n + s + w + e) + nw + ne + sw + se) / 12.0;
+    const float sub = clamp(abs(avg - m) / range, 0.0, 1.0);
+    const float subF = (-2.0 * sub + 3.0) * sub * sub;
+    offset = max(offset, subF * subF * 0.75);
+    vec2 fuv = uv;
+    if (hor) fuv.y += offset * stepLen; else fuv.x += offset * stepLen;
+    return textureLod(src, fuv, 0.0).rgb;
+}
 // (and less than one of the destination's steps of noise over it, kSteps: the dim, smooth sides showed 8-bit steps as contour lines)
 float dither(ivec2 g) { return (fract(52.9829189 * fract(0.06711056 * float(g.x) + 0.00583715 * float(g.y))) - 0.5) / kSteps; }
 void main() {
@@ -145,7 +224,8 @@ void main() {
             return;
         }
     }
-    vec3 c = filtered(uv);
+    // (FXAA in the window filter's place; not while the loading cover dims the sides, which only the filter's taps do)
+    vec3 c = pc.fxaa != 0 && pc.cover <= 0.0 ? fxaa(uv) : filtered(uv);
     if (pc.sharp > 0.0) {
         // The neighbours one picture pixel away (one window pixel when the window is the smaller). They were one window
         // pixel away, a fraction of a picture pixel when the window is larger (0.53 for 2048 x 1152 on a 3840 x 2160
@@ -155,6 +235,8 @@ void main() {
         const vec3 w = bilinear(uv + vec2(-e.x, 0.0)), r = bilinear(uv + vec2(e.x, 0.0));
         c = sharpen(c, n, s, w, r, pc.sharp);
     }
+    if (pc.bloom > 0.0) c = min(c + bloom_glow(uv) * pc.bloom, vec3(1.0));
+    if (pc.look != 0) c = grade(c, uv);
     if (outside > 0.0) c = mix(c, pc.side == 2 ? vec3(0.0) : side_fill(uv) + dither(g), outside);
     imageStore(dst, g, vec4(c, 1.0));
 }

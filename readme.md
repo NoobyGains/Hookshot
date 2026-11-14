@@ -456,6 +456,9 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | HDR peak brightness | 400 to 4000 nits (while HDR is on) | 1000 nits |
 | | HDR contrast | 50% to 200% around mid grey (while HDR is on) | 100% |
 | | HDR tone mapper | Vanilla (the game's curve), PsychoV35 (RenoDX's; with HDR set to Native. DLSS/DLAA with their NVIDIA frame-generation inputs, and AMD FSR 4, can be tried with `RX_VK_PSYCHOV35_DLSS=1`; FSR 3.1, TAAU and Upscaler Off still fall back to the game's network) | Vanilla |
+| | FXAA | Off, On (on the finished picture, in the Window scaling filter's place; not with HDR set to Native; changes at once) | Off |
+| | Bloom | Off, Low, Medium, High (a glow around bright light; not with HDR set to Native; changes at once) | Off |
+| | Colour grade | Off, Rich, Vivid, Warm, Cool, Cinematic (not with HDR set to Native; changes at once) | Off |
 | | Texture detail | Auto, Full, Medium, Low | Auto |
 | | Anisotropic filtering | Game's, 2x, 4x, 8x, 16x | 16x |
 | | View distance | Short, Original, Far, Very far, Max (how far trees, bushes and detailed models reach; changes at once) | Original |
@@ -1314,7 +1317,7 @@ Hookshot exists thanks to the work of many people:
 - **[MythosOfs/Orchid](https://github.com/MythosOfs/Orchid)**: the fog and exposure workaround Ocarina of Time used before
   its fog and lighting were fixed.
 - **[Ocarina Reborn](https://github.com/misterrageguy-cyber/OoT2026-PC-Recomp)** (misterrageguy-cyber): the View distance,
-  Grass and Shadow distance rows.
+  Grass and Shadow distance rows, FXAA, Bloom and the Colour grade.
 - **hotoni** (the Graphics-Menu mod): where the game keeps its view, grass and shadow distances.
 - **Mesa (NAK)**: the reference for Ampere's instruction encoding.
 - Everyone who sent fixes: SkippySteve (Linux and the AppImage, and many more), monsterlag, klimovich008, hckrman101 (NVIDIA

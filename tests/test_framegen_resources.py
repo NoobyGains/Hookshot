@@ -32,6 +32,9 @@ def main():
     source = (a.source / "gpu/vk/vk_framegen.cpp").read_text(encoding="utf-8")
     structs = source[source.index("struct Img {"):source.index("// Used only by present_image")]
     structs += source[source.index("struct ScaleState {"):source.index("int64_t now_ns()")]
+    # (init_scale makes the window pass with its push constants' size: fg_scale_post.h's ScalePush, in the fixture's namespace)
+    post = (a.source / "gpu/vk/fg_scale_post.h").read_text(encoding="utf-8").replace("#pragma once", "")
+    structs = post + "\nusing namespace mkwvk;\n" + structs
     signatures = ["void drop_pipe(", "bool make_pipe(", "void drop_setup(", "bool init()", "bool init_scale()",
                   "bool make_img(", "void drop_img(", "void drop_size(", "bool ensure_size(",
                   "bool framegen_wanted(", "bool framegen_on()"]
